@@ -2,20 +2,10 @@
 
 Omeka-S-CLI is a command line tool to manage Omeka-S installs.
 
-## Requirements
-
-- PHP (>= 8)
-- Composer 2
-- Omeka-S install (>= 3.2)
-
-## Installation
-
-- Clone this repository and install dependencies using `composer install`. 
-- Create a symlink in `/usr/local/bin` to `bin/omeka-s-cli`.
-
 ## Usage
 
     omeka-s-cli <command> [options]
+    omeka-s-cli <command> --help
 
 Commands:
 
@@ -39,11 +29,21 @@ theme
   theme:status        Get theme status
 ```
 
+## Requirements
+
+- PHP (>= 8) with PDO_MySQL and Zip enabled
+- Composer
+- Omeka-S (>= 3.2)
+
+## Installation
+
+- Clone this repository and install dependencies using `composer install`. 
+- Create a symlink in `/usr/local/bin` to `bin/omeka-s-cli`.
+
 ## To do
 
 - [ ] Core management (version, latest-version, install, update)
 - [ ] Config management (list, get, set)
-
 
 ## Inspired by
 
