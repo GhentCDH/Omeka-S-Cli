@@ -45,6 +45,7 @@ class ModuleController extends AbstractCommandController
                 ->action([$this,'download']),
             (new Command('module:install', 'Install module', 'i'))
                 ->argument('<module-id>', 'The module ID (or id:version)')
+                ->usage("omeka-s-cli module:install Log<eol>omeka-s-cli module:install Log:3.4.19")
                 ->action([$this,'install']),
             (new Command('module:uninstall', 'Uninstall module', 'i'))
                 ->argument('<module-id>', 'The module ID (or id:version)')
