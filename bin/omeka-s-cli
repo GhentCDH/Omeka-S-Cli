@@ -1,0 +1,16 @@
+#!/usr/bin/env php
+<?php
+namespace OSC;
+
+use OSC\Cli\Application as CliApplication;
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+$app = new CliApplication('Omeka-S-Cli', '0.0.1');
+$app->logo("
+   ___            _            ___    ___ _ _ 
+  / _ \ _ __  ___| |____ _    / __|  / __| (_)
+ | (_) | '  \/ -_) / / _` | = \__ \ | (__| | |
+  \___/|_|_|_\___|_\_\__,_|   |___/  \___|_|_|
+");
+$app->handle($_SERVER['argv']);
