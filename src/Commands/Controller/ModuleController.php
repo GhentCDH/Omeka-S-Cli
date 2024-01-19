@@ -137,8 +137,12 @@ class ModuleController extends AbstractCommandController
             $this->webApi->downloadUnzip($downloadUrl, $this->app()->omeka()->path().'/modules/');
             $this->io()->white("done", true);
 
-
-        } catch (Exception $e) {
+            // Check if module is available
+            $module = $this->moduleApi->getModule($moduleId, true);
+            if(!$module) {
+                throw new Exception("Module '{$moduleId}' not found after download.");
+            }
+        } catch(Throwable $e) {
             $this->io()->error("Could not download module '{$moduleId}'. {$e->getMessage()}", true);
         }
     }
@@ -152,18 +156,15 @@ class ModuleController extends AbstractCommandController
                 $this->download($moduleId);
                 $module = $this->moduleApi->getModule($moduleId, true);
             }
-            elseif(($module->getState()=='active')||($module->getState()=='not_active')){
+            elseif(($module->getState() === ModuleManager::STATE_ACTIVE) || ($module->getState() === ModuleManager::STATE_NOT_ACTIVE)){
                 throw new Exception('The module seems to be already installed');
-            }
-            elseif($module->getState()!='not_installed'){
-                throw new Exception('The module status is: '.$module->getState());
             }
 
             // Downloaded and can be installed. Install
             $this->app()->omeka()->elevatePrivileges();
             $this->moduleApi->install($module);
             $this->io()->ok("Module '{$moduleId}' successfully installed.", true);
-        } catch(Exception $e) {
+        } catch(Throwable $e) {
             $this->io()->error("Could not install module '{$moduleId}'. {$e->getMessage()}", true);
         }
     }
