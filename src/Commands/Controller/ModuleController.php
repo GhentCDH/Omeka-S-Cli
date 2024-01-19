@@ -249,7 +249,7 @@ class ModuleController extends AbstractCommandController
                 throw new Exception("Module '{$moduleId}' not found");
             }
 
-            if($module->getState() === ModuleManager::STATE_ACTIVE || ModuleManager::STATE_NOT_ACTIVE) {
+            if($module->getState() === ModuleManager::STATE_ACTIVE || $module->getState() === ModuleManager::STATE_NOT_ACTIVE) {
                 if (!$force) {
                     throw new Exception("The module is currently installed. Use the --force flag to uninstall the module.");
                 }
