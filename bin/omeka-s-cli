@@ -3,9 +3,22 @@
 namespace OSC;
 
 use OSC\Cli\Application as CliApplication;
+use OSC\Omeka\Module\ModuleRepositoryManager;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+// init module repositories
+$repositories = [
+  new Omeka\Module\Repository\OmekaDotOrg(),
+  new Omeka\Module\Repository\DanielKM(),
+];
+
+$moduleRepository = ModuleRepositoryManager::getInstance();
+foreach ($repositories as $repository) {
+  $moduleRepository->addRepository($repository);
+}
+
+// init application
 $app = new CliApplication('Omeka-S-Cli', '0.0.1');
 $app->logo("
    ___            _            ___    ___ _ _ 
