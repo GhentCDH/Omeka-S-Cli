@@ -7,7 +7,10 @@ class ModuleRepresentation
      * @param ModuleVersion[] $versions
      */
     public function __construct(
-        public string $id,
+        // lowercase version of the module name
+        public string $id, 
+        // the name of the module
+        public string $dirname,
         public string $latestVersion,
         public array $versions,
         public ?string $description = null,
