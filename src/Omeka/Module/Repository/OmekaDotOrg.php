@@ -27,16 +27,21 @@ class OmekaDotOrg extends AbstractRepository implements RepositoryInterface
             foreach ($data as $module) {
                 $versions = [];
                 foreach ($module['versions'] as $version => $versionData) {
-                    $versions[] = new ModuleVersion(
+                    $versions[$version] = new ModuleVersion(
                         $version,
                         $versionData['created'],
                         $versionData['download_url'],
                     );
                 }
-                $link = preg_replace('/\/releases.*/', '', $versions[0]->downloadUrl);
+
+                $latestVersion = $module['latest_version'];
+                $link = preg_replace('/\/releases.*/', '', $versions[$latestVersion]->downloadUrl);
+                $moduleId = strtolower($module['dirname']);
+
                 $this->modules[$module['id']] = new ModuleRepresentation(
-                    id: $module['dirname'],
-                    latestVersion: $module['latest_version'],
+                    id: $moduleId,
+                    dirname: $module['dirname'],
+                    latestVersion: $latestVersion,
                     versions: $versions,
                     link: $link,
                     owner: $module['owner']

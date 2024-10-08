@@ -42,11 +42,12 @@ class DanielKM extends AbstractRepository implements RepositoryInterface
                     continue;
                 }
                 # get module id
-                $moduleId = $this->extractModuleName($row['Last released zip']);
-                $version = $this->extractVersionNumber($row['Last released zip']);
+                $dirname = $this->extractModuleNameFromUrl($row['Last released zip']);
+                $moduleId = strtolower($dirname);
+                $version = $this->extractVersionNumberFromUrl($row['Last released zip']);
+                $version = $row['Last version'];
 
-                $versions = [
-                    new ModuleVersion(
+                $versions = [ $version => new ModuleVersion(
                         version: $version,
                         created: $row['Last update'],
                         downloadUrl: $row['Last released zip'],
@@ -54,6 +55,7 @@ class DanielKM extends AbstractRepository implements RepositoryInterface
                 ];
                 $this->modules[$moduleId] = new ModuleRepresentation(
                     id: $moduleId,
+                    dirname: $dirname,
                     latestVersion: $version,
                     versions: $versions,
                     description: $this->emptyToNull($row['Description']),
@@ -71,7 +73,7 @@ class DanielKM extends AbstractRepository implements RepositoryInterface
     {
         return $value === '' ? null : $value;
     }
-    protected function extractModuleName(string $url): string
+    protected function extractModuleNameFromUrl(string $url): string
     {
         // Extract the last part of the URL
         $filename = basename($url);
@@ -86,7 +88,7 @@ class DanielKM extends AbstractRepository implements RepositoryInterface
         return $moduleName;
     }
 
-    protected function extractVersionNumber(string $url): string
+    protected function extractVersionNumberFromUrl(string $url): string
     {
         // Extract the last part of the URL
         $filename = basename($url);
