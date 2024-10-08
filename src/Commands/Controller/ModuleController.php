@@ -9,6 +9,7 @@ use Omeka\Module\Manager as ModuleManager;
 use Omeka\Module\Module;
 use OSC\Omeka\ModuleApi;
 use OSC\Omeka\OmekaDotOrgApi;
+use OSC\Omeka\Module\ModuleRepositoryManager;
 use Throwable;
 
 
@@ -16,12 +17,14 @@ class ModuleController extends AbstractCommandController
 {
     protected OmekaDotOrgApi $webApi;
     protected ModuleApi $moduleApi;
+    protected ModuleRepositoryManager $moduleRepo;
 
     public function __construct(Application $app, ServiceManager $serviceLocator)
     {
         parent::__construct($app, $serviceLocator);
         $this->webApi = OmekaDotOrgApi::getInstance();
         $this->moduleApi = ModuleApi::getInstance($serviceLocator);
+        $this->moduleRepo = ModuleRepositoryManager::getInstance();
     }
 
     public function getCommands(): array
@@ -39,6 +42,10 @@ class ModuleController extends AbstractCommandController
             (new Command('module:available', 'List available modules', 'a'))
                 ->option('-j --json', 'Outputs json', 'boolval', false)
                 ->action([$this,'available']),
+            (new Command('module:search', 'Search available modules', 'a'))
+                ->argument('<query>', 'Part of the module name or description')
+                ->option('-j --json', 'Outputs json', 'boolval', false)
+                ->action([$this,'search']),
             (new Command('module:download', 'Download module', 'd'))
                 ->argument('<module-id>', 'The module ID (or id:version)')
                 ->option('-f --force', 'Force module overwrite', 'boolval', false)
@@ -88,20 +95,38 @@ class ModuleController extends AbstractCommandController
         $this->outputFormatted($result_array, $format);
     }
 
+    public function search(string $query, ?bool $json = false, ?bool $extended = false): void
+    {
+        $format = $json ? 'json' : 'table';
+
+        $moduleResults = $this->moduleRepo->search($query);
+        $moduleList = [];
+        foreach ($moduleResults as $moduleResult) {
+            $moduleList[] = [
+                'ID' =>  $moduleResult->module->dirname,
+                'Latest version' => $moduleResult->module->latestVersion,
+                'Owner' => $moduleResult->module->owner,
+            ];
+            print_r($moduleResult->module);
+        }
+        $this->outputFormatted($moduleList, $format);
+    }
+
+
     public function available(?bool $json = false): void
     {
         $format = $json ? 'json' : 'table';
 
-        $api_modules = $this->webApi->getModules();
-        $module_list = [];
-        foreach ($api_modules as $module) {
-            $module_list[] = [
-                'ID' =>  $module['dirname'],
-                'Latest version' => $module['latest_version'],
-                'Owner' => $module['owner'],
+        $moduleResults = $this->moduleRepo->list();
+        $moduleList = [];
+        foreach ($moduleResults as $moduleResult) {
+            $moduleList[] = [
+                'ID' =>  $moduleResult->module->dirname,
+                'Latest version' => $moduleResult->module->latestVersion,
+                'Owner' => $moduleResult->module->owner,
             ];
         }
-        $this->outputFormatted($module_list, $format);
+        $this->outputFormatted($moduleList, $format);
     }
 
     public function download(?string $moduleId, ?bool $force = false): void
@@ -111,17 +136,21 @@ class ModuleController extends AbstractCommandController
 
             if(str_starts_with($moduleId, 'http')){ // URL
                 $downloadUrl = $moduleId;
-            }else{
-                $apiModule = $this->webApi->getModule($moduleId);
-                if(!$apiModule){
-                    throw new Exception("Module '{$moduleId}' is not found in the official module list.");
+            }else{               
+                // find module in repositories
+                $repoResult = $this->moduleRepo->find($moduleId, $moduleVersion);
+                if(!$repoResult){
+                    throw new Exception("Could not find module '{$moduleId}' in any repository.");
+                }
+                // set moduleId to dirname
+                $moduleId = $repoResult->module->dirname;
+
+                // check if version exists
+                if ($moduleVersion && !$repoResult->version) {
+                    throw new Exception("Module '{$moduleId}' has no version '{$moduleVersion}'.");
                 }
 
-                $apiModuleVersion = $this->webApi->getModuleVersion($moduleId, $moduleVersion);
-                if(!$apiModuleVersion){
-                    throw new Exception("Module '{$moduleId}' with version '{$moduleVersion}' is not found in the official module list.");
-                }
-
+                // check if module is already downloaded
                 $module = $this->moduleApi->getModule($moduleId);
                 if ( $module && !in_array($module->getState(), [ModuleManager::STATE_NOT_FOUND], true) ) {
                     if ( !$force) {
@@ -129,8 +158,11 @@ class ModuleController extends AbstractCommandController
                     }
                 }
 
-                $downloadUrl = $apiModuleVersion['download_url'];
+                // set download url
+                $downloadUrl = $repoResult->version->downloadUrl;
             }
+
+            // Todo: remove previous module data
 
             // Download and unzip
             $this->io()->white("Downloading {$downloadUrl} ... ");
