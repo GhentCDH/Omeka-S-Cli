@@ -106,6 +106,7 @@ class ModuleController extends AbstractCommandController
                 'ID' =>  $moduleResult->module->dirname,
                 'Latest version' => $moduleResult->module->latestVersion,
                 'Owner' => $moduleResult->module->owner,
+                'Repository' => $moduleResult->repository->getDisplayName(),
             ];
             print_r($moduleResult->module);
         }
@@ -124,6 +125,7 @@ class ModuleController extends AbstractCommandController
                 'ID' =>  $moduleResult->module->dirname,
                 'Latest version' => $moduleResult->module->latestVersion,
                 'Owner' => $moduleResult->module->owner,
+                'Repository' => $moduleResult->repository->getDisplayName(),
             ];
         }
         $this->outputFormatted($moduleList, $format);
@@ -191,6 +193,9 @@ class ModuleController extends AbstractCommandController
             elseif(($module->getState() === ModuleManager::STATE_ACTIVE) || ($module->getState() === ModuleManager::STATE_NOT_ACTIVE)){
                 throw new Exception('The module seems to be already installed');
             }
+
+            // Check module dependencies
+
 
             // Downloaded and can be installed. Install
             $this->app()->omeka()->elevatePrivileges();
