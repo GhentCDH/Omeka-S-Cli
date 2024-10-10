@@ -9,7 +9,7 @@ use Omeka\Module\Manager as ModuleManager;
 use Omeka\Module\Module;
 use OSC\Omeka\ModuleApi;
 use OSC\Omeka\OmekaDotOrgApi;
-use OSC\Omeka\Module\ModuleRepositoryManager;
+use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 use Throwable;
 
 

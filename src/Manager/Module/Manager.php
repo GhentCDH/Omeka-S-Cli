@@ -1,13 +1,11 @@
 <?php
-namespace OSC\Omeka\Module;
+namespace OSC\Manager\Module;
 
-use OSC\Omeka\Module\ModuleResult;
-use OSC\Omeka\Module\Repository\RepositoryInterface;
+use OSC\Repository\Module\ModuleRepositoryInterface;
 
-
-class ModuleRepositoryManager
+class Manager
 {
-    /** @var RepositoryInterface[] $repositories */
+    /** @var ModuleRepositoryInterface[] $repositories */
     private array $repositories = [];
 
     private static array $instances = [];
@@ -22,7 +20,7 @@ class ModuleRepositoryManager
     }
 
 
-    public function addRepository(RepositoryInterface $repository): void
+    public function addRepository(ModuleRepositoryInterface $repository): void
     {
         $this->repositories[] = $repository;
     }
@@ -56,7 +54,7 @@ class ModuleRepositoryManager
             foreach ($modules as $module) {
                 $key = strtolower($module->id);
                 if (!isset($ret[$key])) {
-                    $ret[$key] = new Moduleresult($module, $repository);
+                    $ret[$key] = new ModuleResult($module, $repository);
                 }
             }
         }
@@ -75,7 +73,7 @@ class ModuleRepositoryManager
             foreach ($modules as $module) {
                 $key = strtolower($module->id);
                 if (!isset($ret[$key])) {
-                    $ret[$key] = new Moduleresult($module, $repository);
+                    $ret[$key] = new ModuleResult($module, $repository);
                 }
             }
         }

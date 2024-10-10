@@ -1,10 +1,7 @@
 <?php
-namespace OSC\Omeka\Module\Repository;
+namespace OSC\Repository\Module;
 
-use OSC\Omeka\Module\ModuleRepresentation;
-use OSC\Omeka\Module\ModuleVersion;
-
-abstract class AbstractRepository implements RepositoryInterface
+abstract class AbstractModuleRepository implements ModuleRepositoryInterface
 {
     public function list(): array
     {

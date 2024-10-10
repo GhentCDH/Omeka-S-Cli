@@ -1,10 +1,7 @@
 <?php
-namespace OSC\Omeka\Module\Repository;
+namespace OSC\Repository\Module;
 
-use OSC\Omeka\Module\ModuleRepresentation;
-use OSC\Omeka\Module\ModuleVersion;
-
-class OmekaDotOrg extends AbstractRepository implements RepositoryInterface
+class OmekaDotOrg extends AbstractModuleRepository implements ModuleRepositoryInterface
 {
     private const MODULE_API_URL = 'https://omeka.org/add-ons/json/s_module.json';
 
@@ -38,7 +35,7 @@ class OmekaDotOrg extends AbstractRepository implements RepositoryInterface
                 $link = preg_replace('/\/releases.*/', '', $versions[$latestVersion]->downloadUrl);
                 $moduleId = strtolower($module['dirname']);
 
-                $this->modules[$module['id']] = new ModuleRepresentation(
+                $this->modules[$moduleId] = new ModuleRepresentation(
                     id: $moduleId,
                     dirname: $module['dirname'],
                     latestVersion: $latestVersion,
