@@ -40,11 +40,19 @@ class ModuleApi
         return $this->moduleManager->getModules();
     }
 
-    public function getModule($module_id, $reload = false): ?Module
+    public function getModule($moduleId, $reload = false): ?Module
     {
+        $moduleId = strtolower($moduleId);
+
+        // reload modules?
         $reload && $this->reload();
+
+        // find module
         $modules = $this->getModules();
-        return $modules[$module_id] ?? null;
+        foreach($modules as $tmpModuleId => $module) {
+            $modules[strtolower($tmpModuleId)] = $module;
+        }
+        return $modules[$moduleId] ?? null;
     }
 
     public function isInstalled($module_id): bool
