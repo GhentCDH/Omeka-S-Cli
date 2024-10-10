@@ -1,5 +1,5 @@
 <?php
-namespace OSC\Omeka\Module;
+namespace OSC\Repository\Module;
 
 class ModuleRepresentation
 {

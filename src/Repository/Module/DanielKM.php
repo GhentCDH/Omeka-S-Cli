@@ -1,10 +1,7 @@
 <?php
-namespace OSC\Omeka\Module\Repository;
+namespace OSC\Repository\Module;
 
-use OSC\Omeka\Module\ModuleRepresentation;
-use OSC\Omeka\Module\ModuleVersion;
-
-class DanielKM extends AbstractRepository implements RepositoryInterface
+class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInterface
 {
     private const MODULE_API_URL = 'https://raw.githubusercontent.com/Daniel-KM/UpgradeToOmekaS/master/_data/omeka_s_modules.csv';
 

@@ -1,9 +1,8 @@
 <?php
-namespace OSC\Omeka\Module\Repository;
+namespace OSC\Repository\Module;
 
-use OSC\Omeka\Module\ModuleRepresentation;
 
-interface RepositoryInterface
+interface ModuleRepositoryInterface
 {
     public function getId(): string;
     public function getDisplayName(): string;

@@ -6,7 +6,6 @@ use ZipArchive;
 
 class OmekaDotOrgApi
 {
-    private const MODULE_API_URL = 'https://omeka.org/add-ons/json/s_module.json';
     private const THEME_API_URL = 'https://omeka.org/add-ons/json/s_theme.json';
     private const OMEKA_VERSION_API_URL = 'https://api.omeka.org/latest-version-s';
 
@@ -26,34 +25,12 @@ class OmekaDotOrgApi
         return self::$instances[$cls];
     }
 
-    public function getModules(): ?array
-    {
-        if ( !$this->modules ) {
-            $this->modules = json_decode(file_get_contents(self::MODULE_API_URL), true) ?? [];
-        }
-        return $this->modules;
-    }
-
     public function getThemes(): ?array
     {
         if ( !$this->themes ) {
             $this->themes = json_decode(file_get_contents(self::THEME_API_URL), true) ?? [];
         }
         return $this->themes;
-    }
-
-    public function getModule(string $id) {
-        return $this->getModules()[$id] ?? null;
-    }
-
-    public function getModuleVersion(string $id, string $version = null): ?array {
-        $moduleInfo = $this->getModule($id);
-        if (!$moduleInfo) {
-            return null;
-        }
-
-        $version = $version ?? $moduleInfo['latest_version'];
-        return $moduleInfo['versions'][$version] ?? null;
     }
 
     public function getTheme(string $id) {
@@ -81,6 +58,14 @@ class OmekaDotOrgApi
             throw new Exception('Failed to create temporary file');
         }
 
+        if (!is_writable($tmpZipPath)) {
+            throw new Exception('Temporary file is not writable');
+        }
+
+        if (!is_writable($destination)) {
+            throw new Exception("Destination directory '$destination' is not writable");
+        }
+
         try {
             $tmpZipResource = fopen($tmpZipPath, "w+");
 
@@ -89,17 +74,17 @@ class OmekaDotOrgApi
             }
 
             if (!fwrite($tmpZipResource, file_get_contents($url))) {
-                throw new Exception("Failed to download ZIP file at '$url'");
+                throw new Exception("Failed to download file at '$url'");
             }
 
             $zip = new ZipArchive;
             if (true !== $zip->open($tmpZipPath)) {
-                throw new Exception("Failed to open ZIP file '$tmpZipPath'");
+                throw new Exception("Failed to open file '$tmpZipPath'");
             }
 
             if (!$zip->extractTo($destination)) {
                 $zip->close();
-                throw new Exception("Could not unzip the file '$tmpZipPath'");
+                throw new Exception("Could not unzip file '$tmpZipPath'");
             }
 
             $zip->close();
