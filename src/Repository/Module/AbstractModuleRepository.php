@@ -5,13 +5,13 @@ abstract class AbstractModuleRepository implements ModuleRepositoryInterface
 {
     public function list(): array
     {
-        return $this->getModules();
+        return $this->getModules() ?? [];
     }
 
     public function find(string $id): ?ModuleRepresentation
     {
         $id = strtolower($id);
-        return $this->getModules()[$id] ?? null;
+        return $this->list()[$id] ?? null;
     }
 
     /**
@@ -21,7 +21,7 @@ abstract class AbstractModuleRepository implements ModuleRepositoryInterface
     public function search(string $query): array
     {
         $query = strtolower($query);
-        return array_filter($this->getModules(), function (ModuleRepresentation $module) use ($query) {
+        return array_filter($this->list(), function (ModuleRepresentation $module) use ($query) {
             return str_contains(strtolower($module->id ?? ''), $query)
                 || str_contains(strtolower($module->description ?? ''), $query)
                 || str_contains(strtolower($module->owner ?? ''), $query)
