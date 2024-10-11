@@ -320,7 +320,7 @@ class ModuleController extends AbstractCommandController
     }
 
     private function formatModuleStatus(Module $module, bool $extended = false): array {
-        $api_module = $this->webApi->getModule($module->getId());
+        $api_module = $this->moduleRepo->find($module->getId());
 
         $status = [
             'id' => $module->getId(),
@@ -337,7 +337,8 @@ class ModuleController extends AbstractCommandController
             } else {
                 $status['version'] = ($module->getDb()['version']==$module->getIni()['version']||!$module->getDb()['version'])?$module->getIni()['version']:($module->getIni()['version'].' ('.$module->getDb()['version'].' in database)')??'';
             }
-            $status['upgradeAvailable'] = isset($api_module['latest_version']) ? ($module->getIni()['version']!==$api_module['latest_version'] ? $api_module['latest_version']: 'up to date') : 'unknown';
+            $latestVersion = $api_module?->module?->latestVersion;
+            $status['upgradeAvailable'] = $latestVersion ? ($module->getIni()['version']!==$latestVersion ? $latestVersion: 'up to date') : 'unknown';
             $status['path'] = $module->getModuleFilePath();
             $status['isConfigurable'] = $module->isConfigurable();
         }
