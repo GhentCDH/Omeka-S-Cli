@@ -108,7 +108,6 @@ class ModuleController extends AbstractCommandController
                 'Owner' => $moduleResult->module->owner,
                 'Repository' => $moduleResult->repository->getDisplayName(),
             ];
-            print_r($moduleResult->module);
         }
         $this->outputFormatted($moduleList, $format);
     }
