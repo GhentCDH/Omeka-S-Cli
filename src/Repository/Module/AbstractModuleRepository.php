@@ -10,6 +10,7 @@ abstract class AbstractModuleRepository implements ModuleRepositoryInterface
 
     public function find(string $id): ?ModuleRepresentation
     {
+        $id = strtolower($id);
         return $this->getModules()[$id] ?? null;
     }
 
