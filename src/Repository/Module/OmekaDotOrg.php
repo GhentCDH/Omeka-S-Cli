@@ -1,11 +1,19 @@
 <?php
 namespace OSC\Repository\Module;
 
+use OSC\Cache;
+use OSC\Cache\CacheInterface;
+
 class OmekaDotOrg extends AbstractModuleRepository implements ModuleRepositoryInterface
 {
     private const MODULE_API_URL = 'https://omeka.org/add-ons/json/s_module.json';
 
-    private ?array $modules = null;
+    private CacheInterface $cache;
+
+    public function __construct()
+    {
+        $this->cache = Cache::getCache();
+    }
 
     public function getId(): string
     {
@@ -19,8 +27,20 @@ class OmekaDotOrg extends AbstractModuleRepository implements ModuleRepositoryIn
 
     protected function getModules():  ?array
     {
-        if ( !$this->modules ) {
-            $data = json_decode(file_get_contents(self::MODULE_API_URL), true) ?? [];
+        $cacheKey = $this->getId().'.modules';
+        $modules = $this->cache->get($cacheKey);
+
+        if (!$modules) {
+            $modules = [];
+
+            // Get the JSON data from the Omeka.org module list
+            $json = file_get_contents(self::MODULE_API_URL);
+            if (!$json) {
+                return null;
+            }
+            $data = json_decode($json, true) ?? [];
+
+            // Create the modules array
             foreach ($data as $module) {
                 $versions = [];
                 foreach ($module['versions'] as $version => $versionData) {
@@ -35,7 +55,7 @@ class OmekaDotOrg extends AbstractModuleRepository implements ModuleRepositoryIn
                 $link = preg_replace('/\/releases.*/', '', $versions[$latestVersion]->downloadUrl);
                 $moduleId = strtolower($module['dirname']);
 
-                $this->modules[$moduleId] = new ModuleRepresentation(
+                $modules[$moduleId] = new ModuleRepresentation(
                     id: $moduleId,
                     dirname: $module['dirname'],
                     latestVersion: $latestVersion,
@@ -44,7 +64,9 @@ class OmekaDotOrg extends AbstractModuleRepository implements ModuleRepositoryIn
                     owner: $module['owner']
                 );
             }
+            $this->cache->set($cacheKey, $modules);
         }
-        return $this->modules;
+
+        return $modules;
     }
 }

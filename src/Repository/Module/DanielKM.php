@@ -1,11 +1,19 @@
 <?php
 namespace OSC\Repository\Module;
 
+use OSC\Cache;
+use OSC\Cache\CacheInterface;
+
 class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInterface
 {
     private const MODULE_API_URL = 'https://raw.githubusercontent.com/Daniel-KM/UpgradeToOmekaS/master/_data/omeka_s_modules.csv';
 
-    private ?array $modules = null;
+    private CacheInterface $cache;
+
+    public function __construct()
+    {
+        $this->cache = Cache::getCache();
+    }
 
     public function getId(): string
     {
@@ -19,7 +27,13 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
 
     protected function getModules():  ?array
     {
-        if ( !$this->modules ) {
+        $cacheKey = $this->getId().'.modules';
+        $modules = $this->cache->get($cacheKey);
+
+        if ( !$modules ) {
+            $modules = [];
+
+            // Get the CSV data from the Daniel-KM module list
             $csv = file_get_contents(self::MODULE_API_URL);
             if (!$csv) {
                 return null;
@@ -33,6 +47,7 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
                 }
             }
 
+            // Create the modules array
             foreach ($data as $row) {
                 # skip unreleased modules
                 if (empty($row['Last released zip'])) {
@@ -50,7 +65,7 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
                         downloadUrl: $row['Last released zip'],
                     )
                 ];
-                $this->modules[$moduleId] = new ModuleRepresentation(
+                $modules[$moduleId] = new ModuleRepresentation(
                     id: $moduleId,
                     dirname: $dirname,
                     latestVersion: $version,
@@ -62,8 +77,10 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
                     dependencies: explode(',', $row['Dependencies']), // todo: trim
                 );
             }
+            $this->cache->set($cacheKey, $modules);
         }
-        return $this->modules;
+
+        return $modules;
     }
 
     protected function emptyToNull(string $value): ?string
