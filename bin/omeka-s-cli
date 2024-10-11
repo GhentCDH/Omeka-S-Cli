@@ -3,14 +3,14 @@
 namespace OSC;
 
 use OSC\Cli\Application as CliApplication;
-use OSC\Omeka\Module\ModuleRepositoryManager;
+use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 // init module repositories
 $repositories = [
-  new Omeka\Module\Repository\OmekaDotOrg(),
-  new Omeka\Module\Repository\DanielKM(),
+  new Repository\Module\OmekaDotOrg(),
+  new Repository\Module\DanielKM(),
 ];
 
 $moduleRepository = ModuleRepositoryManager::getInstance();
