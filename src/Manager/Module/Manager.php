@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Manager\Module;
 
+use Omeka\Module;
 use OSC\Repository\Module\ModuleRepositoryInterface;
 
 class Manager
@@ -19,10 +20,17 @@ class Manager
         return self::$instances[$cls];
     }
 
-
     public function addRepository(ModuleRepositoryInterface $repository): void
     {
-        $this->repositories[] = $repository;
+        $this->repositories[$repository->getId()] = $repository;
+    }
+
+    /**
+     * @return ModuleRepositoryInterface[]
+     */
+    public function repositories(): array
+    {
+        return $this->repositories;
     }
 
     public function find(string $moduleId, ?string $version = null): ?ModuleResult
@@ -46,10 +54,19 @@ class Manager
     /**
      * @return ModuleResult[]
      */
-    public function list(): array
+    public function list(?string $repositoryId = null): array
     {
+        if ($repositoryId) {
+            if (!isset($this->repositories()[$repositoryId])) {
+                throw new \Exception("Repository not found: $repositoryId");
+            }
+            $repositories = [$this->repositories()[$repositoryId]];
+        } else {
+            $repositories = $this->repositories;
+        }
+
         $ret = [];
-        foreach ($this->repositories as $repository) {
+        foreach ($repositories as $repository) {
             $modules = $repository->list();
             foreach ($modules as $module) {
                 $key = strtolower($module->id);
@@ -65,10 +82,19 @@ class Manager
     /**
      * @return ModuleResult[]
      */
-    public function search(string $query): array
+    public function search(string $query, ?string $repositoryId = null): array
     {
+        if ($repositoryId) {
+            if (!isset($this->repositories()[$repositoryId])) {
+                throw new \Exception("Repository not found: $repositoryId");
+            }
+            $repositories = [$this->repositories()[$repositoryId]];
+        } else {
+            $repositories = $this->repositories;
+        }
+
         $ret = [];
-        foreach ($this->repositories as $repository) {
+        foreach ($repositories as $repository) {
             $modules = $repository->search($query);
             foreach ($modules as $module) {
                 $key = strtolower($module->id);
