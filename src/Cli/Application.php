@@ -21,32 +21,34 @@ class Application extends \Ahc\Cli\Application
             unset($argv[1], $argv[2]);
             $argv = array_values($argv);
         }
-        // json output?
+        // Json output?
         $jsonOutput = in_array('--json', $argv) || in_array('-j', $argv);
 
-        if ($basePath) {
-            if (!$this->isOmekaDir($basePath)) {
-                $this->io()->error("The provided base path does not contain a valid Omeka S context", true);
-                return false;
-            }
-        } else {
-            $basePath = $this->searchOmekaDir();
-            if (!$basePath) {
-                $this->io()->error("Could not find a valid Omeka S context", true);
-                return false;
-            }
-        }
-
-        if(!$jsonOutput) {
-            $this->io()->info("Omeka S found at {$basePath}", true);
-        }
-
+        // Init Omeka S context
         try {
+            if ($basePath) {
+                if (!$this->isOmekaDir($basePath)) {
+                    throw new \Exception("The provided base path {$basePath} does not contain a valid Omeka S context.");
+                }
+            } else {
+                $basePath = $this->searchOmekaDir();
+                if (!$basePath) {
+                    throw new \Exception("Could not find a valid Omeka S context.");
+                }
+            }
+
+            if(!$jsonOutput) {
+                $this->io()->info("Omeka S found at {$basePath}", true);
+            }
+
             $omeka = new Omeka($basePath);
             $omeka->init();
             $this->omeka = $omeka;
-        } catch(Throwable $E) {
-            $this->io()->error("Could not init Omeka S ({$E->getMessage()})", true);
+
+        } catch (Throwable $E) {
+            $this->io()->writer()->write($this->logo, true);
+            $this->io()->writer()->write( "{$this->name}, version {$this->version}", true);
+            $this->io()->error("Could not init Omeka S Cli. {$E->getMessage()}", true);
             return false;
         }
 
@@ -57,7 +59,6 @@ class Application extends \Ahc\Cli\Application
         $controllers = [];
         $controllers['module'] = new ModuleController($this, $serviceLocator);
         $controllers['theme'] = new ThemeController($this, $serviceLocator);
-
 
         // handle
         return parent::handle($argv);
