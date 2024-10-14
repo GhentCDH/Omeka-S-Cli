@@ -47,7 +47,7 @@ abstract class AbstractCommandController
             default:
                 if(is_object($object))
                     $object = (array)$object;
-                $this->io()->writer()->raw(json_encode($object, true));
+                $this->io()->writer()->raw(json_encode($object, JSON_PRETTY_PRINT));
                 break;
         }
         if($return_value)

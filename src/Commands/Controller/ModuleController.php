@@ -45,11 +45,13 @@ class ModuleController extends AbstractCommandController
             (new Command('module:available', 'List available modules', 'a'))
                 ->option('-j --json', 'Outputs json', 'boolval', false)
                 ->option('-r --repository [repositoryid]>', 'Filter by repository', 'strval', null)
+                ->option('-x --extended', 'Extended output', 'boolval', false)
                 ->action([$this,'available']),
             (new Command('module:search', 'Search available modules', 'a'))
                 ->argument('<query>', 'Part of the module name or description')
                 ->option('-j --json', 'Outputs json', 'boolval', false)
                 ->option('-r --repository [repositoryid]>', 'Filter by repository', 'strval', null)
+                ->option('-x --extended', 'Extended output', 'boolval', false)
                 ->action([$this,'search']),
             (new Command('module:download', 'Download module', 'd'))
                 ->argument('<module-id>', 'The module ID (or id:version)')
@@ -122,33 +124,16 @@ class ModuleController extends AbstractCommandController
         $format = $json ? 'json' : 'table';
 
         $moduleResults = $this->moduleRepo->search($query, $repository);
-        $moduleList = [];
-        foreach ($moduleResults as $moduleResult) {
-            $moduleList[] = [
-                'ID' =>  $moduleResult->module->dirname,
-                'Latest version' => $moduleResult->module->latestVersion,
-                'Owner' => $moduleResult->module->owner,
-                'Repository' => $moduleResult->repository->getDisplayName(),
-            ];
-        }
+        $moduleList = $this->formatModuleResults($moduleResults, $extended);
         $this->outputFormatted($moduleList, $format);
     }
 
-
-    public function available(?bool $json = false, ?string $repository = null): void
+    public function available(?bool $json = false, ?bool $extended = false, ?string $repository = null): void
     {
         $format = $json ? 'json' : 'table';
 
-        $moduleResults = $this->moduleRepo->list($repository);
-        $moduleList = [];
-        foreach ($moduleResults as $moduleResult) {
-            $moduleList[] = [
-                'ID' =>  $moduleResult->module->dirname,
-                'Latest version' => $moduleResult->module->latestVersion,
-                'Owner' => $moduleResult->module->owner,
-                'Repository' => $moduleResult->repository->getDisplayName(),
-            ];
-        }
+        $moduleResults = $this->moduleRepo->list();
+        $moduleList = $this->formatModuleResults($moduleResults, $extended);
         $this->outputFormatted($moduleList, $format);
     }
 
@@ -372,4 +357,23 @@ class ModuleController extends AbstractCommandController
         return $status;
     }
 
+    private function formatModuleResults($moduleResults, ?bool $extended = false): array {
+        $moduleList = [];
+        foreach ($moduleResults as $moduleResult) {
+            $result = [
+                'ID' =>  $moduleResult->module->dirname,
+                'Latest version' => $moduleResult->module->latestVersion,
+            ];
+            if ($extended) {
+                $result = array_merge($result, [
+                    'Url' => $moduleResult->module->link,
+                    'Description' => $moduleResult->module->description ?? '',
+                    'Owner' => $moduleResult->module->owner ?? '',
+                    'Repository' => $moduleResult->repository->getDisplayName(),
+                ]);
+            }
+            $moduleList[] = $result;
+        }
+        return $moduleList;
+    }
 }
