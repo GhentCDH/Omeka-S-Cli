@@ -30,6 +30,9 @@ class ModuleController extends AbstractCommandController
     public function getCommands(): array
     {
         return [
+            (new Command('module:repositories', 'List available module repositories', 'l'))
+                ->option('-j --json', 'Outputs json', 'boolval', false)
+                ->action([$this, 'repositories']),
             (new Command('module:list', 'List downloaded modules', 'l'))
                 ->option('-j --json', 'Outputs json', 'boolval', false)
                 ->option('-x --extended', 'Outputs module path', 'boolval', false)
@@ -41,10 +44,12 @@ class ModuleController extends AbstractCommandController
                 ->action([$this, 'status']),
             (new Command('module:available', 'List available modules', 'a'))
                 ->option('-j --json', 'Outputs json', 'boolval', false)
+                ->option('-r --repository [repositoryid]>', 'Filter by repository', 'strval', null)
                 ->action([$this,'available']),
             (new Command('module:search', 'Search available modules', 'a'))
                 ->argument('<query>', 'Part of the module name or description')
                 ->option('-j --json', 'Outputs json', 'boolval', false)
+                ->option('-r --repository [repositoryid]>', 'Filter by repository', 'strval', null)
                 ->action([$this,'search']),
             (new Command('module:download', 'Download module', 'd'))
                 ->argument('<module-id>', 'The module ID (or id:version)')
@@ -81,6 +86,23 @@ class ModuleController extends AbstractCommandController
         ];
     }
 
+    public function repositories(?bool $json = false): void
+    {
+        $format = $json ? 'json' : 'table';
+
+        $repositories = $this->moduleRepo->repositories();
+
+        $result_array = [];
+        foreach ($repositories as $repository) {
+            $result_array[] = [
+                'ID' => $repository->getId(),
+                'Name' => $repository->getDisplayName(),
+            ];
+        }
+
+        $this->outputFormatted($result_array, $format);
+    }
+
     public function list(?bool $json = false, ?bool $extended = false): void
     {
         $format = $json ? 'json' : 'table';
@@ -95,11 +117,11 @@ class ModuleController extends AbstractCommandController
         $this->outputFormatted($result_array, $format);
     }
 
-    public function search(string $query, ?bool $json = false, ?bool $extended = false): void
+    public function search(string $query, ?bool $json = false, ?bool $extended = false, ?string $repository = null): void
     {
         $format = $json ? 'json' : 'table';
 
-        $moduleResults = $this->moduleRepo->search($query);
+        $moduleResults = $this->moduleRepo->search($query, $repository);
         $moduleList = [];
         foreach ($moduleResults as $moduleResult) {
             $moduleList[] = [
@@ -113,11 +135,11 @@ class ModuleController extends AbstractCommandController
     }
 
 
-    public function available(?bool $json = false): void
+    public function available(?bool $json = false, ?string $repository = null): void
     {
         $format = $json ? 'json' : 'table';
 
-        $moduleResults = $this->moduleRepo->list();
+        $moduleResults = $this->moduleRepo->list($repository);
         $moduleList = [];
         foreach ($moduleResults as $moduleResult) {
             $moduleList[] = [
