@@ -37,8 +37,9 @@ class Application extends \Ahc\Cli\Application
             }
         }
 
-
-        $this->io()->info("Omeka S found at {$basePath}", true);
+        if(!$jsonOutput) {
+            $this->io()->info("Omeka S found at {$basePath}", true);
+        }
 
         try {
             $omeka = new Omeka($basePath);
