@@ -14,15 +14,20 @@ class Application extends \Ahc\Cli\Application
     {
         $this->onException([$this, 'onError']);
 
-        $options = getopt("-b:", ["base-path:"]) ?: [];
-        $basePath = $options['base-path'] ?? $options['b'] ?? null;
-
-//        $ret = $this->parse($argv);
-//        print_r($ret->values());
+        // base path set?
+        $basePath = null;
+        if (isset($argv[1]) && ( $argv[1] === '-b' || $argv[1] === '--base-path' )) {
+            $basePath = $argv[2] ?? null;
+            unset($argv[1], $argv[2]);
+            $argv = array_values($argv);
+        }
+        // json output?
+        $jsonOutput = in_array('--json', $argv) || in_array('-j', $argv);
 
         if ($basePath) {
             if (!$this->isOmekaDir($basePath)) {
                 $this->io()->error("The provided base path does not contain a valid Omeka S context", true);
+                return false;
             }
         } else {
             $basePath = $this->searchOmekaDir();
@@ -32,8 +37,9 @@ class Application extends \Ahc\Cli\Application
             }
         }
 
-
-        $this->io()->info("Omeka S found at {$basePath}", true);
+        if(!$jsonOutput) {
+            $this->io()->info("Omeka S found at {$basePath}", true);
+        }
 
         try {
             $omeka = new Omeka($basePath);
