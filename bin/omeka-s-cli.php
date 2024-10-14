@@ -7,6 +7,9 @@ use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+// set error reporting
+error_reporting(E_ERROR);
+
 // init module repositories
 $repositories = [
   new Repository\Module\OmekaDotOrg(),
