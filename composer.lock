@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "35553d245cd2695aa67b742f2006c8dd",
+    "content-hash": "e6e032b14350aabe67580a94d5933765",
     "packages": [
         {
             "name": "adhocore/cli",
-            "version": "v1.6.1",
+            "version": "v1.9.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/adhocore/php-cli.git",
-                "reference": "25b5a93e5eebcdb70e20ee33313a011ea3a4f770"
+                "reference": "86be16e3c3b42d76fcdb32529bcded0fedb925d3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/adhocore/php-cli/zipball/25b5a93e5eebcdb70e20ee33313a011ea3a4f770",
-                "reference": "25b5a93e5eebcdb70e20ee33313a011ea3a4f770",
+                "url": "https://api.github.com/repos/adhocore/php-cli/zipball/86be16e3c3b42d76fcdb32529bcded0fedb925d3",
+                "reference": "86be16e3c3b42d76fcdb32529bcded0fedb925d3",
                 "shasum": ""
             },
             "require": {
@@ -28,6 +28,9 @@
             },
             "type": "library",
             "autoload": {
+                "files": [
+                    "src/functions.php"
+                ],
                 "psr-4": {
                     "Ahc\\Cli\\": "src/"
                 }
@@ -62,7 +65,7 @@
             ],
             "support": {
                 "issues": "https://github.com/adhocore/php-cli/issues",
-                "source": "https://github.com/adhocore/php-cli/tree/v1.6.1"
+                "source": "https://github.com/adhocore/php-cli/tree/v1.9.3"
             },
             "funding": [
                 {
@@ -74,16 +77,23 @@
                     "type": "github"
                 }
             ],
-            "time": "2023-06-26T09:55:29+00:00"
+            "time": "2024-12-04T03:40:29+00:00"
         }
     ],
     "packages-dev": [],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
-    "platform": [],
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform": {
+        "ext-zip": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*"
+    },
+    "platform-dev": {},
+    "platform-overrides": {
+        "php": "8.0"
+    },
+    "plugin-api-version": "2.6.0"
 }
