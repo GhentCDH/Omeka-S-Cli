@@ -6,6 +6,7 @@ use Omeka\Module\Manager as ModuleManager;
 use Omeka\Module\Module;
 use Omeka\Service\ModuleManagerFactory;
 use Exception;
+use OSC\Helper\FileUtils;
 use Throwable;
 
 class ModuleApi
@@ -35,15 +36,19 @@ class ModuleApi
         $this->moduleManager = $factory->__invoke($this->serviceLocator, '');
     }
 
+    /**
+     * @return Module[]
+     */
     public function getModules(): array
     {
         return $this->moduleManager->getModules();
     }
 
+    /**
+     * @throws Exception
+     */
     public function getModule($moduleId, $reload = false): ?Module
     {
-        $moduleId = strtolower($moduleId);
-
         // reload modules?
         $reload && $this->reload();
 
@@ -52,12 +57,32 @@ class ModuleApi
         foreach($modules as $tmpModuleId => $module) {
             $modules[strtolower($tmpModuleId)] = $module;
         }
-        return $modules[$moduleId] ?? null;
+
+        $module = $modules[strtolower($moduleId)] ?? null;
+        if (!$module) {
+            throw new Exception("Module '{$moduleId}' not found");
+        }
+        return $module;
     }
 
-    public function isInstalled($module_id): bool
+    public function isInstalled(string $moduleId): bool
     {
-        return (bool)($this->getModule($module_id));
+        try {
+            $this->getModule($moduleId);
+            return true;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    public function isActive($moduleId): bool
+    {
+        try {
+            $module = $this->getModule($moduleId);
+            return in_array($module->getState(), [ModuleManager::STATE_ACTIVE, ModuleManager::STATE_NOT_ACTIVE], true);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public function hasErrors(Module $module): bool
@@ -100,23 +125,18 @@ class ModuleApi
 
     public function delete(Module $module): void
     {
-        try {
-            if ($module->getState() === ModuleManager::STATE_NOT_FOUND) {
-                throw new Exception('The module can\'t be removed because its source files can not be found on disc.');
+        if ($module->getState() === ModuleManager::STATE_NOT_FOUND) {
+            throw new Exception('The module can\'t be removed because its source files can not be found on disc.');
 
-            }
-            if ($module->getState() === ModuleManager::STATE_ACTIVE || $module->getState() === ModuleManager::STATE_NOT_ACTIVE ) {
-                throw new Exception('The module can\'t be removed because it seems to be installed.');
-            }
-
-            $path = dirname($module->getModuleFilePath());
-            if (empty($path) || $path == '/' || !(str_contains($path, 'modules')))
-                throw new Exception('Incorrect or dangerous path detected. Please remove the folder manually.');
-            system("rm -rf " . escapeshellarg($path));
-        } catch (Throwable $e) {
-            throw new Exception("Could not delete module: \n" . $e->getMessage());
         }
+        if ($module->getState() === ModuleManager::STATE_ACTIVE || $module->getState() === ModuleManager::STATE_NOT_ACTIVE ) {
+            throw new Exception('The module can\'t be removed because it seems to be installed.');
+        }
+
+        $path = dirname($module->getModuleFilePath());
+        if (empty($path) || $path == '/' || !(str_contains($path, 'modules')))
+            throw new Exception('Incorrect or dangerous path detected. Please remove the folder manually.');
+
+        FileUtils::removeFolder($path);
     }
-
-
 }

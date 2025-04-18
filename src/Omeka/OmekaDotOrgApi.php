@@ -1,9 +1,6 @@
 <?php
 namespace OSC\Omeka;
 
-use Exception;
-use ZipArchive;
-
 class OmekaDotOrgApi
 {
     private const THEME_API_URL = 'https://omeka.org/add-ons/json/s_theme.json';
@@ -50,48 +47,5 @@ class OmekaDotOrgApi
     public function getLatestOmekaVersion(): string
     {
         return file_get_contents(self::OMEKA_VERSION_API_URL);
-    }
-
-    public function downloadUnzip(string $url, string $destination): void {
-        $tmpZipPath = tempnam(sys_get_temp_dir(), 'omeka-s-cli.');
-        if (!isset($tmpZipPath)) {
-            throw new Exception('Failed to create temporary file');
-        }
-
-        if (!is_writable($tmpZipPath)) {
-            throw new Exception('Temporary file is not writable');
-        }
-
-        if (!is_writable($destination)) {
-            throw new Exception("Destination directory '$destination' is not writable");
-        }
-
-        try {
-            $tmpZipResource = fopen($tmpZipPath, "w+");
-
-            if (!flock($tmpZipResource, LOCK_EX)) {
-                throw new Exception('Failed to lock temporary file');
-            }
-
-            if (!fwrite($tmpZipResource, file_get_contents($url))) {
-                throw new Exception("Failed to download file at '$url'");
-            }
-
-            $zip = new ZipArchive;
-            if (true !== $zip->open($tmpZipPath)) {
-                throw new Exception("Failed to open file '$tmpZipPath'");
-            }
-
-            if (!$zip->extractTo($destination)) {
-                $zip->close();
-                throw new Exception("Could not unzip file '$tmpZipPath'");
-            }
-
-            $zip->close();
-        }
-        finally {
-            flock($tmpZipResource, LOCK_UN);
-            unlink($tmpZipPath);
-        }
     }
 }

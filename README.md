@@ -1,6 +1,6 @@
 # Omeka-S-Cli
 
-Omeka-S-CLI is a command line tool to manage Omeka-S installs.
+Omeka-S-CLI is a command line tool to manage Omeka S installs.
 
 ## Usage
 
@@ -10,23 +10,30 @@ Omeka-S-CLI is a command line tool to manage Omeka-S installs.
 Commands:
 
 ```
+config
+  config:modules         Export list of modules
+  config:themes          Export list of themes
 module
-  module:available    List available modules
-  module:delete       Delete module
-  module:disable      Disable module
-  module:download     Download modules
-  module:enable       Enable module
-  module:install      Install module
-  module:list         List downloaded modules
-  module:status       Get module status
-  module:uninstall    Uninstall module
-  module:upgrade      Upgrade module
+  module:delete          Delete module
+  module:disable         Disable module
+  module:download        Download module
+  module:enable          Enable module
+  module:install         Install module
+  module:list            List downloaded modules
+  module:repositories    List available module repositories
+  module:search          Search/list available modules
+  module:status          Get module status
+  module:uninstall       Uninstall module
+  module:upgrade         Uninstall module
 theme
-  theme:available     List available themes
-  theme:delete        Delete theme
-  theme:download      Download theme
-  theme:list          List downloaded themes
-  theme:status        Get theme status
+  theme:delete           Delete theme
+  theme:download         Download theme
+  theme:list             List downloaded themes
+  theme:search           Search/list available modules
+  theme:status           Get theme status
+
+Run `<command> --help` for specific help
+
 ```
 
 ## Requirements

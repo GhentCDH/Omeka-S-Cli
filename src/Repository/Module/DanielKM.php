@@ -3,10 +3,15 @@ namespace OSC\Repository\Module;
 
 use OSC\Cache;
 use OSC\Cache\CacheInterface;
+use OSC\Repository\AbstractRepository;
 
-class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInterface
+/**
+ * @template T of ModuleDetails
+ * @template-extends AbstractRepository<ModuleDetails>
+ */
+class DanielKM extends AbstractRepository
 {
-    private const MODULE_API_URL = 'https://raw.githubusercontent.com/Daniel-KM/UpgradeToOmekaS/master/_data/omeka_s_modules.csv';
+    private const API_ENDPOINT = 'https://raw.githubusercontent.com/Daniel-KM/UpgradeToOmekaS/master/_data/omeka_s_modules.csv';
 
     private CacheInterface $cache;
 
@@ -25,7 +30,10 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
         return 'Daniel-KM (git)';
     }
 
-    protected function getModules():  ?array
+    /**
+     * @return ModuleDetails[]
+     */
+    public function list(): array
     {
         $cacheKey = $this->getId().'.modules';
         $modules = $this->cache->get($cacheKey);
@@ -34,9 +42,9 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
             $modules = [];
 
             // Get the CSV data from the Daniel-KM module list
-            $csv = file_get_contents(self::MODULE_API_URL);
+            $csv = file_get_contents(self::API_ENDPOINT);
             if (!$csv) {
-                return null;
+                throw new \HttpRequestException("Failed to fetch data from " . self::API_ENDPOINT);
             }
             $csv = array_map('str_getcsv', explode(PHP_EOL, $csv));
             $header = array_shift($csv);
@@ -65,7 +73,7 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
                         downloadUrl: $row['Last released zip'],
                     )
                 ];
-                $modules[$moduleId] = new ModuleRepresentation(
+                $modules[$moduleId] = new ModuleDetails(
                     id: $moduleId,
                     dirname: $dirname,
                     latestVersion: $version,
@@ -97,9 +105,7 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
 
         // explode('-',$filename) to get the module name
         $parts = explode('-', $filenameWithoutExtension);
-        $moduleName = $parts[0];
-
-        return $moduleName;
+        return $parts[0];
     }
 
     protected function extractVersionNumberFromUrl(string $url): string
@@ -113,8 +119,6 @@ class DanielKM extends AbstractModuleRepository implements ModuleRepositoryInter
         // explode('-',$filename) to get the module version
         $parts = explode('-', $filenameWithoutExtension);
         $parts = array_splice($parts, 1);
-        $version = join('-', $parts);
-
-        return $version;
+        return join('-', $parts);
     }
 }
