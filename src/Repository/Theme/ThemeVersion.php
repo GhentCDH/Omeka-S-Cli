@@ -1,16 +1,15 @@
 <?php
-namespace OSC\Repository\Module;
+namespace OSC\Repository\Theme;
 
 use OSC\Repository\VersionableInterface;
 
-class ModuleVersion implements VersionableInterface
+class ThemeVersion implements VersionableInterface
 {
     public function __construct(
         public string $version,
         public string $created,
         public string $downloadUrl,
         public ?string $omekaVersionConstraint = null,
-        public array $dependencies = [],
     ) {
     }
 
@@ -32,10 +31,5 @@ class ModuleVersion implements VersionableInterface
     public function getOmekaVersionConstraint(): ?string
     {
         return $this->omekaVersionConstraint;
-    }
-
-    public function getDependencies(): array
-    {
-        return $this->dependencies;
     }
 }
