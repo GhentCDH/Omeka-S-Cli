@@ -1,0 +1,56 @@
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g., v1.0.0)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up PHP
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1' # Adjust PHP version as needed
+          extensions: mbstring, json
+          tools: composer
+
+      # Install dependencies
+      - name: Install dependencies
+        run: composer install --no-dev --prefer-dist --no-progress --no-suggest
+
+      # Install Box
+      - name: Install Box
+        run: curl -LSs https://github.com/box-project/box/releases/latest/download/box.phar -o box.phar
+
+      # Build the .phar file
+      - name: Build .phar
+        run: php box.phar compile
+
+      # Upload the .phar file as an artifact
+      - name: Upload .phar artifact
+        uses: actions/upload-artifact@4
+        with:
+          name: omeka-s-cli.phar
+          path: bin/omeka-s-cli.phar
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Upload the .phar file to the GitHub release
+      - name: Upload .phar to release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: omeka-s-cli.phar
+          token: ${{ secrets.GITHUB_TOKEN }}
