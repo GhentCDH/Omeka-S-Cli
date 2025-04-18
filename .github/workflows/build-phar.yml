@@ -34,7 +34,7 @@ jobs:
 
       # Upload the .phar file as an artifact
       - name: Upload .phar artifact
-        uses: actions/upload-artifact@4
+        uses: actions/upload-artifact@v4
         with:
           name: omeka-s-cli.phar
           path: bin/omeka-s-cli.phar
