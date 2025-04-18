@@ -50,7 +50,7 @@ jobs:
 
       # Download the .phar artifact
       - name: Download .phar artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: omeka-s-cli.phar
 
