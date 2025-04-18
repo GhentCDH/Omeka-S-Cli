@@ -43,8 +43,22 @@ Run `<command> --help` for specific help
 
 ## Installation
 
-- Clone this repository. 
-- Create a symlink to `bin/omeka-s-cli.phar` in `/usr/local/bin/omeka-s-cli`.
+ - Download "omeka-s-cli.phar" from latest release.
+
+## Build
+
+This project uses https://github.com/box-project/box to create a phar file.
+
+### box global install
+
+```bash
+composer global require humbug/box
+```
+### compile phar
+
+```bash
+box compile
+```
 
 ## To do
 
