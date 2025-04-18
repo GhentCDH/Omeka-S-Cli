@@ -48,6 +48,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Download the .phar artifact
+      - name: Download .phar artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: omeka-s-cli.phar
+
       # Upload the .phar file to the GitHub release
       - name: Upload .phar to release
         uses: ncipollo/release-action@v1
