@@ -4,6 +4,9 @@ namespace OSC\Commands\Module;
 
 use Omeka\Module\Module;
 use Omeka\Module\Manager as ModuleManager;
+use OSC\Manager\Module\ModuleResult;
+use OSC\Manager\Result;
+use OSC\Repository\Module\ModuleDetails;
 
 
 trait FormattersTrait
@@ -39,19 +42,24 @@ trait FormattersTrait
         return $status;
     }
 
-    private function formatModuleResults($moduleResults, ?bool $extended = false): array {
+    /**
+     * @param Result<ModuleDetails>[] $moduleResults
+     * @param bool|null $extended
+     * @return array
+     */
+    private function formatModuleResults(array $moduleResults, ?bool $extended = false): array {
         $moduleList = [];
         foreach ($moduleResults as $moduleResult) {
             $result = [
-                'ID' =>  $moduleResult->module->dirname,
-                'Latest version' => $moduleResult->module->latestVersion,
+                'ID' =>  $moduleResult->getItem()->getDirname(),
+                'Latest version' => $moduleResult->getItem()->getLatestVersionNumber(),
             ];
             if ($extended) {
                 $result = array_merge($result, [
-                    'Url' => $moduleResult->module->link,
-                    'Description' => $moduleResult->module->description ?? '',
-                    'Owner' => $moduleResult->module->owner ?? '',
-                    'Repository' => $moduleResult->repository->getDisplayName(),
+                    'Url' => $moduleResult->getItem()->getLink(),
+                    'Description' => $moduleResult->getItem()->getDescription() ?? '',
+                    'Owner' => $moduleResult->getItem()->getOwner() ?? '',
+                    'Repository' => $moduleResult->getRepository()->getDisplayName(),
                 ]);
             }
             $moduleList[] = $result;
