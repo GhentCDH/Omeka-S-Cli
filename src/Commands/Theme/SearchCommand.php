@@ -15,7 +15,7 @@ class SearchCommand extends AbstractThemeCommand
         $this->optionJson();
     }
 
-    public function execute(?string $query, ?bool $json = false): void
+    public function execute(?string $query): void
     {
         $format = $this->getOutputFormat('table');
         $query = $query ? strtolower($query) : null;
@@ -30,7 +30,7 @@ class SearchCommand extends AbstractThemeCommand
         foreach ($themes as $theme) {
             $output[] = [
                 'id' =>  $theme->getId(),
-                'latestVersion' => $theme->getLatestVersion(),
+                'latestVersion' => $theme->getLatestVersionNumber(),
                 'owner' => $theme->getOwner(),
             ];
         }
