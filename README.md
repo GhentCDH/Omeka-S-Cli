@@ -43,7 +43,8 @@ Run `<command> --help` for specific help
 
 ## Installation
 
- - Download "omeka-s-cli.phar" from latest release.
+ - Download [omeka-s-cli.phar](https://github.com/GhentCDH/Omeka-S-Cli/releases/latest/download/omeka-s-cli.phar) from latest release.
+ - Run with `php omeka-s-cli.phar` or move it to a directory in your PATH and make it executable.
 
 ## Build
 
