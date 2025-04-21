@@ -27,7 +27,7 @@ abstract class AbstractRepository implements RepositoryInterface
         $query = strtolower($query);
         /** @var MatchableInterface $item */
         return array_filter($this->list(), function ($item) use ($query) {
-            $item->matches($query);
+            return $item->matches($query);
         });
     }
 }

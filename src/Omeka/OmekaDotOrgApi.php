@@ -11,7 +11,6 @@ class OmekaDotOrgApi
 
     private static array $instances = [];
 
-
     public static function getInstance(): static
     {
         $cls = static::class;

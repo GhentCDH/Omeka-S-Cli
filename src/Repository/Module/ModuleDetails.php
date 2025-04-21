@@ -85,9 +85,10 @@ class ModuleDetails implements RepositoryItemInterface
 
     public function matches($query): bool
     {
-        return str_contains(strtolower($module->id ?? ''), $query)
-            || str_contains(strtolower($module->description ?? ''), $query)
-            || str_contains(strtolower($module->owner ?? ''), $query)
-            || str_contains(strtolower($module->tags ?? ''), $query);
+        $query = strtolower($query);
+        return str_contains(strtolower($this->id ?? ''), $query)
+            || str_contains(strtolower($this->description ?? ''), $query)
+            || str_contains(strtolower($this->owner ?? ''), $query)
+            || str_contains(strtolower($this->tags ?? ''), $query);
     }
 }

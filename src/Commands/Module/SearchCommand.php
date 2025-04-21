@@ -15,7 +15,7 @@ class SearchCommand extends AbstractModuleCommand
 
         $this
             ->argument('[query]', 'Part of the module name or description')
-            ->option('-r --repository [repositoryid]>', 'Filter by repository', 'strval');
+            ->option('-r --repository [repositoryid]', 'Filter by repository', 'strval');
 
         $this->optionJson();
         $this->optionExtended();
@@ -24,7 +24,6 @@ class SearchCommand extends AbstractModuleCommand
     public function execute(?string $query, ?bool $json = false, ?bool $extended = false, ?string $repository = null): void
     {
         $format = $this->getOutputFormat('table');
-
         if ($query) {
             $moduleResults = ModuleRepositoryManager::getInstance()->search($query, $repository);
         } else {

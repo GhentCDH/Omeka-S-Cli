@@ -110,7 +110,7 @@ abstract class AbstractManager
             }
             $repositories = [$this->repositories()[$repositoryId]];
         } else {
-            $repositories = $this->repositories;
+            $repositories = $this->repositories();
         }
 
         $ret = [];

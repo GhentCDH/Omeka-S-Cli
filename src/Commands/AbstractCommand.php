@@ -33,6 +33,7 @@ abstract class AbstractCommand extends Command
 
         // add omeka base-path option
         $this->option('-b --base-path', 'Base path to Omeka S installation', 'strval');
+        $this->option('-q --quiet', 'Suppress info messages', 'strval')->on([$this, 'beQuiet']);
 
         return $this;
     }
