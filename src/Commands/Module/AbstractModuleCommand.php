@@ -3,6 +3,7 @@
 namespace OSC\Commands\Module;
 
 use Ahc\Cli\Application as App;
+use Ahc\Cli\Input\Argument;
 use OSC\Commands\AbstractCommand;
 
 abstract class AbstractModuleCommand extends AbstractCommand
@@ -14,7 +15,8 @@ abstract class AbstractModuleCommand extends AbstractCommand
 
     public function argumentModuleId(): self
     {
-        $this->argument('<module-id>', 'The module ID (or id:version)');
+        $argument = new Argument('<module-id>', 'The module ID (or id:version)', null, fn($raw) => trim($raw));
+        $this->register($argument);
         return $this;
     }
 }

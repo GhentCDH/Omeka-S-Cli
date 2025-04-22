@@ -1,15 +1,23 @@
 <?php
 namespace OSC\Cli;
 
-use OSC\Commands\Module\AvailableCommand;
+use Ahc\Cli\Input\Command;
 use Throwable;
 
 class Application extends \Ahc\Cli\Application
 {
+    private bool $debug = false;
+
     public function handle(array $argv): mixed
     {
+        // set error handler
         $this->onException([$this, 'onError']);
 
+        // parse arguments
+        $this->debug = in_array('--debug', $argv, true);
+
+        // register commands
+        /** @var Command[] $commands */
         $commands = [];
         $commands = [...$commands, ...require(__DIR__ . '/../Commands/Module/Index.php')];
         $commands = [...$commands, ...require(__DIR__ . '/../Commands/Theme/Index.php')];
@@ -25,7 +33,9 @@ class Application extends \Ahc\Cli\Application
 
     protected function onError(Throwable $e, int $exitCode): void {
         $this->io()->error($e->getMessage(), true);
-        $this->io()->info($e->getTraceAsString(), true);
+        if ($this->debug) {
+            $this->io()->info($e->getTraceAsString(), true);
+        }
         exit($exitCode);
     }
 }

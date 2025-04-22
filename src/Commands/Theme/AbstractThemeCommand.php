@@ -3,6 +3,7 @@
 namespace OSC\Commands\Theme;
 
 use Ahc\Cli\Application as App;
+use Ahc\Cli\Input\Argument;
 use OSC\Commands\AbstractCommand;
 
 abstract class AbstractThemeCommand extends AbstractCommand
@@ -13,6 +14,8 @@ abstract class AbstractThemeCommand extends AbstractCommand
     }
 
     public function argumentThemeId() {
-        $this->argument('<theme-id>', 'The theme ID (or id:version)');
+        $argument = new Argument('<theme-id>', 'The theme ID (or id:version)', null, fn($raw) => trim($raw));
+        $this->register($argument);
+        return $this;
     }
 }

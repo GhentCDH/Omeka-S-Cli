@@ -6,6 +6,7 @@ use Omeka\Module\Manager as ModuleManager;
 use Omeka\Module\Module;
 use Omeka\Service\ModuleManagerFactory;
 use Exception;
+use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
 use Throwable;
 
@@ -60,19 +61,9 @@ class ModuleApi
 
         $module = $modules[strtolower($moduleId)] ?? null;
         if (!$module) {
-            throw new Exception("Module '{$moduleId}' not found");
+            throw new NotFoundException("Module '{$moduleId}' not found");
         }
         return $module;
-    }
-
-    public function isInstalled(string $moduleId): bool
-    {
-        try {
-            $this->getModule($moduleId);
-            return true;
-        } catch (Throwable $e) {
-            return false;
-        }
     }
 
     public function isActive($moduleId): bool
@@ -126,7 +117,7 @@ class ModuleApi
     public function delete(Module $module): void
     {
         if ($module->getState() === ModuleManager::STATE_NOT_FOUND) {
-            throw new Exception('The module can\'t be removed because its source files can not be found on disc.');
+            throw new NotFoundException('The module can\'t be removed because its source files can not be found on disc.');
 
         }
         if ($module->getState() === ModuleManager::STATE_ACTIVE || $module->getState() === ModuleManager::STATE_NOT_ACTIVE ) {
