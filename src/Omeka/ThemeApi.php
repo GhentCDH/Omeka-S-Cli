@@ -7,6 +7,7 @@ use Omeka\Entity\Site;
 use Omeka\Service\ThemeManagerFactory;
 use Omeka\Site\Theme\Manager as ThemeManager;
 use Omeka\Site\Theme\Theme;
+use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
 
 class ThemeApi
@@ -54,7 +55,7 @@ class ThemeApi
 
         $theme = $themes[strtolower($themeId)] ?? null;
         if (!$theme) {
-            throw new Exception("Theme '{$themeId}' not found");
+            throw new NotFoundException("Theme '{$themeId}' not found");
         }
         return $theme;
     }
@@ -79,7 +80,7 @@ class ThemeApi
     public function delete(Theme $theme): void
     {
         if ($theme->getState() === ThemeManager::STATE_NOT_FOUND) {
-            throw new Exception('The theme can\'t be removed because its source files can not be found on disc.');
+            throw new NotFoundException('The theme can\'t be removed because its source files can not be found on disc.');
         }
 
         $path = $theme->getPath();
