@@ -59,11 +59,6 @@ class ThemeApi
         return $theme;
     }
 
-    public function isInstalled(string $theme_id): bool
-    {
-        return (bool)($this->getTheme($theme_id));
-    }
-
     public function hasErrors(Theme $theme): bool
     {
         return in_array($theme->getState(),

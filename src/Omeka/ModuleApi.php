@@ -65,16 +65,6 @@ class ModuleApi
         return $module;
     }
 
-    public function isInstalled(string $moduleId): bool
-    {
-        try {
-            $this->getModule($moduleId);
-            return true;
-        } catch (Throwable $e) {
-            return false;
-        }
-    }
-
     public function isActive($moduleId): bool
     {
         try {
