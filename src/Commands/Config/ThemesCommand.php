@@ -43,8 +43,8 @@ class ThemesCommand extends AbstractCommand
 
         switch ($format) {
             case 'env':
-                $outputCSV = implode(',', array_map(function ($item) { return "{$item['id']}:{$item['version']}"; }, $output));
-                $this->io()->writer()->write($outputCSV,true);
+                $output = implode(' ', array_map(function ($item) { return "{$item['id']}:{$item['version']}"; }, $output));
+                $this->io()->writer()->write($output,true);
                 break;
             default:
                 $this->outputFormatted($output, $format);
