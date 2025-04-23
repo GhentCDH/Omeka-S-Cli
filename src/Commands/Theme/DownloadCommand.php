@@ -3,6 +3,7 @@ namespace OSC\Commands\Theme;
 
 use Exception;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
+use OSC\Commands\Theme\Types\DownloadInfo;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
@@ -22,40 +23,92 @@ class DownloadCommand extends AbstractThemeCommand
 
     public function execute(?string $themeId, ?bool $force, ?bool $backup): void
     {
-        try {
-            $modulesPath = implode(DIRECTORY_SEPARATOR, [$this->getOmekaPath(), "themes"]);
-            if (!is_writable($modulesPath)) {
-                throw new Exception("Themes directory is not writable. Please check permissions.");
-            }
+        $modulesPath = FileUtils::createPath([$this->getOmekaPath(), "themes"]);
+        if (!is_writable($modulesPath)) {
+            throw new Exception("Themes directory is not writable. Please check permissions.");
+        }
 
-            // download from url
-            if(preg_match('/^https?:\/\/.+\.zip$/', $themeId)) {
-                $tmpThemePath = $this->downloadFromUrl($themeId, $force, $backup);
-            } else {
-                // try to find module in repositories
-                $tmpThemePath = $this->downloadFromThemeRepository($themeId, $force, $backup);
+        $themeDownloadUrl = null;
+        $themeDirName = null;
+
+        if(preg_match('/^https?:\/\/.+\.zip$/', $themeId)) {
+            $themeDownloadUrl = $themeId;
+        } else {
+            ["id" => $themeId, "version" => $themeVersion] = $this->parseModuleVersionString($themeId);
+
+            $themeRepo = new OmekaDotOrg();
+
+            $themeDetails = $themeRepo->find($themeId);
+            if(!$themeDetails){
+                throw new NotFoundException("Theme '{$themeId}' is not found in the official theme list.");
             }
+            $themeDirName = $themeDetails->getDirName();
+
+            // check if version exists
+            $versionDetails = $themeDetails->getVersion($themeVersion ?? $themeDetails->getLatestVersionNumber());
+            if(!$versionDetails){
+                throw new NotFoundException("Theme '{$themeDirName}' with version '{$themeVersion}' is not found in the official theme list.");
+            }
+            $themeDownloadUrl = $versionDetails->getDownloadUrl();
+        }
+
+        // check if module is already available
+        if ($themeDirName) {
+            $themeDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
+
+            // Check if module is already available
+            $themeExists = is_dir($themeDestinationPath);
+            if ($themeExists && !$force) {
+                throw new ThemeExistsException("Theme '{$themeDirName}' already exists in '{$themeDestinationPath}'. Use the --force option to download anyway.");
+            }
+        }
+
+        // download theme
+        $downloadInfo = $this->downloadFromZipRelease($themeDownloadUrl, $themeDirName, $force, $backup);
+
+        $this->ok("Theme '{$themeId}' successfully downloaded.", true);
+    }
+
+    private function parseModuleVersionString($module_string): array {
+        $parts = explode(':', $module_string);
+        return [
+            'id' => $parts[0],
+            'version' => $parts[1] ?? null
+        ];
+    }
+
+    private function downloadFromZipRelease(string $themeUrl, ?string $themeDirName, bool $force, bool $backup): DownloadInfo {
+
+        try {
+            $downloader = new ZipDownloader();
+
+            $this->info("Download {$themeUrl} ... ");
+            $tmpDownloadPath = $downloader->download($themeUrl);
+            $this->info("done", true);
 
             // Find module folder
-            $themeTempPath = FileUtils::findSubpath($tmpThemePath, 'config/theme.ini');
+            $themeTempPath = FileUtils::findSubpath($tmpDownloadPath, 'config/theme.ini');
             if (!$themeTempPath) {
                 throw new NotFoundException("No valid theme found in download folder.");
             }
 
             // Parse module.ini
-            $themeConfigPath = implode(DIRECTORY_SEPARATOR, [$themeTempPath, "config", "theme.ini"]);
-            $data = parse_ini_file($themeConfigPath, true);
-            if (!$data) {
+            $themeConfigPath = FileUtils::createPath([$themeTempPath, "config", "theme.ini"]);
+            $themeIni = parse_ini_file($themeConfigPath, true);
+            if (!$themeIni) {
                 throw new NotFoundException("No valid theme.ini found in download folder.");
             }
 
-            $themeId = $data["info"]["name"] ?? null;
-            $themeDestinationPath = implode(DIRECTORY_SEPARATOR, [$this->getOmekaPath(), "themes", $themeId]);
+            // Get theme destination path
+            if (!$themeDirName) {
+                $themeDirName = basename($themeTempPath); // todo: create safe name!
+            }
+            $themeDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
 
-            // Check if module is already available
+            // Check if theme is already available
             if (is_dir($themeDestinationPath)) {
                 if (!$force) {
-                    throw new ThemeExistsException("Theme '{$themeId}' already exists. Use the --force option to download anyway.");
+                    throw new ThemeExistsException("Theme '{$themeDirName}' already exists in '{$themeDestinationPath}'. Use the --force option to download anyway.");
                 }
 
                 // Backup or remove previous version
@@ -69,75 +122,26 @@ class DownloadCommand extends AbstractThemeCommand
                 $this->info("done", true);
             }
 
-            // Move to modules directory
+            // Move to themes directory
             $this->info("Move theme to folder $themeDestinationPath ... ");
             FileUtils::moveFolder($themeTempPath, $themeDestinationPath);
             $this->info("done", true);
 
+            // Return module info
+            return new DownloadInfo(
+                $themeDirName,
+                $themeIni['info']['name'],
+                $themeIni['info']['description'] ?? null,
+                $themeIni['info']['version'],
+                $themeIni['info']['omeka_version_constraint'] ?? null,
+            );
         } finally {
-            if (isset($tmpThemePath) && is_dir($tmpThemePath)) {
-                $this->info("Cleaning up {$tmpThemePath} ... ");
-                FileUtils::removeFolder($tmpThemePath);
+            if (isset($tmpDownloadPath) && is_dir($tmpDownloadPath)) {
+                $this->info("Cleaning up {$tmpDownloadPath} ... ");
+                FileUtils::removeFolder($tmpDownloadPath);
                 $this->info("done", true);
             }
         }
-
-        $this->ok("Theme '{$themeId}' successfully downloaded.", true);
-    }
-
-    private function parseModuleVersionString($module_string): array {
-        $parts = explode(':', $module_string);
-        return [
-            'id' => $parts[0],
-            'version' => $parts[1] ?? null
-        ];
-    }
-
-    private function downloadFromUrl(string $url, bool $force, bool $backup): string {
-        $downloader = new ZipDownloader();
-
-        $this->info("Download {$url} ... ");
-        $tmpPath = $downloader->download($url);
-        $this->info("done", true);
-
-        return $tmpPath;
-    }
-
-    private function downloadFromThemeRepository(string $themeId, bool $force, bool $backup): string {
-        ["id" => $themeId, "version" => $themeVersion] = $this->parseModuleVersionString($themeId);
-
-        $themeRepo = new OmekaDotOrg();
-
-        $themeDetails = $themeRepo->find($themeId);
-        if(!$themeDetails){
-            throw new NotFoundException("Theme '{$themeId}' is not found in the official theme list.");
-        }
-
-        $themeVersionDetails = $themeDetails->getVersion($themeVersion ?? $themeDetails->getLatestVersionNumber());
-        if(!$themeVersionDetails){
-            throw new NotFoundException("Theme '{$themeId}' with version '{$themeVersion}' is not found in the official theme list.");
-        }
-
-//        // set moduleId to dirname
-//        $themeId = $themeDetails->getDirname();
-//        $themeDestinationPath = implode(DIRECTORY_SEPARATOR, [$this->getOmekaPath(), "themes", $themeId]);
-//
-//        // check if module is already available
-//        if (is_dir($themeDestinationPath) && !$force) {
-//            throw new ThemeExistsException("Theme '{$themeId}' is already available. Use the --force option to download anyway.");
-//        }
-
-        // Download and unzip
-        $downloader = new ZipDownloader();
-        $this->info("Download {$themeVersionDetails->getDownloadUrl()} ... ");
-        $tmpPath = $downloader->download($themeVersionDetails->getDownloadUrl());
-        $this->info("done", true);
-
-        return $tmpPath;
-    }
-
-    private function downloadFromGit(string $url) {
-
     }
 
     private function removeTheme(string $path): void
@@ -154,7 +158,7 @@ class DownloadCommand extends AbstractThemeCommand
             throw new Exception("Could not create backup directory '{$backupDir}'.");
         }
 
-        FileUtils::moveFolder($path, implode(DIRECTORY_SEPARATOR, [$backupDir, basename($path), date('d-m-Y-H-i-s')]));
+        FileUtils::moveFolder($path, FileUtils::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
     }
 
 }
