@@ -63,7 +63,7 @@ class OmekaDotOrg extends AbstractRepository
                 $moduleId = strtolower($module['dirname']);
 
                 $output[$moduleId] = new ModuleDetails(
-                    id: $moduleId,
+                    name: $module['dirname'],
                     dirname: $module['dirname'],
                     latestVersion: $latestVersion,
                     versions: $versions,

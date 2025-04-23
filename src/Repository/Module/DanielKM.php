@@ -61,9 +61,12 @@ class DanielKM extends AbstractRepository
                 if (empty($row['Last released zip'])) {
                     continue;
                 }
-                # get module id
-                $dirname = $this->extractModuleNameFromUrl($row['Last released zip']);
-                $moduleId = strtolower($dirname);
+                # skip if directory name is missing
+                if (empty($row['Directory name'])) {
+                    continue;
+                }
+                $dirname = $row['Directory name'];
+                $moduleId = strtolower($row['Directory name']);
                 $version = $this->extractVersionNumberFromUrl($row['Last released zip']);
                 $version = $row['Last version'];
 
@@ -74,7 +77,7 @@ class DanielKM extends AbstractRepository
                     )
                 ];
                 $modules[$moduleId] = new ModuleDetails(
-                    id: $moduleId,
+                    name: $row['Name'],
                     dirname: $dirname,
                     latestVersion: $version,
                     versions: $versions,
