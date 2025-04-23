@@ -59,7 +59,7 @@ abstract class AbstractCommand extends Command
     }
 
     public function getOutputFormat($defaultFormat = null) {
-        $values = $this->values(true);
+        $values = $this->values();
         $supportedFormats = ['json', 'table', 'env'];
 
         $format = $defaultFormat;

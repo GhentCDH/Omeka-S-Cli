@@ -109,4 +109,9 @@ class FileUtils {
         }
         @rmdir($path);
     }
+
+    public static function createPath(array $parts): string
+    {
+        return implode(DIRECTORY_SEPARATOR,  $parts);
+    }
 }

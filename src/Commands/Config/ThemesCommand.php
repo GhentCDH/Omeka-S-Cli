@@ -1,7 +1,6 @@
 <?php
 namespace OSC\Commands\Config;
 
-use Omeka\Module\Manager as ModuleManager;
 use OSC\Commands\AbstractCommand;
 
 class ThemesCommand extends AbstractCommand

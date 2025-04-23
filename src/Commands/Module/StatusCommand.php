@@ -1,8 +1,6 @@
 <?php
 namespace OSC\Commands\Module;
 
-use Omeka\Module\Manager as ModuleManager;
-
 class StatusCommand extends AbstractModuleCommand
 {
     use FormattersTrait;
