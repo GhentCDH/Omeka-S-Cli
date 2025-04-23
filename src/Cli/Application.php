@@ -32,7 +32,13 @@ class Application extends \Ahc\Cli\Application
     }
 
     protected function onError(Throwable $e, int $exitCode): void {
-        $this->io()->error($e->getMessage(), true);
+        if ( $e instanceof \OSC\Exceptions\WarningException) {
+            $this->io()->warn($e->getMessage(), true);
+            $exitCode = 0;
+        } else {
+            $this->io()->error($e->getMessage(), true);
+        }
+        // output debug trace?
         if ($this->debug) {
             $this->io()->info($e->getTraceAsString(), true);
         }

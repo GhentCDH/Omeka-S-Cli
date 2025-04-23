@@ -22,11 +22,11 @@ foreach ($repositories as $repository) {
 }
 
 // init application
-$app = new CliApplication('Omeka-S-Cli', '0.3.1');
+$app = new CliApplication('Omeka S Cli', '0.3.3');
 $app->logo("
-   ___            _            ___    ___ _ _ 
-  / _ \ _ __  ___| |____ _    / __|  / __| (_)
- | (_) | '  \/ -_) / / _` | = \__ \ | (__| | |
-  \___/|_|_|_\___|_\_\__,_|   |___/  \___|_|_|
+  ___            _            ___     ___ _ _ 
+ / _ \ _ __  ___| |____ _    / __|   / __| (_)
+| (_) | '  \/ -_) / / _` |   \__ \  | (__| | |
+ \___/|_|_|_\___|_\_\__,_|   |___/   \___|_|_|
 ");
 $app->handle($_SERVER['argv']);

@@ -9,9 +9,7 @@ class ThemeDetails implements RepositoryItemInterface
      * @param ThemeVersion[] $versions
      */
     public function __construct(
-        // lowercase version of the module name
-        public string  $id,
-        // the name of the module
+        public string  $name,
         public string  $dirname,
         public string  $latestVersion,
         public array   $versions,
@@ -24,7 +22,12 @@ class ThemeDetails implements RepositoryItemInterface
 
     public function getId(): string
     {
-        return $this->id;
+        return $this->dirname;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
     }
 
     public function getDirname(): string
@@ -70,8 +73,8 @@ class ThemeDetails implements RepositoryItemInterface
     public function matches($query): bool
     {
         $query = strtolower($query);
-        return str_contains(strtolower($this->id ?? ''), $query)
-            || str_contains(strtolower($this->dirname ?? ''), $query)
+        return str_contains(strtolower($this->dirname ?? ''), $query)
+            || str_contains(strtolower($this->name ?? ''), $query)
             || str_contains(strtolower($this->owner ?? ''), $query)
             || str_contains(strtolower($this->tags ?? ''), $query);
     }
