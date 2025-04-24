@@ -2,12 +2,26 @@
 
 Omeka-S-CLI is a command line tool to manage Omeka S installs.
 
+## Features
+
+- Manage modules
+    - Search and download modules from [official Omeka S module repository](https://omeka.org/s/modules/) and [Daniel Berthereau's module repository](https://daniel-km.github.io/UpgradeToOmekaS/en/omeka_s_modules.html)
+    - Install, enable, disable, upgrade, uninstall and delete downloaded modules
+    - List all downloaded modules and their status
+- Manage themes
+    - Search and download themes from the [official Omeka S theme repository](https://omeka.org/s/themes/)
+    - Install, enable, disable, uninstall and delete downloaded themes
+    - List all downloaded themes and their status
+- Export config
+    - Export list of installed modules and themes
+
 ## Usage
 
-    omeka-s-cli <command> [options]
+    omeka-s-cli [ - h | --help ]
     omeka-s-cli <command> --help
+    omeka-s-cli <command> [options]
 
-Commands:
+## Available commands:
 
 ```
 config
@@ -31,9 +45,6 @@ theme
   theme:list             List downloaded themes
   theme:search           Search/list available modules
   theme:status           Get theme status
-
-Run `<command> --help` for specific help
-
 ```
 
 ## Requirements
@@ -43,8 +54,8 @@ Run `<command> --help` for specific help
 
 ## Installation
 
- - Download [omeka-s-cli.phar](https://github.com/GhentCDH/Omeka-S-Cli/releases/latest/download/omeka-s-cli.phar) from latest release.
- - Run with `php omeka-s-cli.phar` or move it to a directory in your PATH and make it executable.
+- Download [omeka-s-cli.phar](https://github.com/GhentCDH/Omeka-S-Cli/releases/latest/download/omeka-s-cli.phar) from latest release.
+- Run with `php omeka-s-cli.phar` or move it to a directory in your PATH and make it executable.
 
 ## Build
 
