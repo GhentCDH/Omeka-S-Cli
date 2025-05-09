@@ -15,6 +15,7 @@ class Application extends \Ahc\Cli\Application
 
         // parse arguments
         $this->debug = in_array('--debug', $argv, true);
+        $argv = array_filter($argv, fn($arg) => $arg !== '--debug');
 
         // register commands
         /** @var Command[] $commands */
