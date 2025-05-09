@@ -82,7 +82,7 @@ class OmekaInstance
 
         $entityManager = $serviceLocator->get('Omeka\EntityManager');
         $userRepository = $entityManager->getRepository('Omeka\Entity\User');
-        $identity = $userRepository->findOneBy(['id' => 1, 'isActive' => true]);
+        $identity = $userRepository->findOneBy(['role' => 'global_admin', 'isActive' => true]);
         $auth->getStorage()->write($identity);
     }
 }
