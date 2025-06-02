@@ -162,9 +162,12 @@ abstract class AbstractCommand extends Command
     {
         $dir = rtrim($dir, DIRECTORY_SEPARATOR);
         if (
-            file_exists( join(DIRECTORY_SEPARATOR, [$dir, '/config/database.ini']))
-            && file_exists( join(DIRECTORY_SEPARATOR, [$dir, '/bootstrap.php']))
-            && file_exists( join(DIRECTORY_SEPARATOR, [$dir, '/application/config/application.config.php'])) )
+            file_exists( join(DIRECTORY_SEPARATOR, [$dir, '/bootstrap.php']))
+            && file_exists( join(DIRECTORY_SEPARATOR, [$dir, '/application/config/application.config.php']))
+            && file_exists(join(DIRECTORY_SEPARATOR, [$dir, '/modules']))
+            && file_exists(join(DIRECTORY_SEPARATOR, [$dir, '/themes']))
+            && file_exists(join(DIRECTORY_SEPARATOR, [$dir, '/files']))
+        )
         {
             return true;
         }
