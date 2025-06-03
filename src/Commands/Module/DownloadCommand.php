@@ -8,12 +8,8 @@ use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
-
-enum DownloadType {
-    case GitRepo;
-    case ZipUrl;
-    case ModuleId;
-}
+use OSC\Helper\ArgumentParser;
+use OSC\Helper\ArgumentType;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -40,19 +36,19 @@ class DownloadCommand extends AbstractModuleCommand
         $moduleDirName = null;
         $downloader = null;
 
-        $downloadType = $this->getDownloadType($moduleId);
+        $downloadType = ArgumentParser::getArgumentType($moduleId);
 
         // download from url
         switch ($downloadType) {
-            case DownloadType::GitRepo:
+            case ArgumentType::GitRepo:
                 $moduleDownloadUrl = $moduleId;
                 $downloader = new GitDownloader($moduleDownloadUrl);
                 break;
-            case DownloadType::ZipUrl:
+            case ArgumentType::ZipUrl:
                 $moduleDownloadUrl = $moduleId;
                 $downloader = new ZipDownloader($moduleDownloadUrl);
                 break;
-            case DownloadType::ModuleId:
+            case ArgumentType::IdVersion:
                 ["id" => $moduleId, "version" => $moduleVersion] = $this->parseModuleVersionString($moduleId);
 
                 // find module in repositories
@@ -97,14 +93,13 @@ class DownloadCommand extends AbstractModuleCommand
             }
 
             // Find module folder
-            $moduleTempPath = FileUtils::findSubpath($tmpDownloadPath, 'config/module.ini');
-            var_dump($moduleTempPath);
-            if (!$moduleTempPath) {
+            $moduleSourcePath = FileUtils::findSubpath($tmpDownloadPath, 'config/module.ini');
+            if (!$moduleSourcePath) {
                 throw new NotFoundException("No valid module found in download folder.");
             }
 
             // Parse module.ini
-            $moduleConfigPath = FileUtils::createPath([$moduleTempPath, "config", "module.ini"]);
+            $moduleConfigPath = FileUtils::createPath([$moduleSourcePath, "config", "module.ini"]);
             $moduleIni = parse_ini_file($moduleConfigPath, true);
             if (!$moduleIni) {
                 throw new NotFoundException("No valid module.ini found in download folder.");
@@ -113,7 +108,7 @@ class DownloadCommand extends AbstractModuleCommand
             // Get module destination path
             if (!$moduleDirName) {
                 // Get module dirname based on module namespace
-                $moduleSrc = file_get_contents(FileUtils::createPath([$moduleTempPath, "Module.php"]));
+                $moduleSrc = file_get_contents(FileUtils::createPath([$moduleSourcePath, "Module.php"]));
                 if (!$moduleSrc) {
                     throw new NotFoundException("No valid Module.php found in download folder.");
                 }
@@ -144,7 +139,7 @@ class DownloadCommand extends AbstractModuleCommand
             // Move to modules directory
             try {
                 $this->info("Move module to folder $moduleDestinationPath ... ");
-                FileUtils::moveFolder($moduleTempPath, $moduleDestinationPath);
+                FileUtils::moveFolder($moduleSourcePath, $moduleDestinationPath);
                 $this->info("done");
             } finally {
                 $this->io()->eol();
@@ -211,22 +206,6 @@ class DownloadCommand extends AbstractModuleCommand
             return $matches[3];
         }
         return null;
-    }
-
-    private function getDownloadType($string): DownloadType {
-        if (preg_match('/^https?:\/\/.+\.zip$/', $string)) {
-            return DownloadType::ZipUrl;
-        }
-
-        if (preg_match('/^(https:\/\/|git@).+\.git(#[a-zA-Z0-9_.-]+)?$/', $string)) {
-            return DownloadType::GitRepo;
-        }
-
-        if (preg_match('/^[a-zA-Z0-9_-]+(:[a-zA-Z0-9_.-]+)?$/', $string)) {
-            return DownloadType::ModuleId;
-        }
-
-        throw new Exception("Invalid argument type for module download: '$string'");
     }
 
 }
