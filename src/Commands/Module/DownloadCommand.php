@@ -4,9 +4,12 @@ namespace OSC\Commands\Module;
 use Exception;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Module\Types\DownloadInfo;
+use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
+use OSC\Helper\ArgumentParser;
+use OSC\Helper\ArgumentType;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -31,28 +34,41 @@ class DownloadCommand extends AbstractModuleCommand
 
         $moduleDownloadUrl = null;
         $moduleDirName = null;
+        $downloader = null;
+
+        $downloadType = ArgumentParser::getArgumentType($moduleId);
 
         // download from url
-        if(preg_match('/^https?:\/\/.+\.zip$/', $moduleId)) {
-            $moduleDownloadUrl = $moduleId;
-        } else {
-            ["id" => $moduleId, "version" => $moduleVersion] = $this->parseModuleVersionString($moduleId);
+        switch ($downloadType) {
+            case ArgumentType::GitRepo:
+                $moduleDownloadUrl = $moduleId;
+                $downloader = new GitDownloader($moduleDownloadUrl);
+                break;
+            case ArgumentType::ZipUrl:
+                $moduleDownloadUrl = $moduleId;
+                $downloader = new ZipDownloader($moduleDownloadUrl);
+                break;
+            case ArgumentType::IdVersion:
+                ["id" => $moduleId, "version" => $moduleVersion] = $this->parseModuleVersionString($moduleId);
 
-            // find module in repositories
-            $repoResult = $this->getModuleRepositoryManager()->find($moduleId, $moduleVersion);
-            if(!$repoResult){
-                throw new NotFoundException("Could not find module '{$moduleId}' in any repository.");
-            }
-            $moduleDirName = $repoResult->getItem()->getDirname();
+                // find module in repositories
+                $repoResult = $this->getModuleRepositoryManager()->find($moduleId, $moduleVersion);
+                if (!$repoResult) {
+                    throw new NotFoundException("Could not find module '{$moduleId}' in any repository.");
+                }
+                $moduleDirName = $repoResult->getItem()->getDirname();
 
-            // check if version exists
-            if ($moduleVersion && !$repoResult->getVersionNumber()) {
-                throw new NotFoundException("Module '{$moduleDirName}' has no version '{$moduleVersion}'.");
-            }
+                // check if version exists
+                if ($moduleVersion && !$repoResult->getVersionNumber()) {
+                    throw new NotFoundException("Module '{$moduleDirName}' has no version '{$moduleVersion}'.");
+                }
 
-            // get download url
-            $versionInfo = $repoResult->getItem()->getVersion($repoResult->getVersionNumber());
-            $moduleDownloadUrl = $versionInfo->getDownloadUrl();
+                // get download url
+                $versionInfo = $repoResult->getItem()->getVersion($repoResult->getVersionNumber());
+                $moduleDownloadUrl = $versionInfo->getDownloadUrl();
+
+                $downloader = new ZipDownloader($moduleDownloadUrl);
+                break;
         }
 
         // check if module is already available
@@ -67,7 +83,84 @@ class DownloadCommand extends AbstractModuleCommand
         }
 
         // download module
-        $downloadInfo = $this->downloadFromZipRelease($moduleDownloadUrl, $moduleDirName, $force, $backup);
+        try {
+            try {
+                $this->info("Download {$moduleDownloadUrl} ... ");
+                $tmpDownloadPath = $downloader->download();
+                $this->info("done");
+            } finally {
+                $this->io()->eol();
+            }
+
+            // Find module folder
+            $moduleSourcePath = FileUtils::findSubpath($tmpDownloadPath, 'config/module.ini');
+            if (!$moduleSourcePath) {
+                throw new NotFoundException("No valid module found in download folder.");
+            }
+
+            // Parse module.ini
+            $moduleConfigPath = FileUtils::createPath([$moduleSourcePath, "config", "module.ini"]);
+            $moduleIni = parse_ini_file($moduleConfigPath, true);
+            if (!$moduleIni) {
+                throw new NotFoundException("No valid module.ini found in download folder.");
+            }
+
+            // Get module destination path
+            if (!$moduleDirName) {
+                // Get module dirname based on module namespace
+                $moduleSrc = file_get_contents(FileUtils::createPath([$moduleSourcePath, "Module.php"]));
+                if (!$moduleSrc) {
+                    throw new NotFoundException("No valid Module.php found in download folder.");
+                }
+                $moduleDirName = $this->getModuleNameSpace($moduleSrc);
+            }
+            $moduleDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
+
+            // Backup or remove previous version
+            if (is_dir($moduleDestinationPath)) {
+                if (!$force) {
+                    throw new ModuleExistsException("Module '{$moduleDirName}' already exists in '{$moduleDestinationPath}'. Use the --force option download anyway.");
+                }
+
+                try {
+                    if ($backup) {
+                        $this->info("Backup previous version ... ");
+                        $this->backupModule($moduleDestinationPath);
+                    } else {
+                        $this->removeModule($moduleDestinationPath);
+                        $this->info("Remove previous version ... ");
+                    }
+                    $this->info("done");
+                } finally {
+                    $this->io()->eol();
+                }
+            }
+
+            // Move to modules directory
+            try {
+                $this->info("Move module to folder $moduleDestinationPath ... ");
+                FileUtils::moveFolder($moduleSourcePath, $moduleDestinationPath);
+                $this->info("done");
+            } finally {
+                $this->io()->eol();
+            }
+
+            // Return module info
+            $downloadInfo = new DownloadInfo(
+                $moduleDirName,
+                $moduleIni['info']['name'],
+                $moduleIni['info']['description'] ?? null,
+                $moduleIni['info']['version'],
+                explode(',', $moduleIni['info']['dependencies'] ?? ''),
+                $moduleIni['info']['omeka_version_constraint'] ?? null,
+            );
+        } finally {
+            if (isset($tmpDownloadPath) && is_dir($tmpDownloadPath)) {
+                $this->info("Cleaning up {$tmpDownloadPath} ... ");
+                FileUtils::removeFolder($tmpDownloadPath);
+                $this->info("done", true);
+            }
+        }
 
         $this->ok("Module '{$downloadInfo->getDirname()}' successfully downloaded.", true);
 
@@ -90,78 +183,6 @@ class DownloadCommand extends AbstractModuleCommand
         ];
     }
 
-    private function downloadFromZipRelease(string $moduleUrl, $moduleDirName, bool $force, bool $backup): DownloadInfo {
-        try {
-            // Download and unzip
-            $downloader = new ZipDownloader();
-            $this->info("Download {$moduleUrl} ... ");
-            $tmpDownloadPath = $downloader->download($moduleUrl);
-            $this->info("done", true);
-
-            // Find module folder
-            $moduleTempPath = FileUtils::findSubpath($tmpDownloadPath, 'config/module.ini');
-            if (!$moduleTempPath) {
-                throw new NotFoundException("No valid module found in download folder.");
-            }
-
-            // Parse module.ini
-            $moduleConfigPath = FileUtils::createPath([$moduleTempPath, "config", "module.ini"]);
-            $moduleIni = parse_ini_file($moduleConfigPath, true);
-            if (!$moduleIni) {
-                throw new NotFoundException("No valid module.ini found in download folder.");
-            }
-
-            // Get module destination path
-            if (!$moduleDirName) {
-                // Get module dirname based on module namespace
-                $moduleSrc = file_get_contents(FileUtils::createPath([$moduleTempPath, "Module.php"]));
-                if (!$moduleSrc) {
-                    throw new NotFoundException("No valid Module.php found in download folder.");
-                }
-                $moduleDirName = $this->getNameSpace($moduleSrc);
-            }
-            $moduleDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
-
-            // Backup or remove previous version
-            if (is_dir($moduleDestinationPath)) {
-                if (!$force) {
-                    throw new ModuleExistsException("Module '{$moduleDirName}' already exists in '{$moduleDestinationPath}'. Use the --force option download anyway.");
-                }
-
-                if ($backup) {
-                    $this->info("Backup previous version ... ");
-                    $this->backupModule($moduleDestinationPath);
-                } else {
-                    $this->removeModule($moduleDestinationPath);
-                    $this->info("Remove previous version ... ");
-                }
-                $this->info("done", true);
-            }
-
-            // Move to modules directory
-            $this->info("Move module to folder $moduleDestinationPath ... ");
-            FileUtils::moveFolder($moduleTempPath, $moduleDestinationPath);
-            $this->info("done", true);
-
-            // Return module info
-            return new DownloadInfo(
-                $moduleDirName,
-                $moduleIni['info']['name'],
-                $moduleIni['info']['description'] ?? null,
-                $moduleIni['info']['version'],
-                explode(',', $moduleIni['info']['dependencies'] ?? ''),
-                $moduleIni['info']['omeka_version_constraint'] ?? null,
-            );
-        } finally {
-            if (isset($tmpDownloadPath) && is_dir($tmpDownloadPath)) {
-                $this->info("Cleaning up {$tmpDownloadPath} ... ");
-                FileUtils::removeFolder($tmpDownloadPath);
-                $this->info("done", true);
-            }
-        }
-
-    }
-
     private function removeModule(string $path): void
     {
         if (empty($path) || $path == '/' || !(str_contains($path, 'modules')))
@@ -179,7 +200,7 @@ class DownloadCommand extends AbstractModuleCommand
         FileUtils::moveFolder($path, FileUtils::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
     }
 
-    private function getNameSpace($src): ?string
+    private function getModuleNameSpace($src): ?string
     {
         if (preg_match('#(namespace)(\\s+)([A-Za-z0-9\\\\]+?)(\\s*);#sm', $src, $matches)) {
             return $matches[3];

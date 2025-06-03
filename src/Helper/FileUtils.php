@@ -17,6 +17,13 @@ class FileUtils {
             throw new InvalidArgumentException("The base folder '{$baseFolder}' is not a valid directory.");
         }
 
+        // check if the subpath exists directly in the base folder
+        $potentialPath = realpath($baseFolder) . DIRECTORY_SEPARATOR . $subpath;
+        if (file_exists($potentialPath)) {
+            return realpath($baseFolder);
+        }
+
+        // iterate through the directory structure
         $iterator = new RecursiveDirectoryIterator($baseFolder, FilesystemIterator::SKIP_DOTS);
 
         foreach ($iterator as $file) {
@@ -28,7 +35,7 @@ class FileUtils {
             }
         }
 
-        return null; // Return null if the subpath is not found
+        return null;
     }
 
     static function createTempFolder(string $prefix = ''): string
@@ -114,4 +121,14 @@ class FileUtils {
     {
         return implode(DIRECTORY_SEPARATOR,  $parts);
     }
+
+    public static function createSafeName(string $name): string
+    {
+        // Replace invalid characters with underscores
+        $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
+
+        // Trim and ensure the name is not empty
+        return $safeName ?: 'default_name';
+    }
+
 }

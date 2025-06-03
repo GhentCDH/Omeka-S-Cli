@@ -7,7 +7,11 @@ use OSC\Helper\FileUtils;
 use ZipArchive;
 
 class ZipDownloader implements DownloaderInterface {
-    public function download(string $url): string
+
+    public function __construct(private string $url)
+    {
+    }
+    public function download(): string
     {
         $tmpZipDestinationPath = FileUtils::createTempFolder('omeka-s-cli.');
         $tmpZipFilePath = FileUtils::createTempFile('omeka-s-cli.');
@@ -19,8 +23,8 @@ class ZipDownloader implements DownloaderInterface {
                 throw new Exception('Failed to lock temporary file');
             }
 
-            if (!fwrite($tmpZipResource, file_get_contents($url))) {
-                throw new Exception("Failed to download file at '$url'");
+            if (!fwrite($tmpZipResource, file_get_contents($this->url))) {
+                throw new Exception("Failed to download file at '$this->url'");
             }
 
             $zip = new ZipArchive;
