@@ -32,10 +32,12 @@ class GitDownloader implements DownloaderInterface {
                 $exitCode && throw new \ErrorException("Failed to checkout tag/version");
             }
 
-            // Run composer install
-            $composerCommand = sprintf('cd %s && composer install --no-dev 2> /dev/null', escapeshellarg($tmpGitDestinationPath));
-            exec($composerCommand, $output, $exitCode);
-            $exitCode && throw new \ErrorException("Failed to install module dependencies");
+            // Install dependencies
+            if (file_exists($tmpGitDestinationPath . '/composer.lock')) {
+                $composerCommand = sprintf('cd %s && composer install -q --no-dev &> /dev/null', escapeshellarg($tmpGitDestinationPath));
+                exec($composerCommand, $output, $exitCode);
+                $exitCode && throw new \ErrorException("Failed to install dependencies");
+            }
 
             return $tmpGitDestinationPath;
         } catch (\Throwable $e) {
