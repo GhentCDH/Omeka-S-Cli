@@ -121,4 +121,14 @@ class FileUtils {
     {
         return implode(DIRECTORY_SEPARATOR,  $parts);
     }
+
+    public static function createSafeName(string $name): string
+    {
+        // Replace invalid characters with underscores
+        $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $name);
+
+        // Trim and ensure the name is not empty
+        return $safeName ?: 'default_name';
+    }
+
 }
