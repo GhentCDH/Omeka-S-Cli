@@ -80,10 +80,10 @@ class DownloadCommand extends AbstractThemeCommand
     private function downloadFromZipRelease(string $themeUrl, ?string $themeDirName, bool $force, bool $backup): DownloadInfo {
 
         try {
-            $downloader = new ZipDownloader();
+            $downloader = new ZipDownloader($themeUrl);
 
             $this->info("Download {$themeUrl} ... ");
-            $tmpDownloadPath = $downloader->download($themeUrl);
+            $tmpDownloadPath = $downloader->download();
             $this->info("done", true);
 
             // Find module folder
