@@ -16,8 +16,12 @@ Omeka-S-CLI is a command line tool to manage Omeka S installs.
     - Download themes from git repositories
     - Install, enable, disable, uninstall and delete downloaded themes
     - List all downloaded themes and their status
-- Export config
+- Config
     - Export list of installed modules and themes
+    - Get, set and list global settings
+- Core
+    - Get current Omeka S version
+    - Update Omeka S to the latest version
 
 ## Usage
 
