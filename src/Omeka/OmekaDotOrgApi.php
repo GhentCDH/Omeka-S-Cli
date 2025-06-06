@@ -45,6 +45,6 @@ class OmekaDotOrgApi
 
     public function getLatestOmekaVersion(): string
     {
-        return file_get_contents(self::OMEKA_VERSION_API_URL);
+        return trim(file_get_contents(self::OMEKA_VERSION_API_URL));
     }
 }
