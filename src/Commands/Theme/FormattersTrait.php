@@ -17,7 +17,7 @@ trait FormattersTrait
             'version' => null,
             'author' => null,
             'path' => null,
-            'upgradeAvailable' => null,
+            'updateAvailable' => null,
             'isConfigurable' => null,
             'isConfigurableResourcePageBlocks' => null,
         ];
@@ -27,7 +27,7 @@ trait FormattersTrait
             $status['isConfigurable'] = $theme->isConfigurable();
             $status['isConfigurableResourcePageBlocks'] = $theme->isConfigurableResourcePageBlocks();
             $status['path'] = $theme->getPath();
-            $status['upgradeAvailable'] = isset($api_theme['latest_version']) ? ($theme->getIni()['version']!==$api_theme['latest_version'] ? $api_theme['latest_version']: 'up to date') : 'unknown';
+            $status['updateAvailable'] = isset($api_theme['latest_version']) ? ($theme->getIni()['version']!==$api_theme['latest_version'] ? $api_theme['latest_version']: 'up to date') : 'unknown';
         }
         if (!$extended) {
             unset($status['path']);

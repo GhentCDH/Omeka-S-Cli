@@ -19,7 +19,7 @@ trait FormattersTrait
             'name' => $module->getName(),
             'state' => $module->getState(),
             'version' => null,
-            'upgradeAvailable' => null,
+            'updateAvailable' => null,
             'path' => null,
             'isConfigurable' => null,
         ];
@@ -30,7 +30,7 @@ trait FormattersTrait
                 $status['version'] = ($module->getDb()['version']==$module->getIni()['version']||!$module->getDb()['version'])?$module->getIni()['version']:($module->getIni()['version'].' ('.$module->getDb()['version'].' in database)')??'';
             }
             $latestVersion = $api_module?->getItem()?->getLatestVersionNumber();
-            $status['upgradeAvailable'] = $latestVersion ? ($module->getIni()['version']!==$latestVersion ? $latestVersion: 'up to date') : 'unknown';
+            $status['updateAvailable'] = $latestVersion ? ($module->getIni()['version']!==$latestVersion ? $latestVersion: 'up to date') : 'unknown';
             $status['path'] = $module->getModuleFilePath();
             $status['isConfigurable'] = $module->isConfigurable();
         }
