@@ -22,7 +22,7 @@ foreach ($repositories as $repository) {
 }
 
 // init application
-$app = new CliApplication('Omeka S Cli', '0.4.0');
+$app = new CliApplication('Omeka S Cli', '0.5.0');
 $app->logo("
   ___            _            ___     ___ _ _ 
  / _ \ _ __  ___| |____ _    / __|   / __| (_)
