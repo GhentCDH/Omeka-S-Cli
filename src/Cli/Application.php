@@ -23,6 +23,7 @@ class Application extends \Ahc\Cli\Application
         $commands = [...$commands, ...require(__DIR__ . '/../Commands/Module/Index.php')];
         $commands = [...$commands, ...require(__DIR__ . '/../Commands/Theme/Index.php')];
         $commands = [...$commands, ...require(__DIR__ . '/../Commands/Config/Index.php')];
+        $commands = [...$commands, ...require(__DIR__ . '/../Commands/User/Index.php')];
 
         foreach ($commands as $command) {
             $this->add($command);
