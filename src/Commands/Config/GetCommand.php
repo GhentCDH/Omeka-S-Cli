@@ -3,7 +3,6 @@ namespace OSC\Commands\Config;
 
 use Omeka\Settings\Settings;
 use OSC\Commands\AbstractCommand;
-use OSC\Commands\OutputFormat;
 use OSC\Exceptions\NotFoundException;
 
 class GetCommand extends AbstractCommand

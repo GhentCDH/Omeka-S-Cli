@@ -3,7 +3,6 @@ namespace OSC\Commands\Config;
 
 use Omeka\Settings\Settings;
 use OSC\Commands\AbstractCommand;
-use OSC\Commands\OutputFormat;
 
 class ListCommand extends AbstractCommand
 {
@@ -36,7 +35,7 @@ class ListCommand extends AbstractCommand
         }
 
         $this->beQuiet();
-        $this->outputFormatted($result, OutputFormat::JSON);
+        $this->outputFormatted($result);
         $this->io()->eol();
     }
 }
