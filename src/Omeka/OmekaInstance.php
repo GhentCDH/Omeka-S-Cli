@@ -33,8 +33,8 @@ class OmekaInstance
             ob_end_clean();
 
             // init apis
-            $this->themeApi = new ThemeApi($this->getServiceLocator());
-            $this->moduleApi = new ModuleApi($this->getServiceLocator());
+            $this->themeApi = new ThemeApi($this->getServiceManager());
+            $this->moduleApi = new ModuleApi($this->getServiceManager());
 
             // todo: dirty! should fix module init on startup
             if (file_exists($this->path . '/modules/Common/vendor/autoload.php')) {
@@ -60,7 +60,12 @@ class OmekaInstance
         return $this->path;
     }
 
-    public function getServiceLocator(): ?\Laminas\ServiceManager\ServiceManager
+    public function getApi(): \Omeka\Api\Manager
+    {
+        return $this->getServiceManager()->get('Omeka\ApiManager');
+    }
+
+    public function getServiceManager(): ?\Laminas\ServiceManager\ServiceManager
     {
         return $this->getApplication()->getServiceManager();
     }
@@ -75,7 +80,7 @@ class OmekaInstance
         return $this->moduleApi;
     }
 
-    private function elevatePrivileges(): void
+    public function elevatePrivileges(): void
     {
         $serviceLocator = $this->getApplication()->getServiceManager();
         $auth = $serviceLocator->get('Omeka\AuthenticationService');

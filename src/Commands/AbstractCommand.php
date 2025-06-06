@@ -106,6 +106,9 @@ abstract class AbstractCommand extends Command
         if($return_value)
             ob_start();
         switch($format){
+            case 'raw':
+                $this->io()->writer()->raw($object);
+                break;
             case 'table': $this->io()->table($object); break;
             case 'print_r': $this->io()->writer()->raw(print_r($object, true)); break;
             case 'var_export': $this->io()->writer()->raw(var_export($object, true)); break;
