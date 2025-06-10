@@ -9,7 +9,7 @@ use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
 use OSC\Helper\ArgumentParser;
-use OSC\Helper\ArgumentType;
+use OSC\Helper\Types\ArgumentType;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -25,7 +25,7 @@ class DownloadCommand extends AbstractModuleCommand
         $this->argumentModuleId();
     }
 
-    public function execute(?string $moduleId, ?bool $force, ?bool $backup, ?bool $install, ?bool $upgrade): void
+    public function execute(?string $moduleId, ?bool $force = false, ?bool $backup = false, ?bool $install = false, ?bool $upgrade = false): void
     {
         $modulesPath = FileUtils::createPath([$this->getOmekaPath(), "modules"]);
         if (!is_writable($modulesPath)) {
