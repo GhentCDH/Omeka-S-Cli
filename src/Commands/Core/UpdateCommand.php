@@ -41,6 +41,12 @@ class UpdateCommand extends AbstractModuleCommand
             }
         }
 
+        // check if destination path exists and is writable
+        $destPath = $this->getOmekaPath();
+        if (!is_dir($destPath) || !is_writable($destPath)) {
+            throw new Exception("The destination path '{$destPath}' does not exist or is not writable.");
+        }
+
         // Download the specified version
         $url = "https://github.com/omeka/omeka-s/releases/download/v$versionNumber/omeka-s-$versionNumber.zip";
         $downloader = new ZipDownloader($url);
@@ -55,7 +61,6 @@ class UpdateCommand extends AbstractModuleCommand
 
         // Clean source folders
         $srcPath = FileUtils::createPath([$tmpDownloadPath, 'omeka-s']);
-        $destPath = $this->getOmekaPath();
 
         FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'modules']));
         FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'files']));

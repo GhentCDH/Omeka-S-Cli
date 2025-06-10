@@ -13,4 +13,5 @@ return [
     new DeleteCommand(),
     new DownloadCommand(),
     new StatusCommand(),
+    new UpdateCommand(),
 ];

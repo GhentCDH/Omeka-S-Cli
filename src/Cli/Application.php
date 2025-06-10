@@ -8,27 +8,16 @@ class Application extends \Ahc\Cli\Application
 {
     private bool $debug = false;
 
+    public function __construct(protected string $name, protected string $version = '0.0.1', ?callable $onExit = null)    {
+        parent::__construct($name, $version);
+        $this->onException([$this, 'onError']);
+    }
+
     public function handle(array $argv): mixed
     {
-        // set error handler
-        $this->onException([$this, 'onError']);
-
         // parse arguments
         $this->debug = in_array('--debug', $argv, true);
         $argv = array_filter($argv, fn($arg) => $arg !== '--debug');
-
-        // register commands
-        /** @var Command[] $commands */
-        $commands = [];
-        $commands = [...$commands, ...require(__DIR__ . '/../Commands/Module/Index.php')];
-        $commands = [...$commands, ...require(__DIR__ . '/../Commands/Theme/Index.php')];
-        $commands = [...$commands, ...require(__DIR__ . '/../Commands/Config/Index.php')];
-        $commands = [...$commands, ...require(__DIR__ . '/../Commands/Core/Index.php')];
-        $commands = [...$commands, ...require(__DIR__ . '/../Commands/User/Index.php')];
-
-        foreach ($commands as $command) {
-            $this->add($command);
-        }
 
         // handle
         return parent::handle($argv);

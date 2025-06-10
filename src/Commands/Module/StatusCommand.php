@@ -17,7 +17,6 @@ class StatusCommand extends AbstractModuleCommand
     {
         $format = $this->getOutputFormat('table');
 
-
         $module = $this->getOmekaInstance()->getModuleApi()->getModule($moduleId);
 
         $this->outputFormatted([$this->formatModuleStatus($module, $extended)], $format);
