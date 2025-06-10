@@ -10,9 +10,10 @@ class ListCommand extends AbstractModuleCommand
         parent::__construct('module:list', 'List downloaded modules');
         $this->optionJson();
         $this->optionExtended();
+        $this->option('-o --outdated', 'Show outdated modules', null, false);
     }
 
-    public function execute(?bool $json = false, ?bool $extended = false): void
+    public function execute(?bool $json = false, ?bool $extended = false, ?bool $outdated = false): void
     {
         $format = $this->getOutputFormat('table');
 
@@ -20,7 +21,11 @@ class ListCommand extends AbstractModuleCommand
 
         $output = [];
         foreach ($modules as $module) {
-            $output[] = $this->formatModuleStatus($module, $extended);
+            $moduleInfo = $this->formatModuleStatus($module, $extended);
+            if ($outdated && !$moduleInfo['updateAvailable']) {
+                continue;
+            }
+            $output[] = $moduleInfo;
         }
 
         $this->outputFormatted($output, $format);
