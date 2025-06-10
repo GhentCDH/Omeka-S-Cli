@@ -12,25 +12,27 @@ use OSC\Repository\Module\ModuleDetails;
 trait FormattersTrait
 {
     private function formatModuleStatus(Module $module, bool $extended = false): array {
-        $api_module = $this->getModuleRepositoryManager()->find($module->getId());
+        $searchResult = $this->getModuleRepositoryManager()->find($module->getId());
+        $omekaInstance = $this->getOmekaInstance();
+
+        $latestVersion = $searchResult?->getItem()?->getLatestVersionNumber() ?? null;
 
         $status = [
             'id' => $module->getId(),
             'name' => $module->getName(),
             'state' => $module->getState(),
             'version' => null,
+            'installedVersion' => null,
+            'latestVersion' => $latestVersion,
             'updateAvailable' => null,
             'path' => null,
             'isConfigurable' => null,
         ];
-        if ( !$this->getOmekaInstance()->getModuleApi()->hasErrors($module) ) {
-            if ( $module->getState() === ModuleManager::STATE_NOT_INSTALLED ) {
-                $status['version'] = $module->getIni()['version'];
-            } else {
-                $status['version'] = ($module->getDb()['version']==$module->getIni()['version']||!$module->getDb()['version'])?$module->getIni()['version']:($module->getIni()['version'].' ('.$module->getDb()['version'].' in database)')??'';
-            }
-            $latestVersion = $api_module?->getItem()?->getLatestVersionNumber();
-            $status['updateAvailable'] = $latestVersion ? ($module->getIni()['version']!==$latestVersion ? $latestVersion: 'up to date') : 'unknown';
+        if ( !$omekaInstance->getModuleApi()->hasErrors($module) ) {
+            $version = $module->getIni()['version'];
+            $status['version'] = $version;
+            $status['installedVersion'] = $module->getDb()['version'];
+            $status['updateAvailable'] = $latestVersion ? ($version !== $latestVersion) : null;
             $status['path'] = $module->getModuleFilePath();
             $status['isConfigurable'] = $module->isConfigurable();
         }
@@ -51,15 +53,15 @@ trait FormattersTrait
         $moduleList = [];
         foreach ($moduleResults as $moduleResult) {
             $result = [
-                'ID' =>  $moduleResult->getItem()->getDirname(),
-                'Latest version' => $moduleResult->getItem()->getLatestVersionNumber(),
+                'id' =>  $moduleResult->getItem()->getDirname(),
+                'latestVersion' => $moduleResult->getItem()->getLatestVersionNumber(),
             ];
             if ($extended) {
                 $result = array_merge($result, [
-                    'Url' => $moduleResult->getItem()->getLink(),
-                    'Description' => $moduleResult->getItem()->getDescription() ?? '',
-                    'Owner' => $moduleResult->getItem()->getOwner() ?? '',
-                    'Repository' => $moduleResult->getRepository()->getDisplayName(),
+                    'url' => $moduleResult->getItem()->getLink(),
+                    'description' => $moduleResult->getItem()->getDescription() ?? '',
+                    'owner' => $moduleResult->getItem()->getOwner() ?? '',
+                    'repository' => $moduleResult->getRepository()->getDisplayName(),
                 ]);
             }
             $moduleList[] = $result;
