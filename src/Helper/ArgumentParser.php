@@ -2,11 +2,7 @@
 
 namespace OSC\Helper;
 
-enum ArgumentType {
-    case GitRepo;
-    case ZipUrl;
-    case IdVersion;
-}
+use OSC\Helper\Types\ArgumentType;
 
 class ArgumentParser {
     public static function getArgumentType($string): ArgumentType {
@@ -22,6 +18,6 @@ class ArgumentParser {
             return ArgumentType::IdVersion;
         }
 
-        throw new \InvalidArgumentException("Invalid argument type for module download: '$string'");
+        throw new \InvalidArgumentException("Could not determine argument type: '$string'");
     }
 }

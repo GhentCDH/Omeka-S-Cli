@@ -8,7 +8,7 @@ use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\ArgumentParser;
-use OSC\Helper\ArgumentType;
+use OSC\Helper\Types\ArgumentType;
 use OSC\Helper\FileUtils;
 use OSC\Repository\Theme\OmekaDotOrg;
 

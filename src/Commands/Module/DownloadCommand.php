@@ -9,7 +9,7 @@ use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
 use OSC\Helper\ArgumentParser;
-use OSC\Helper\ArgumentType;
+use OSC\Helper\Types\ArgumentType;
 
 class DownloadCommand extends AbstractModuleCommand
 {
