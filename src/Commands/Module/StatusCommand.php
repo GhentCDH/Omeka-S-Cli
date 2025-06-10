@@ -19,7 +19,11 @@ class StatusCommand extends AbstractModuleCommand
 
         $module = $this->getOmekaInstance()->getModuleApi()->getModule($moduleId);
 
-        $this->outputFormatted([$this->formatModuleStatus($module, $extended)], $format);
+        $moduleInfo = $this->formatModuleStatus($module, $extended);
+        if ($format === 'table') {
+            $moduleInfo['updateAvailable'] = $moduleInfo['updateAvailable'] ? 'yes' : $moduleInfo['updateAvailable'];
+        }
+        $this->outputFormatted([$moduleInfo], $format);
 
         $this->ok("Module '{$moduleId}' successfully enabled.", true);
     }
