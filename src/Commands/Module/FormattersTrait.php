@@ -17,25 +17,19 @@ trait FormattersTrait
 
         $latestVersion = $searchResult?->getItem()?->getLatestVersionNumber() ?? null;
 
+        $version = $module->getIni('version');
+
         $status = [
             'id' => $module->getId(),
             'name' => $module->getName(),
             'state' => $module->getState(),
-            'version' => null,
-            'installedVersion' => null,
+            'version' => $version,
+            'installedVersion' => $module->getDb('version'),
             'latestVersion' => $latestVersion,
-            'updateAvailable' => null,
-            'path' => null,
-            'isConfigurable' => null,
+            'updateAvailable' => $latestVersion && $version ? ($version !== $latestVersion) : null,
+            'path' => $module->getModuleFilePath(),
+            'isConfigurable' => $module->isConfigurable(),
         ];
-        if ( !$omekaInstance->getModuleApi()->hasErrors($module) ) {
-            $version = $module->getIni()['version'];
-            $status['version'] = $version;
-            $status['installedVersion'] = $module->getDb()['version'];
-            $status['updateAvailable'] = $latestVersion ? ($version !== $latestVersion) : null;
-            $status['path'] = $module->getModuleFilePath();
-            $status['isConfigurable'] = $module->isConfigurable();
-        }
 
         if (!$extended) {
             unset($status['path']);

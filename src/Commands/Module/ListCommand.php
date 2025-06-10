@@ -25,6 +25,9 @@ class ListCommand extends AbstractModuleCommand
             if ($outdated && !$moduleInfo['updateAvailable']) {
                 continue;
             }
+            if ($format === 'table') {
+                $moduleInfo['updateAvailable'] = $moduleInfo['updateAvailable'] ? 'yes' : $moduleInfo['updateAvailable'];
+            }
             $output[] = $moduleInfo;
         }
 
