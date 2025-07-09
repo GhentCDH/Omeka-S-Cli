@@ -1,0 +1,20 @@
+/.distignore             export-ignore
+/.editorconfig           export-ignore
+/.env                    export-ignore
+/.gitattributes          export-ignore
+/.github/                export-ignore
+/.gitignore              export-ignore
+/.php-cs-fixer.dist.php  export-ignore
+/.readthedocs.yaml       export-ignore
+/docs/                   export-ignore
+/mkdocs.yml              export-ignore
+/tests/                  export-ignore
+/vendor/                 export-ignore
+composer.lock            export-ignore
+phpunit.xml              export-ignore
+README.md                export-ignore
+renovate.json            export-ignore
+box.json                 export-ignore
+img.png                  export-ignore
+# PHAR file should not be in exports if built locally, but usually built by CI/release process
+# *.phar                 export-ignore

@@ -3,16 +3,27 @@
     "description": "Omeka-S Command Line Tool",
     "type": "project",
     "version": "0.5.0",
-    "keywords": ["Omeka S"],
+    "keywords": [
+        "Omeka S",
+        "cli",
+        "omeka-s-cli"
+    ],
     "homepage": "https://github.com/GhentCDH/Omeka-S-Cli",
+    "license": "MIT",
     "authors": [
         {
             "name": "Frederic Lamsens",
-            "email": "frederic.lamsens@ugent.be"
+            "email": "frederic.lamsens@ugent.be",
+            "role": "Developer"
+        },
+        {
+            "name": "Ghent Centre for Digital Humanities",
+            "homepage": "https://www.ghentcdh.ugent.be/",
+            "role": "Funder"
         }
     ],
-    "license": "MIT",
     "require": {
+        "php": "^8.1",
         "ext-zip": "*",
         "ext-pdo": "*",
         "ext-pdo_mysql": "*",
@@ -23,9 +34,38 @@
             "OSC\\": "src/"
         }
     },
-    "config": {
-        "platform": {
-            "php": "8.1"
+    "autoload-dev": {
+        "psr-4": {
+            "OSC\\Tests\\": "tests/"
         }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "lint": "phpcs . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php --colors --warning-severity=0 --extensions=php",
+        "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php --colors --warning-severity=0 --extensions=php"
+    },
+    "require-dev": {
+        "pestphp/pest": "*",
+        "phpunit/phpunit": "*",
+        "squizlabs/php_codesniffer": "*"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "archive": {
+        "exclude": [
+            "/tests",
+            "/README.md",
+            "/.github",
+            "/.git",
+            "/box.json",
+            "/composer.lock",
+            "/.gitignore",
+            "/.gitattributes",
+            "img.png"
+        ]
     }
 }
