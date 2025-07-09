@@ -15,11 +15,6 @@
             "name": "Frederic Lamsens",
             "email": "frederic.lamsens@ugent.be",
             "role": "Developer"
-        },
-        {
-            "name": "Ghent Centre for Digital Humanities",
-            "homepage": "https://www.ghentcdh.ugent.be/",
-            "role": "Funder"
         }
     ],
     "require": {
@@ -40,20 +35,16 @@
         }
     },
     "scripts": {
-        "test": "vendor/bin/pest",
         "lint": "phpcs . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php --colors --warning-severity=0 --extensions=php",
         "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php --colors --warning-severity=0 --extensions=php"
     },
     "require-dev": {
-        "pestphp/pest": "*",
         "phpunit/phpunit": "*",
         "squizlabs/php_codesniffer": "*"
     },
     "config": {
         "sort-packages": true,
-        "allow-plugins": {
-            "pestphp/pest-plugin": true
-        }
+        "allow-plugins": {}
     },
     "archive": {
         "exclude": [
