@@ -19,10 +19,11 @@
     ],
     "require": {
         "php": "^8.1",
-        "ext-zip": "*",
         "ext-pdo": "*",
         "ext-pdo_mysql": "*",
-        "adhocore/cli": "^v1.0.0"
+        "ext-zip": "*",
+        "adhocore/cli": "^v1.0.0",
+        "omeka/omeka-s": "^4.0.0"
     },
     "autoload": {
         "psr-4": {
@@ -34,6 +35,9 @@
             "OSC\\Tests\\": "tests/"
         }
     },
+    "bin": [
+        "bin/omeka-s-cli"
+    ],
     "scripts": {
         "lint": "phpcs . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php --colors --warning-severity=0 --extensions=php",
         "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php --colors --warning-severity=0 --extensions=php"
@@ -44,7 +48,9 @@
     },
     "config": {
         "sort-packages": true,
-        "allow-plugins": {}
+        "allow-plugins": {
+            "omeka/composer-addon-installer": true
+        }
     },
     "archive": {
         "exclude": [
@@ -58,5 +64,8 @@
             "/.gitattributes",
             "img.png"
         ]
+    },
+    "replace": {
+        "omeka-s-themes/default": "*"
     }
 }

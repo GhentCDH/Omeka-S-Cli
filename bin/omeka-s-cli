@@ -6,7 +6,20 @@ use Ahc\Cli\Input\Command;
 use OSC\Cli\Application as CliApplication;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
-require_once __DIR__ . '/../vendor/autoload.php';
+// autoload
+if (isset($GLOBALS['_composer_autoload_path'])) {
+    require_once $GLOBALS['_composer_autoload_path'];
+    unset($GLOBALS['_composer_autoload_path']);
+} else {
+    foreach ([__DIR__ . '/../../autoload.php', __DIR__ . '/../vendor/autoload.php', __DIR__ . '/vendor/autoload.php'] as $file) {
+        if (file_exists($file)) {
+            require_once $file;
+
+            break;
+        }
+    }
+    unset($file);
+}
 
 // set error reporting
 error_reporting(E_ERROR);
