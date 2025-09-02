@@ -32,7 +32,7 @@ $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Core/Index.php
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/User/Index.php')];
 
 // init application
-$app = new CliApplication('Omeka S Cli', '0.5.2');
+$app = new CliApplication('Omeka S Cli', '0.5.3');
 $app->logo("
   ___            _            ___     ___ _ _ 
  / _ \ _ __  ___| |____ _    / __|   / __| (_)
