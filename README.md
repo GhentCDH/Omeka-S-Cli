@@ -21,7 +21,9 @@ Omeka-S-CLI is a command line tool to manage Omeka S installs.
     - Get, set and list global settings
 - Core
     - Get current Omeka S version
+    - Download specific Omeka S version
     - Update Omeka S to the latest version
+    - Perform database migrations
 
 ## Usage
 
@@ -96,8 +98,8 @@ Theme 'freedom' successfully downloaded.
 
 ## Requirements
 
-- PHP (>= 8) with PDO_MySQL and Zip enabled
-- Omeka S (>= 3.2)
+- PHP (>= 8.1) with PDO_MySQL and Zip enabled
+- Omeka S (>= 4)
 
 ## Installation
 
@@ -121,10 +123,11 @@ box compile
 
 ## To do
 
-- [ ] Core management (version, latest-version, install, update)
 - [ ] Download/update multiple modules at once
 - [ ] Module dependency checking
-- [ ] Config management (list, get, set)
+- [ ] Add support for resource templates
+- [ ] Add support for sites and site pages
+- [ ] Add support for API keys
 
 ## Credits
 
