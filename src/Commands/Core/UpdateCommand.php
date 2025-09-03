@@ -18,28 +18,40 @@ class UpdateCommand extends AbstractModuleCommand
         parent::__construct('core:update', 'Update Omeka S core');
         $this->argument('[version-number]', 'Core version number');
         $this->option('-f --force', 'Force download', 'boolval', false);
+        $this->option('-s --skip-version-check', 'Skip installed version check', 'boolval', false);
     }
 
-    public function execute(?string $versionNumber, ?bool $force): void
+    public function execute(?string $versionNumber, ?bool $force, ?bool $skipVersionCheck): void
     {
-        $serviceManager = $this->getOmekaInstance()->getServiceManager();
-
-        // Get the current version from settings
-        $settings = $serviceManager->get('Omeka\Settings');
-        $currentVersion = $settings->get('version');
-
         // Get the latest version if no version number is provided
-        $versionNumber = $versionNumber ?? $this->webApi->getLatestOmekaVersion();
         if (!$versionNumber) {
-            throw new Exception("Unable to determine the latest Omeka S version.");
+            try {
+                $this->info("No version number supplied, getting latest core version number ... ");
+                $versionNumber = $this->webApi->getLatestOmekaVersion();
+                if (!$versionNumber) {
+                    throw new Exception("Unable to determine the latest Omeka S version.");
+                }
+                $this->info('done');
+            } finally {
+                $this->io()->eol();
+            }
         }
 
         // Check version
-        if ($currentVersion === $versionNumber) {
-            if (!$force) {
-                throw new WarningException("Omeka S core is already at version $versionNumber.");
+        if (!$skipVersionCheck) {
+            $serviceManager = $this->getOmekaInstance(false)->getServiceManager();
+
+            // Get the current version from settings
+            $settings = $serviceManager->get('Omeka\Settings');
+            $currentVersion = $settings->get('version');
+
+            if ($currentVersion === $versionNumber) {
+                if (!$force) {
+                    throw new WarningException("Omeka S core is already at version $versionNumber.");
+                }
             }
         }
+
 
         // check if destination path exists and is writable
         $destPath = $this->getOmekaPath();
@@ -59,18 +71,21 @@ class UpdateCommand extends AbstractModuleCommand
             $this->io()->eol();
         }
 
-        // Clean source folders
-        $srcPath = FileUtils::createPath([$tmpDownloadPath, 'omeka-s']);
+        try {
+            // Clean source folders
+            $this->info("Clean downloaded core files ... ");
+            $srcPath = FileUtils::createPath([$tmpDownloadPath, 'omeka-s']);
 
-        FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'modules']));
-        FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'files']));
-        FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'themes']));
-        FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'config']));
-        FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'logs']));
+            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'modules']));
+            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'files']));
+            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'themes']));
+            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'config']));
+            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'logs']));
 
-        // Clean destination folders
-        FileUtils::removeFolder(FileUtils::createPath([$destPath, 'application']));
-        FileUtils::removeFolder(FileUtils::createPath([$destPath, 'vendor']));
+            // Clean destination folders
+            FileUtils::removeFolder(FileUtils::createPath([$destPath, 'application']));
+            FileUtils::removeFolder(FileUtils::createPath([$destPath, 'vendor']));
+            $this->info('done', true);
 
             // Install the new Omeka S core files
             try {
