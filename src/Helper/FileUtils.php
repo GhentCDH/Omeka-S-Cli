@@ -117,6 +117,37 @@ class FileUtils {
         @rmdir($path);
     }
 
+    public static function copyFolder(string $source, string $destination): void
+    {
+        if (!is_dir($source)) {
+            throw new InvalidArgumentException("Source folder '{$source}' does not exist or is not a directory.");
+        }
+
+        if (!is_dir($destination)) {
+            if (!mkdir($destination, 0755, true) && !is_dir($destination)) {
+                throw new RuntimeException("Failed to create destination folder '{$destination}'.");
+            }
+        }
+
+        $directoryIterator = new DirectoryIterator($source);
+        foreach ($directoryIterator as $fileInfo) {
+            if ($fileInfo->isDot()) {
+                continue;
+            }
+
+            $sourcePath = $fileInfo->getPathname();
+            $destinationPath = $destination . DIRECTORY_SEPARATOR . $fileInfo->getBasename();
+
+            if ($fileInfo->isDir()) {
+                static::copyFolder($sourcePath, $destinationPath);
+            } else {
+                if (!copy($sourcePath, $destinationPath)) {
+                    throw new RuntimeException("Failed to copy file '{$sourcePath}' to '{$destinationPath}'.");
+                }
+            }
+        }
+    }
+
     public static function createPath(array $parts): string
     {
         return implode(DIRECTORY_SEPARATOR,  $parts);

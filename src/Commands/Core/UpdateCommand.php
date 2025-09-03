@@ -72,25 +72,13 @@ class UpdateCommand extends AbstractModuleCommand
         FileUtils::removeFolder(FileUtils::createPath([$destPath, 'application']));
         FileUtils::removeFolder(FileUtils::createPath([$destPath, 'vendor']));
 
-        // Install the new Omeka S core files
-        try {
+            // Install the new Omeka S core files
             try {
-                $this->info("Replacing files ...");
-
-                // remove source folders
-
-                // copy files
-                $cmd = ("bash -c 'set -o pipefail -o errexit; cp -rf ".escapeshellarg($srcPath)."/. ".escapeshellarg($destPath)."/'");
-                system($cmd);
-                $output = [];
-                $exitCode = -1;
-                $result = exec($cmd, $output, $exitCode);
-
-                if($exitCode!==0){
-                    throw new Exception("Failed to copy files. Command output: " . implode("\n", $output));
-                }
+                $this->info("Install new core files ...");
+                FileUtils::copyFolder($srcPath, $destPath);
+                $this->info("done");
             } finally {
-                $this->info("done", true);
+                $this->io()->eol();
             }
         } finally {
             // Clean up temporary files
