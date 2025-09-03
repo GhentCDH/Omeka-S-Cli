@@ -149,8 +149,12 @@ abstract class AbstractCommand extends Command
         return $basePath;
     }
 
-    protected function getOmekaInstance(): OmekaInstance {
-        return OmekaInstanceFactory::createSingleton($this->getOmekaPath());
+    protected function getOmekaInstance(bool $elevated = true): OmekaInstance {
+        $instance = OmekaInstanceFactory::createInstance($this->getOmekaPath());
+        if ($elevated) {
+            $instance->elevatePrivileges();
+        }
+        return $instance;
     }
 
     protected function getModuleRepositoryManager(): ModuleRepositoryManager {
@@ -161,7 +165,7 @@ abstract class AbstractCommand extends Command
     # - /config/database.ini
     # - /bootstrap.php
     # - /application/config/application.config.php
-    private function isOmekaDir($dir): bool
+    protected function isOmekaDir($dir): bool
     {
         $dir = rtrim($dir, DIRECTORY_SEPARATOR);
         if (
