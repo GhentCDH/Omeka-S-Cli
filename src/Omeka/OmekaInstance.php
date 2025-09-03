@@ -28,8 +28,6 @@ class OmekaInstance
             $this->application = \Omeka\Mvc\Application::init(require $this->path . '/application/config/application.config.php');
             $this->application->run();
 
-            // elevate privileges
-            $this->elevatePrivileges();
             ob_end_clean();
 
             // init apis

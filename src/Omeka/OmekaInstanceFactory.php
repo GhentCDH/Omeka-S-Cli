@@ -5,7 +5,7 @@ namespace OSC\Omeka;
 class OmekaInstanceFactory
 {
     protected static ?OmekaInstance $instance = null;
-    public static function createSingleton(string $path): OmekaInstance
+    public static function createInstance(string $path): OmekaInstance
     {
         if (static::$instance) {
             return static::$instance;

@@ -3,5 +3,8 @@ namespace OSC\Commands\Core;
 
 return [
     new VersionCommand(),
-    new UpdateCommand()
+    new DownloadCommand(),
+    new UpdateCommand(),
+    new InstallCommand(),
+    new MigrateCommand(),
 ];
