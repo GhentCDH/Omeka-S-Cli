@@ -3,6 +3,8 @@ namespace OSC\Omeka;
 
 use Exception;
 use Laminas\Mvc\Application;
+use Omeka\Mvc\Status;
+use Omeka\Api\Manager as ApiManager;
 
 class OmekaInstance
 {
@@ -58,9 +60,14 @@ class OmekaInstance
         return $this->path;
     }
 
-    public function getApi(): \Omeka\Api\Manager
+    public function getApi(): ApiManager
     {
         return $this->getServiceManager()->get('Omeka\ApiManager');
+    }
+
+    public function getStatus(): Status
+    {
+        return $this->getServiceManager()->get('Omeka\Status');
     }
 
     public function getServiceManager(): ?\Laminas\ServiceManager\ServiceManager
@@ -80,12 +87,16 @@ class OmekaInstance
 
     public function elevatePrivileges(): void
     {
-        $serviceLocator = $this->getApplication()->getServiceManager();
-        $auth = $serviceLocator->get('Omeka\AuthenticationService');
+        try {
+            $serviceLocator = $this->getServiceManager();
+            $auth = $serviceLocator->get('Omeka\AuthenticationService');
 
-        $entityManager = $serviceLocator->get('Omeka\EntityManager');
-        $userRepository = $entityManager->getRepository('Omeka\Entity\User');
-        $identity = $userRepository->findOneBy(['role' => 'global_admin', 'isActive' => true]);
-        $auth->getStorage()->write($identity);
+            $entityManager = $serviceLocator->get('Omeka\EntityManager');
+            $userRepository = $entityManager->getRepository('Omeka\Entity\User');
+            $identity = $userRepository->findOneBy(['role' => 'global_admin', 'isActive' => true]);
+            $auth->getStorage()->write($identity);
+        } catch (\Throwable $e) {
+            throw new Exception("Failed to elevate privileges.");
+        }
     }
 }

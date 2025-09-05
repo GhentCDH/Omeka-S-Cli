@@ -2,6 +2,7 @@
 namespace OSC\Commands\Core;
 
 use Exception;
+use Omeka\Mvc\Status;
 use Omeka\Settings\Settings;
 use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
@@ -14,16 +15,31 @@ class VersionCommand extends AbstractModuleCommand
 
     public function __construct()
     {
-        parent::__construct('core:version', 'Get the current Omeka S version');
+        parent::__construct('core:version', 'Get the current download Omeka S version');
+        $this->option('-i --installed', 'Get the installed Omeka S version.', 'boolval', false);
+        $this->optionJson();
     }
 
-    public function execute(?string $versionNumber): void
+    public function execute(?bool $installed): void
     {
-        $serviceManager = $this->getOmekaInstance()->getServiceManager();
-        $settings = $serviceManager->get('Omeka\Settings');
-        $currentVersion = $settings->get('version');
+        $serviceManager = $this->getOmekaInstance(false)->getServiceManager();
 
-        echo $currentVersion;
-        $this->io()->eol();
+        /** @var Status $status */
+        $status = $serviceManager->get('Omeka\Status');
+        if ($installed) {
+            if (!$status->isInstalled()) {
+                throw new Exception('Omeka S is not installed.');
+            }
+            $version = $status->getInstalledVersion();
+        } else {
+            $version = $status->getVersion();
+        }
+
+        if ($this->values()['json'] ?? false) {
+            $this->outputFormatted(['version' => $version], 'json');
+        } else {
+            echo $version;
+            $this->io()->eol();
+        }
     }
 }
