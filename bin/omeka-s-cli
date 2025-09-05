@@ -6,7 +6,7 @@ use Ahc\Cli\Input\Command;
 use OSC\Cli\Application as CliApplication;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
-define('OMEKA_S_CLI_VERSION', '0.6.0');
+define('OMEKA_S_CLI_VERSION', '0.6.1');
 
 // autoload
 if (isset($GLOBALS['_composer_autoload_path'])) {
@@ -45,6 +45,7 @@ $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Theme/Index.ph
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Config/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Core/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/User/Index.php')];
+$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/ResourceTemplates/Index.php')];
 
 // init application
 $app = new CliApplication('Omeka S Cli', OMEKA_S_CLI_VERSION);
