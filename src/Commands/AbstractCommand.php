@@ -95,6 +95,14 @@ abstract class AbstractCommand extends Command
         }
     }
 
+    public function echo(string $message, bool $eol = false): void
+    {
+        $this->io()->writer()->raw($message);
+        if ($eol) {
+            $this->io()->eol();
+        }
+    }
+
     public function beQuiet() {
         $this->set('verbosity', 0);
     }
@@ -117,6 +125,7 @@ abstract class AbstractCommand extends Command
                 if(is_object($object))
                     $object = (array)$object;
                 $this->io()->writer()->raw(json_encode($object, JSON_PRETTY_PRINT));
+                $this->io()->eol();
                 break;
         }
         if($return_value)
@@ -152,6 +161,10 @@ abstract class AbstractCommand extends Command
     protected function getOmekaInstance(bool $elevated = true): OmekaInstance {
         $instance = OmekaInstanceFactory::createInstance($this->getOmekaPath());
         if ($elevated) {
+            // check if omeka is installed
+            if (!$instance->getStatus()->isInstalled()) {
+                throw new \Exception("Omeka S is not installed.");
+            }
             $instance->elevatePrivileges();
         }
         return $instance;
