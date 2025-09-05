@@ -2,7 +2,7 @@
 namespace OSC\Commands\Core;
 
 use Exception;
-use http\Exception\InvalidArgumentException;
+use InvalidArgumentException;
 use Omeka\Installation\Installer;
 use OSC\Commands\AbstractCommand;
 use Omeka\Mvc\Status;
@@ -30,7 +30,7 @@ class InstallCommand extends AbstractCommand
     ): void {
         // Validate email
         if (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
-            throw new InvalidArgumentException("Invalid email address: {$adminEmail}");
+            throw new InvalidArgumentException("Invalid administrator email address: {$adminEmail}");
         }
 
         // Validate timezone
