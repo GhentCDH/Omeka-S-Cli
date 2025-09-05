@@ -12,12 +12,12 @@ class InstallCommand extends AbstractCommand
     public function __construct()
     {
         parent::__construct('core:install', 'Install Omeka S');
-        $this->option('--title', 'Title for this Omeka S installation', 'strval', 'Omeka S');
-        $this->option('--time_zone', 'Time zone (e.g., America/New_York)', 'strval', 'UTC');
-        $this->option('--locale', 'Locale (e.g., en_US)', 'strval', 'en_US');
-        $this->option('--admin_name', 'Name for the administrator user', 'strval', 'Admin');
-        $this->option('--admin_email', 'E-mail for the administrator user', 'strval', 'admin@example.com');
-        $this->option('--admin_password', 'Password for the administrator user', 'strval', 'admin');
+        $this->option('-t --title', 'Title for this Omeka S installation', 'strval', 'Omeka S');
+        $this->option('-tz --time-zone', 'Time zone (e.g., America/New_York)', 'strval', 'UTC');
+        $this->option('-l --locale', 'Locale (e.g., en_US)', 'strval', 'en_US');
+        $this->option('-n --admin-name', 'Name for the administrator user', 'strval', 'Admin');
+        $this->option('-e --admin-email', 'E-mail for the administrator user', 'strval', 'admin@example.com');
+        $this->option('-p --admin-password', 'Password for the administrator user', 'strval', 'admin');
     }
 
     public function execute(
