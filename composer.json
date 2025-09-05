@@ -22,8 +22,7 @@
         "ext-pdo": "*",
         "ext-pdo_mysql": "*",
         "ext-zip": "*",
-        "adhocore/cli": "^v1.0.0",
-        "omeka/omeka-s": "^4.0.0"
+        "adhocore/cli": "^1.9.0"
     },
     "autoload": {
         "psr-4": {
@@ -43,6 +42,7 @@
         "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php --colors --warning-severity=0 --extensions=php"
     },
     "require-dev": {
+        "omeka/omeka-s": "*",
         "phpunit/phpunit": "*",
         "squizlabs/php_codesniffer": "*"
     },
