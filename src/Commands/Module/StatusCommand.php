@@ -24,7 +24,5 @@ class StatusCommand extends AbstractModuleCommand
             $moduleInfo['updateAvailable'] = $moduleInfo['updateAvailable'] ? 'yes' : $moduleInfo['updateAvailable'];
         }
         $this->outputFormatted([$moduleInfo], $format);
-
-        $this->ok("Module '{$moduleId}' successfully enabled.", true);
     }
 }
