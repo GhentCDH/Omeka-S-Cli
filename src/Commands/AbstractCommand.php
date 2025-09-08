@@ -95,6 +95,13 @@ abstract class AbstractCommand extends Command
         }
     }
 
+    public function error(string $message, bool $eol = false): void
+    {
+        if ($this->values()['verbosity'] > 0) {
+            $this->io()->error($message, $eol);
+        }
+    }
+
     public function echo(string $message, bool $eol = false): void
     {
         $this->io()->writer()->raw($message);
