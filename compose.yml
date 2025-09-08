@@ -1,0 +1,29 @@
+name: "omeka-s-cli"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app:cached
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+
+  db:
+    image: mariadb:10.4
+    restart: no
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: omeka
+      MYSQL_USER: omeka
+      MYSQL_PASSWORD: omeka
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+volumes:
+  mysql-data:
