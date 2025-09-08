@@ -71,8 +71,15 @@ class InstallCommand extends AbstractCommand
         ]);
 
         // Perform installation
-        $installer->install();
+        if (!$installer->install()) {
+            $message = "Omeka S could not be installed.";
+            foreach ($installer->getErrors() as $error) {
+                $message .= PHP_EOL . "- $error";
+            }
+            throw new Exception($message);
+        }
 
+        // Log install details
         $this->ok("Omeka S installation completed successfully!", true);
         $this->info("Administrator email: {$adminEmail}", true);
         $this->info("Administrator password: {$adminPassword}", true);
