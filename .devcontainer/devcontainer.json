@@ -1,0 +1,7 @@
+{
+  "name": "Omeka S CLI Development",
+  "dockerComposeFile": "compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "remoteUser": "application"
+}
