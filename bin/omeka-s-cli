@@ -45,7 +45,6 @@ $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Theme/Index.ph
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Config/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Core/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/User/Index.php')];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/ResourceTemplates/Index.php')];
 
 // init application
 $app = new CliApplication('Omeka S Cli', OMEKA_S_CLI_VERSION);
