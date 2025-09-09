@@ -15,7 +15,7 @@ class VersionCommand extends AbstractModuleCommand
 
     public function __construct()
     {
-        parent::__construct('core:version', 'Get the current download Omeka S version');
+        parent::__construct('core:version', 'Get the downloaded Omeka S version');
         $this->option('-i --installed', 'Get the installed Omeka S version.', 'boolval', false);
         $this->optionJson();
     }
