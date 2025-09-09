@@ -10,7 +10,15 @@ class Application extends \Ahc\Cli\Application
 
     public function __construct(protected string $name, protected string $version = '0.0.1', ?callable $onExit = null)    {
         parent::__construct($name, $version);
+
+        // set error handler
         $this->onException([$this, 'onError']);
+
+        // update color schema
+        \Ahc\Cli\Output\Color::style('info', [
+            'fg' => \Ahc\Cli\Output\Color::WHITE,
+            'options' => ['bold']
+        ]);
     }
 
     public function handle(array $argv): mixed
@@ -32,7 +40,7 @@ class Application extends \Ahc\Cli\Application
         }
         // output debug trace?
         if ($this->debug) {
-            $this->io()->info($e->getTraceAsString(), true);
+            $this->io()->error($e->getTraceAsString(), true);
         }
         exit($exitCode);
     }

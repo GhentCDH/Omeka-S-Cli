@@ -8,7 +8,7 @@ class CreateDbIniCommand extends AbstractCommand
     public function __construct()
     {
         parent::__construct('config:create-db-ini', 'Create Omeka S database.ini configuration file');
-        $this->option('-h --host', 'Database host (default: localhost)', 'strval', 'localhost');
+        $this->option('-H --host', 'Database host (default: localhost)', 'strval', 'localhost');
         $this->option('-P --port', 'Database port', 'intval', 3306);
         $this->option('-d --dbname', 'Database name', 'strval');
         $this->option('-u --username', 'Database username', 'strval');
@@ -53,20 +53,15 @@ class CreateDbIniCommand extends AbstractCommand
         $dbname = addcslashes($dbname, '"');
 
         return <<<INI
-[database]
 user = "{$username}"
 password = "{$password}"
 dbname = "{$dbname}"
 host = "{$host}"
 port = {$port}
-
 ; Uncomment and configure if using a Unix socket
 ; unix_socket = "/path/to/mysql.sock"
-
 ; Additional options
 ; log_path = ""
-; profiler = false
-
 INI;
     }
 }
