@@ -38,7 +38,8 @@ RUN apt-get -qq update && \
         ffmpeg \
         libvips-tools \
         libxml2 libxml2-dev libcurl4-openssl-dev libmagickwand-dev \
-        git && \
+        git \
+        default-mysql-client && \
     apt-get clean && \
     apt-get autoclean
 
@@ -56,3 +57,6 @@ RUN install -g 1000 -o 1000 -d /var/www/omeka-s
 
 # Set working directory
 WORKDIR /app
+
+# Set user to non-root
+USER application
