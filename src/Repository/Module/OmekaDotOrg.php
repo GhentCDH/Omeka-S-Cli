@@ -47,10 +47,23 @@ class OmekaDotOrg extends AbstractRepository
             }
             $data = json_decode($json, true) ?? [];
 
+            // validate json structure
+            if (!is_array($data)) {
+                throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+            }
+            if (empty($data)) {
+                return $output;
+            }
+
+            $firstItem = current($data);
+            if (!isset($firstItem['dirname'], $firstItem['latest_version'], $firstItem['versions'], $firstItem['owner'])) {
+                throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+            }
+
             // Create the modules array
             foreach ($data as $module) {
                 $versions = [];
-                foreach ($module['versions'] as $version => $versionData) {
+                foreach (($module['versions'] ?? []) as $version => $versionData) {
                     $versions[$version] = new ModuleVersion(
                         $version,
                         $versionData['created'],
