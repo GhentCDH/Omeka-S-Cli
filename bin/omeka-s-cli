@@ -6,7 +6,14 @@ use Ahc\Cli\Input\Command;
 use OSC\Cli\Application as CliApplication;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
-define('OMEKA_S_CLI_VERSION', '0.6.2');
+# read version from composer.json
+$composerFile = __DIR__ . '/../composer.json';
+if (file_exists($composerFile)) {
+    $composer = json_decode(file_get_contents($composerFile), true);
+    define('OMEKA_S_CLI_VERSION', $composer['version'] ?? '0.0.0');
+} else {
+    define('OMEKA_S_CLI_VERSION', '0.0.0');
+}
 
 // autoload
 if (isset($GLOBALS['_composer_autoload_path'])) {
