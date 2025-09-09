@@ -47,7 +47,22 @@ class DanielKM extends AbstractRepository
                 throw new \HttpRequestException("Failed to fetch data from " . self::API_ENDPOINT);
             }
             $csv = array_map('str_getcsv', explode(PHP_EOL, $csv));
+
+            // validate csv structure
+            if (!is_array($csv)) {
+                throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+            }
+            if (empty($csv)) {
+                return $modules;
+            }
+
             $header = array_shift($csv);
+            $expectedKeys = ['Last released zip', 'Directory name', 'Last version', 'Last update', 'Name', 'Description', 'Url', 'Author', 'Tags', 'Dependencies'];
+            if (count($expectedKeys) !== count(array_intersect($header, $expectedKeys)) ) {
+                throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+            }
+
+            // Convert csv to associative array
             $data = [];
             foreach ($csv as $row) {
                 if (count($row) === count($header)) {
@@ -69,6 +84,10 @@ class DanielKM extends AbstractRepository
                 $moduleId = strtolower($row['Directory name']);
                 $version = $this->extractVersionNumberFromUrl($row['Last released zip']);
                 $version = $row['Last version'];
+
+                if (empty($version)) {
+                    continue;
+                }
 
                 $versions = [ $version => new ModuleVersion(
                         version: $version,
