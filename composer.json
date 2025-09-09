@@ -2,7 +2,7 @@
     "name": "ghentcdh/omeka-s-cli",
     "description": "Omeka-S Command Line Tool",
     "type": "project",
-    "version": "0.6.0",
+    "version": "0.6.3",
     "keywords": [
         "Omeka S",
         "cli",

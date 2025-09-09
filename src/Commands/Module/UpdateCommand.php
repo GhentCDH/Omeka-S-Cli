@@ -1,7 +1,9 @@
 <?php
 namespace OSC\Commands\Module;
 
-use OSC\Cli\Application;
+use InvalidArgumentException;
+use OSC\Exceptions\WarningException;
+use Throwable;
 
 class UpdateCommand extends AbstractModuleCommand
 {
@@ -10,14 +12,14 @@ class UpdateCommand extends AbstractModuleCommand
     public function __construct()
     {
         parent::__construct('module:update', 'Update module');
-        $this->argument('[module-id]', 'Module name or ID to update', null, true);
+        $this->argument('[module-id]', 'Module name or ID to update', null);
         $this->option('-a --all', 'Update all modules', null, false);
     }
 
     public function execute(?string $moduleId, ?bool $all): void
     {
         if ($moduleId && $all) {
-            throw new \InvalidArgumentException("You cannot specify both a module ID and the --all option.");
+            throw new InvalidArgumentException("You cannot specify both a module ID and the --all option.");
         }
 
         if ($moduleId) {
@@ -53,12 +55,10 @@ class UpdateCommand extends AbstractModuleCommand
                     $command = new DownloadCommand();
                     $command->bind($this->app());
                     $command->execute($moduleId, true);
-                } catch (\Throwable $e) {
-                    if ( $e instanceof \OSC\Exceptions\WarningException) {
-                        $this->io()->warn($e->getMessage(), true);
-                    } else {
-                        $this->io()->error($e->getMessage(), true);
-                    }
+                } catch (WarningException $e) {
+                    $this->io()->warn($e->getMessage(), true);
+                } catch (Throwable $e) {
+                    $this->io()->error($e->getMessage(), true);
                 }
             }
         }

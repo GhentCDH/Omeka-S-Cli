@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Commands\Module;
 
+use Exception;
 use Omeka\Module\Manager as ModuleManager;
 
 class DeleteCommand extends AbstractModuleCommand
@@ -20,7 +21,7 @@ class DeleteCommand extends AbstractModuleCommand
 
         if($module->getState() === ModuleManager::STATE_ACTIVE || $module->getState() === ModuleManager::STATE_NOT_ACTIVE) {
             if (!$force) {
-                throw new \Exception("The module is currently installed. Use the --force flag to uninstall the module.");
+                throw new Exception("The module is currently installed. Use the --force flag to uninstall the module.");
             }
             // Uninstall the module
             $this->getOmekaInstance()->getModuleApi()->uninstall($module);

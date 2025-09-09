@@ -1,10 +1,10 @@
 <?php
 namespace OSC\Commands\Core;
 
-use Exception;
 use OSC\Commands\AbstractCommand;
 use Omeka\Db\Migration\Manager as MigrationManager;
 use Omeka\Mvc\Status;
+use OSC\Exceptions\WarningException;
 
 class MigrateCommand extends AbstractCommand
 {
