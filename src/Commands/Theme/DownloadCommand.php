@@ -3,7 +3,6 @@ namespace OSC\Commands\Theme;
 
 use Exception;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
-use OSC\Commands\Theme\Types\DownloadInfo;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
@@ -81,14 +80,14 @@ class DownloadCommand extends AbstractThemeCommand
 
         // download theme
         try {
-            try {
-                $this->info("Download {$themeDownloadUrl} ... ");
-                $tmpDownloadPath = $downloader->download();
-                $this->info("done");
-            } finally {
-                $this->io()->eol();
-            }
+            $this->info("Download {$themeDownloadUrl} ... ");
+            $tmpDownloadPath = $downloader->download();
+            $this->info("done");
+        } finally {
+            $this->io()->eol();
+        }
 
+        try {
             // Find module folder
             $themeSourcePath = FileUtils::findSubpath($tmpDownloadPath, 'config/theme.ini');
             if (!$themeSourcePath) {
@@ -134,23 +133,15 @@ class DownloadCommand extends AbstractThemeCommand
             FileUtils::moveFolder($themeSourcePath, $themeDestinationPath);
             $this->debug("done", true);
 
-            // Return module info
-            $downloadInfo = new DownloadInfo(
-                $themeDirName,
-                $themeIni['info']['name'],
-                $themeIni['info']['description'] ?? null,
-                $themeIni['info']['version'],
-                $themeIni['info']['omeka_version_constraint'] ?? null,
-            );
         } finally {
-            if (isset($tmpDownloadPath) && is_dir($tmpDownloadPath)) {
+            if (is_dir($tmpDownloadPath)) {
                 $this->debug("Cleaning up {$tmpDownloadPath} ... ");
                 FileUtils::removeFolder($tmpDownloadPath);
                 $this->debug("done", true);
             }
         }
 
-        $this->ok("Theme '{$downloadInfo->getDirname()}' successfully downloaded.", true);
+        $this->ok("Theme '{$themeDirName}' successfully downloaded.", true);
     }
 
     private function parseModuleVersionString($module_string): array {
@@ -159,11 +150,6 @@ class DownloadCommand extends AbstractThemeCommand
             'id' => $parts[0],
             'version' => $parts[1] ?? null
         ];
-    }
-
-    private function downloadFromZipRelease(string $themeUrl, ?string $themeDirName, bool $force, bool $backup): DownloadInfo {
-
-
     }
 
     private function removeTheme(string $path): void

@@ -2,11 +2,9 @@
 namespace OSC\Commands\Core;
 
 use Exception;
-use Omeka\Settings\Settings;
 use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
 use OSC\Downloader\ZipDownloader;
-use OSC\Exceptions\WarningException;
 use OSC\Helper\FileUtils;
 
 class DownloadCommand extends AbstractModuleCommand
@@ -21,7 +19,7 @@ class DownloadCommand extends AbstractModuleCommand
         $this->option('-c --create-destination', 'Create destination directory', 'boolval', false);
     }
 
-    public function execute(?string $versionNumber, string $destinationPath, ?bool $force, ?bool $createDestination): void
+    public function execute(?string $versionNumber, string $destinationPath, ?bool $createDestination): void
     {
         // convert destinatino path to absolute path
         $destinationPath = realpath($destinationPath) ?: $destinationPath;

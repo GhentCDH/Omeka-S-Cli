@@ -3,11 +3,8 @@ namespace OSC\Commands\Core;
 
 use Exception;
 use Omeka\Mvc\Status;
-use Omeka\Settings\Settings;
 use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
-use OSC\Downloader\ZipDownloader;
-use OSC\Helper\FileUtils;
 
 class VersionCommand extends AbstractModuleCommand
 {

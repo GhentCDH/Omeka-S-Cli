@@ -3,8 +3,6 @@
 namespace OSC\Commands\Module;
 
 use Omeka\Module\Module;
-use Omeka\Module\Manager as ModuleManager;
-use OSC\Manager\Module\ModuleResult;
 use OSC\Manager\Result;
 use OSC\Repository\Module\ModuleDetails;
 
@@ -13,7 +11,6 @@ trait FormattersTrait
 {
     private function formatModuleStatus(Module $module, bool $extended = false): array {
         $searchResult = $this->getModuleRepositoryManager()->find($module->getId());
-        $omekaInstance = $this->getOmekaInstance();
 
         $latestVersion = $searchResult?->getItem()?->getLatestVersionNumber() ?? null;
 

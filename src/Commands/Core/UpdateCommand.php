@@ -2,7 +2,6 @@
 namespace OSC\Commands\Core;
 
 use Exception;
-use Omeka\Settings\Settings;
 use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
 use OSC\Downloader\ZipDownloader;

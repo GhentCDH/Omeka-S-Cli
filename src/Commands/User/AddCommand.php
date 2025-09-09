@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Commands\User;
 
+use ErrorException;
 use InvalidArgumentException;
 use OSC\Commands\AbstractCommand;
 use Omeka\Entity\User;
@@ -54,7 +55,7 @@ class AddCommand extends AbstractCommand
         $this->getOmekaInstance()->elevatePrivileges();
         $response = $api->create('users', $userData);
         if (!$response) {
-            throw new \ErrorException("Failed to create user '{$email}'.");
+            throw new ErrorException("Failed to create user '{$email}'.");
         }
 
         // Set password if provided

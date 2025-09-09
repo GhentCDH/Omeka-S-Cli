@@ -3,7 +3,6 @@ namespace OSC\Commands\Module;
 
 use Exception;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
-use OSC\Commands\Module\Types\DownloadInfo;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
@@ -84,14 +83,14 @@ class DownloadCommand extends AbstractModuleCommand
 
         // download module
         try {
-            try {
-                $this->info("Download {$moduleDownloadUrl} ... ");
-                $tmpDownloadPath = $downloader->download();
-                $this->info("done");
-            } finally {
-                $this->info("", true);
-            }
+            $this->info("Download {$moduleDownloadUrl} ... ");
+            $tmpDownloadPath = $downloader->download();
+            $this->info("done");
+        } finally {
+            $this->info("", true);
+        }
 
+        try {
             // Find module folder
             $moduleSourcePath = FileUtils::findSubpath($tmpDownloadPath, 'config/module.ini');
             if (!$moduleSourcePath) {
@@ -144,34 +143,24 @@ class DownloadCommand extends AbstractModuleCommand
             } finally {
                 $this->debug("", true);
             }
-
-            // Return module info
-            $downloadInfo = new DownloadInfo(
-                $moduleDirName,
-                $moduleIni['info']['name'],
-                $moduleIni['info']['description'] ?? null,
-                $moduleIni['info']['version'],
-                explode(',', $moduleIni['info']['dependencies'] ?? ''),
-                $moduleIni['info']['omeka_version_constraint'] ?? null,
-            );
         } finally {
-            if (isset($tmpDownloadPath) && is_dir($tmpDownloadPath)) {
+            if (is_dir($tmpDownloadPath)) {
                 $this->debug("Cleaning up {$tmpDownloadPath} ... ");
                 FileUtils::removeFolder($tmpDownloadPath);
                 $this->debug("done", true);
             }
         }
 
-        $this->ok("Module '{$downloadInfo->getDirname()}' successfully downloaded.", true);
+        $this->ok("Module '{$moduleDirName}' successfully downloaded.", true);
 
         if ($install) {
             $command = $this->app()->commands()['module:install'] ?? null;
-            $command && $command->execute($downloadInfo->getDirname());
+            $command && $command->execute($moduleDirName);
         }
 
         if ($upgrade) {
             $command = $this->app()->commands()['module:upgrade'] ?? null;
-            $command && $command->execute($downloadInfo->getDirname());
+            $command && $command->execute($moduleDirName);
         }
     }
 

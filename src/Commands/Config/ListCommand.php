@@ -30,7 +30,7 @@ class ListCommand extends AbstractCommand
         if ($search) {
             $search = strtolower($search);
             $result = array_filter($result, function ($key) use ($search) {
-                return strpos(strtolower($key), $search) !== false;
+                return str_contains(strtolower($key), $search);
             }, ARRAY_FILTER_USE_KEY);
         }
 

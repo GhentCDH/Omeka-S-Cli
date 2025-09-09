@@ -4,6 +4,7 @@ namespace OSC\Commands;
 
 use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Command;
+use Exception;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 use OSC\Omeka\OmekaDotOrgApi;
 use OSC\Omeka\OmekaInstance;
@@ -38,22 +39,22 @@ abstract class AbstractCommand extends Command
         return $this;
     }
 
-    public function optionEnv(): self {
+    public function optionEnv(): static {
         $this->option('-e --env', 'Output ENV variable', 'boolval', false)->on([$this, 'beQuiet']);
         return $this;
     }
 
-    public function optionTable(): self {
+    public function optionTable(): static {
         $this->option('-t --table', 'Output text table', 'boolval', false)->on([$this, 'beQuiet']);
         return $this;
     }
 
-    public function optionJson(): self {
+    public function optionJson(): static {
         $this->option('-j --json', 'Output json', 'boolval', false)->on([$this, 'beQuiet']);
         return $this;
     }
 
-    public function optionExtended(): self {
+    public function optionExtended(): static {
         $this->option('-x --extended', 'Extended output', 'boolval', false);
         return $this;
     }
@@ -117,7 +118,7 @@ abstract class AbstractCommand extends Command
         }
     }
 
-    public function beQuiet() {
+    public function beQuiet(): void {
         $this->set('verbosity', 0);
     }
 
@@ -158,12 +159,12 @@ abstract class AbstractCommand extends Command
         if ($basePath) {
             $basePath = rtrim($basePath, DIRECTORY_SEPARATOR);
             if (!$this->isOmekaDir($basePath)) {
-                throw new \Exception("The provided base path {$basePath} does not contain a valid Omeka S context.");
+                throw new Exception("The provided base path {$basePath} does not contain a valid Omeka S context.");
             }
         } else {
             $basePath = $this->searchOmekaDir();
             if (!$basePath) {
-                throw new \Exception("Could not find a valid Omeka S context.");
+                throw new Exception("Could not find a valid Omeka S context.");
             }
         }
 
@@ -177,7 +178,7 @@ abstract class AbstractCommand extends Command
         if ($elevated) {
             // check if omeka is installed
             if (!$instance->getStatus()->isInstalled()) {
-                throw new \Exception("Omeka S is not installed.");
+                throw new Exception("Omeka S is not installed.");
             }
             $instance->elevatePrivileges();
         }

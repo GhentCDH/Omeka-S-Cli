@@ -1,9 +1,6 @@
 <?php
 namespace OSC\Commands\Core;
 
-use Exception;
-use http\Exception\InvalidArgumentException;
-use Omeka\Installation\Installer;
 use OSC\Commands\AbstractCommand;
 use Omeka\Mvc\Status;
 
@@ -22,7 +19,7 @@ class StatusCommand extends AbstractCommand
         $status = $serviceManager->get('Omeka\Status');
 
         $isInstalled = $status->isInstalled();
-        $needsMigration = $isInstalled ? $status->needsMigration() : false;
+        $needsMigration = $isInstalled && $status->needsMigration();
 
         if ($this->values()['json'] ?? false) {
             $this->outputFormatted(['installed' => $isInstalled, 'needsMigration' => $needsMigration], 'json');

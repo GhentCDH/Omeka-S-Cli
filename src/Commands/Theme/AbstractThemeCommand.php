@@ -13,7 +13,7 @@ abstract class AbstractThemeCommand extends AbstractCommand
         parent::__construct($_name, $_desc, $_allowUnknown, $_app);
     }
 
-    public function argumentThemeId() {
+    public function argumentThemeId(): static {
         $argument = new Argument('<theme-id>', 'The theme ID (or id:version)', null, fn($raw) => trim($raw));
         $this->register($argument);
         return $this;

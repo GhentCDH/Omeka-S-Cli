@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Commands\Config;
 
+use Exception;
+use InvalidArgumentException;
 use OSC\Commands\AbstractCommand;
 
 class CreateDbIniCommand extends AbstractCommand
@@ -19,13 +21,13 @@ class CreateDbIniCommand extends AbstractCommand
     {
         // check options
         if (!$username) {
-            throw new \InvalidArgumentException('The database username is required.');
+            throw new InvalidArgumentException('The database username is required.');
         }
         if (!$dbname) {
-            throw new \InvalidArgumentException('The database name is required.');
+            throw new InvalidArgumentException('The database name is required.');
         }
         if (!$password) {
-            throw new \InvalidArgumentException('The database password is required.');
+            throw new InvalidArgumentException('The database password is required.');
         }
 
         // check output dir
