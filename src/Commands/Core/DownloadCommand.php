@@ -23,6 +23,9 @@ class DownloadCommand extends AbstractModuleCommand
 
     public function execute(?string $versionNumber, string $destinationPath, ?bool $force, ?bool $createDestination): void
     {
+        // convert destinatino path to absolute path
+        $destinationPath = realpath($destinationPath) ?: $destinationPath;
+
         // check if destination path exists
         if (!is_dir($destinationPath) || !is_writable($destinationPath)) {
             if (!$createDestination) {
@@ -40,14 +43,14 @@ class DownloadCommand extends AbstractModuleCommand
         // Get the latest version if no version number is provided
         if (!$versionNumber) {
             try {
-                $this->info("No version number supplied, getting latest core version number ... ");
+                $this->debug("No version number supplied, getting latest core version number ... ");
                 $versionNumber = $this->webApi->getLatestOmekaVersion();
                 if (!$versionNumber) {
                     throw new Exception("Unable to determine the latest Omeka S version.");
                 }
-                $this->info('done');
+                $this->debug('done');
             } finally {
-                $this->io()->eol();
+                $this->debug("", true);
             }
         }
 
@@ -68,14 +71,16 @@ class DownloadCommand extends AbstractModuleCommand
             $this->info("Copying files ...");
             $srcPath = FileUtils::createPath([$tmpDownloadPath, 'omeka-s']);
             FileUtils::copyFolder($srcPath, $destinationPath);
-            $this->info("done", true);
+            $this->info("done");
         } finally {
-            $this->io()->eol();
+            $this->info("", true);
         }
 
         // Clean up temporary files
-        $this->info("Cleaning up {$tmpDownloadPath} ... ");
+        $this->debug("Cleaning up {$tmpDownloadPath} ... ");
         FileUtils::removeFolder($tmpDownloadPath);
-        $this->info("done", true);
+        $this->debug("done", true);
+
+        $this->ok("Omeka S core version $versionNumber successfully downloaded to {$destinationPath}", true);
     }
 }

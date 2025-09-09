@@ -89,7 +89,7 @@ class DownloadCommand extends AbstractModuleCommand
                 $tmpDownloadPath = $downloader->download();
                 $this->info("done");
             } finally {
-                $this->io()->eol();
+                $this->info("", true);
             }
 
             // Find module folder
@@ -124,25 +124,25 @@ class DownloadCommand extends AbstractModuleCommand
 
                 try {
                     if ($backup) {
-                        $this->info("Backup previous version ... ");
+                        $this->debug("Backup previous version ... ");
                         $this->backupModule($moduleDestinationPath);
                     } else {
                         $this->removeModule($moduleDestinationPath);
-                        $this->info("Remove previous version ... ");
+                        $this->debug("Remove previous version ... ");
                     }
-                    $this->info("done");
+                    $this->debug("done");
                 } finally {
-                    $this->io()->eol();
+                    $this->debug("", true);
                 }
             }
 
             // Move to modules directory
             try {
-                $this->info("Move module to folder $moduleDestinationPath ... ");
+                $this->debug("Move module to folder $moduleDestinationPath ... ");
                 FileUtils::moveFolder($moduleSourcePath, $moduleDestinationPath);
-                $this->info("done");
+                $this->debug("done");
             } finally {
-                $this->io()->eol();
+                $this->debug("", true);
             }
 
             // Return module info
@@ -156,9 +156,9 @@ class DownloadCommand extends AbstractModuleCommand
             );
         } finally {
             if (isset($tmpDownloadPath) && is_dir($tmpDownloadPath)) {
-                $this->info("Cleaning up {$tmpDownloadPath} ... ");
+                $this->debug("Cleaning up {$tmpDownloadPath} ... ");
                 FileUtils::removeFolder($tmpDownloadPath);
-                $this->info("done", true);
+                $this->debug("done", true);
             }
         }
 

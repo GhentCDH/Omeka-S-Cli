@@ -53,10 +53,7 @@ class AddCommand extends AbstractCommand
         // Create user
         $this->getOmekaInstance()->elevatePrivileges();
         $response = $api->create('users', $userData);
-
-        if ($response) {
-            $this->info("User '{$email}' successfully created with role '{$role}'.", true);
-        } else {
+        if (!$response) {
             throw new \ErrorException("Failed to create user '{$email}'.");
         }
 
@@ -67,7 +64,8 @@ class AddCommand extends AbstractCommand
             $userEntity = $user->getEntity();
             $userEntity->setPassword($password);
             $em->flush();
-
         }
+
+        $this->ok("User '{$email}' successfully created with role '{$role}'.", true);
     }
 }

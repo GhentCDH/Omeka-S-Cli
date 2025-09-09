@@ -73,31 +73,38 @@ abstract class AbstractCommand extends Command
         return $format;
     }
 
+    public function debug(string $message, bool $eol = false): void
+    {
+        if ($this->values()['verbosity'] >= 2) {
+            $this->io()->info($message, $eol);
+        }
+    }
+
     // messages
     public function warn(string $message, bool $eol = false): void
     {
-        if ($this->values()['verbosity'] > 0) {
+        if ($this->values()['verbosity'] >= 1) {
             $this->io()->warn($message, $eol);
         }
     }
 
     public function info(string $message, bool $eol = false): void
     {
-        if ($this->values()['verbosity'] > 0) {
+        if ($this->values()['verbosity'] >= 1) {
             $this->io()->info($message, $eol);
         }
     }
 
     public function ok(string $message, bool $eol = false): void
     {
-        if ($this->values()['verbosity'] > 0) {
+        if ($this->values()['verbosity'] >= 1) {
             $this->io()->ok($message, $eol);
         }
     }
 
     public function error(string $message, bool $eol = false): void
     {
-        if ($this->values()['verbosity'] > 0) {
+        if ($this->values()['verbosity'] >= 1) {
             $this->io()->error($message, $eol);
         }
     }
@@ -160,7 +167,7 @@ abstract class AbstractCommand extends Command
             }
         }
 
-        $this->info("Omeka S found at {$basePath}", true);
+        $this->debug("Omeka S found at {$basePath}", true);
 
         return $basePath;
     }

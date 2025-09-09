@@ -117,22 +117,22 @@ class DownloadCommand extends AbstractThemeCommand
                 // Backup or remove previous version
                 try {
                     if ($backup) {
-                        $this->info("Backup previous version ... ");
+                        $this->debug("Backup previous version ... ");
                         $this->backupTheme($themeDestinationPath);
                     } else {
                         $this->removeTheme($themeDestinationPath);
-                        $this->info("Remove previous version ... ");
+                        $this->debug("Remove previous version ... ");
                     }
-                    $this->info("done");
+                    $this->debug("done");
                 } finally {
-                    $this->io()->eol();
+                    $this->debug("", true);
                 }
             }
 
             // Move to themes directory
-            $this->info("Move theme to folder $themeDestinationPath ... ");
+            $this->debug("Move theme to folder $themeDestinationPath ... ");
             FileUtils::moveFolder($themeSourcePath, $themeDestinationPath);
-            $this->info("done", true);
+            $this->debug("done", true);
 
             // Return module info
             $downloadInfo = new DownloadInfo(
@@ -144,9 +144,9 @@ class DownloadCommand extends AbstractThemeCommand
             );
         } finally {
             if (isset($tmpDownloadPath) && is_dir($tmpDownloadPath)) {
-                $this->info("Cleaning up {$tmpDownloadPath} ... ");
+                $this->debug("Cleaning up {$tmpDownloadPath} ... ");
                 FileUtils::removeFolder($tmpDownloadPath);
-                $this->info("done", true);
+                $this->debug("done", true);
             }
         }
 
