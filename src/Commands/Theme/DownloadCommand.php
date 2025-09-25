@@ -6,8 +6,8 @@ use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
-use OSC\Helper\ArgumentParser;
-use OSC\Helper\Types\ArgumentType;
+use OSC\Helper\ResourceUriParser;
+use OSC\Helper\Types\ResourceUriType;
 use OSC\Helper\FileUtils;
 use OSC\Repository\Theme\OmekaDotOrg;
 
@@ -18,38 +18,47 @@ class DownloadCommand extends AbstractThemeCommand
     public function __construct()
     {
         parent::__construct('theme:download', 'Download theme');
+        $this->argument('<theme>', 'Theme URI (syntax: theme-id:version, zip-release-url, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force theme overwrite', 'boolval', false);
         $this->option('-b --backup', 'Backup current theme before download (delete otherwise)', 'boolval', false);
-        $this->argumentThemeId();
+        $this->usage(
+            'theme:download freedom<eol>' .
+            'theme:download freedom:1.0.7<eol>' .
+            'theme:download https://github.com/omeka-s-themes/freedom/releases/download/v1.0.7/freedom-v1.0.7.zip<eol>' .
+            'theme:download https://github.com/omeka-s-themes/freedom.git#v1.0.7<eol>' .
+            'theme:download gh:omeka-s-themes/freedom#v1.0.7'
+        );
     }
 
-    public function execute(?string $themeId, ?bool $force, ?bool $backup): void
+    public function execute(?string $theme, ?bool $force, ?bool $backup): void
     {
         $modulesPath = FileUtils::createPath([$this->getOmekaPath(), "themes"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Themes directory is not writable. Please check permissions.");
         }
 
-        $themeDownloadUrl = null;
         $themeDirName = null;
         $downloader = null;
 
-        $downloadType = ArgumentParser::getArgumentType($themeId);
-
-        switch ($downloadType) {
-            case ArgumentType::GitRepo:
-                $themeDownloadUrl = $themeId;
-                $downloader = new GitDownloader($themeDownloadUrl);
+        // create downloader
+        $themeUri = ResourceUriParser::parse($theme);
+        switch ($themeUri->getType()) {
+            case ResourceUriType::GitRepo:
+                $downloader = new GitDownloader($themeUri->getId(), $themeUri->getVersion());
                 break;
-            case ArgumentType::ZipUrl:
-                $themeDownloadUrl = $themeId;
-                $downloader = new ZipDownloader($themeDownloadUrl);
+            case ResourceUriType::GitHubRepo:
+                $gitUrl = "https://github.com/" . $themeUri->getId() . ".git";
+                $downloader = new GitDownloader($gitUrl, $themeUri->getVersion());
                 break;
-            case ArgumentType::IdVersion:
-                ["id" => $themeId, "version" => $themeVersion] = $this->parseModuleVersionString($themeId);
+            case ResourceUriType::ZipUrl:
+                $downloader = new ZipDownloader($themeUri->getId());
+                break;
+            case ResourceUriType::IdVersion:
+                $themeId = $themeUri->getId();
+                $themeVersion = $themeUri->getVersion();
 
+                // find theme in omeka.org
                 $themeRepo = new OmekaDotOrg();
-
                 $themeDetails = $themeRepo->find($themeId);
                 if(!$themeDetails){
                     throw new NotFoundException("Theme '{$themeId}' is not found in the official theme list.");
@@ -61,9 +70,8 @@ class DownloadCommand extends AbstractThemeCommand
                 if(!$versionDetails){
                     throw new NotFoundException("Theme '{$themeDirName}' with version '{$themeVersion}' is not found in the official theme list.");
                 }
-                $themeDownloadUrl = $versionDetails->getDownloadUrl();
 
-                $downloader = new ZipDownloader($themeDownloadUrl);
+                $downloader = new ZipDownloader($versionDetails->getDownloadUrl());
                 break;
         }
 
@@ -80,7 +88,7 @@ class DownloadCommand extends AbstractThemeCommand
 
         // download theme
         try {
-            $this->info("Download {$themeDownloadUrl} ... ");
+            $this->info("Download {$downloader->getDownloadUrl()} ... ");
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {
@@ -142,14 +150,6 @@ class DownloadCommand extends AbstractThemeCommand
         }
 
         $this->ok("Theme '{$themeDirName}' successfully downloaded.", true);
-    }
-
-    private function parseModuleVersionString($module_string): array {
-        $parts = explode(':', $module_string);
-        return [
-            'id' => $parts[0],
-            'version' => $parts[1] ?? null
-        ];
     }
 
     private function removeTheme(string $path): void

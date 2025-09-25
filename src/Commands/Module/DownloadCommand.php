@@ -7,8 +7,8 @@ use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
-use OSC\Helper\ArgumentParser;
-use OSC\Helper\Types\ArgumentType;
+use OSC\Helper\ResourceUriParser;
+use OSC\Helper\Types\ResourceUriType;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -17,60 +17,65 @@ class DownloadCommand extends AbstractModuleCommand
     public function __construct()
     {
         parent::__construct('module:download', 'Download module');
+        $this->argument('<module>', 'Module URI (syntax: module-id:version, zip-release-url, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force module overwrite', 'boolval', false);
         $this->option('-b --backup', 'Backup current module before download (delete otherwise)', 'boolval', false);
         $this->option('-i --install', 'Install module after download', 'boolval', false);
         $this->option('-i --upgrade', 'Upgrade module after download', 'boolval', false);
-        $this->argumentModuleId();
+        $this->usage(
+            'module:download common<eol>' .
+            'module:download common:3.4.71<eol>' .
+            'module:download https://github.com/Daniel-KM/Omeka-S-module-AdvancedSearch/releases/download/3.4.22/AdvancedSearch-3.4.22.zip<eol>' .
+            'module:download https://github.com/Daniel-KM/Omeka-S-module-AdvancedSearch.git#3.4.22<eol>' .
+            'module:download gh:Daniel-KM/Omeka-S-module-AdvancedSearch#3.4.22'
+        );
     }
 
-    public function execute(?string $moduleId, ?bool $force = false, ?bool $backup = false, ?bool $install = false, ?bool $upgrade = false): void
+    public function execute(?string $module, ?bool $force = false, ?bool $backup = false, ?bool $install = false, ?bool $upgrade = false): void
     {
         $modulesPath = FileUtils::createPath([$this->getOmekaPath(), "modules"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Modules directory is not writable. Please check permissions.");
         }
 
-        $moduleDownloadUrl = null;
         $moduleDirName = null;
         $downloader = null;
 
-        $downloadType = ArgumentParser::getArgumentType($moduleId);
 
-        // download from url
-        switch ($downloadType) {
-            case ArgumentType::GitRepo:
-                $moduleDownloadUrl = $moduleId;
-                $downloader = new GitDownloader($moduleDownloadUrl);
+        // create downloader
+        $moduleUri = ResourceUriParser::parse($module);
+        switch ($moduleUri->getType()) {
+            case ResourceUriType::GitRepo:
+                $downloader = new GitDownloader($moduleUri->getId(), $moduleUri->getVersion());
                 break;
-            case ArgumentType::ZipUrl:
-                $moduleDownloadUrl = $moduleId;
-                $downloader = new ZipDownloader($moduleDownloadUrl);
+            case ResourceUriType::GitHubRepo:
+                $gitUrl = "https://github.com/" . $moduleUri->getId() . ".git";
+                $downloader = new GitDownloader($gitUrl, $moduleUri->getVersion());
                 break;
-            case ArgumentType::IdVersion:
-                ["id" => $moduleId, "version" => $moduleVersion] = $this->parseModuleVersionString($moduleId);
-
+            case ResourceUriType::ZipUrl:
+                $downloader = new ZipDownloader($moduleUri->getId());
+                break;
+            case ResourceUriType::IdVersion:
                 // find module in repositories
-                $repoResult = $this->getModuleRepositoryManager()->find($moduleId, $moduleVersion);
+                $repoResult = $this->getModuleRepositoryManager()->find($moduleUri->getId(), $moduleUri->getVersion());
                 if (!$repoResult) {
-                    throw new NotFoundException("Could not find module '{$moduleId}' in any repository.");
+                    throw new NotFoundException("Could not find module '{$moduleUri->getId()}' in any repository.");
                 }
                 $moduleDirName = $repoResult->getItem()->getDirname();
 
                 // check if version exists
-                if ($moduleVersion && !$repoResult->getVersionNumber()) {
-                    throw new NotFoundException("Module '{$moduleDirName}' has no version '{$moduleVersion}'.");
+                if ($moduleUri->getVersion() && !$repoResult->getVersionNumber()) {
+                    throw new NotFoundException("Module '{$moduleDirName}' has no version '{$moduleUri->getVersion()}'.");
                 }
 
                 // get download url
                 $versionInfo = $repoResult->getItem()->getVersion($repoResult->getVersionNumber());
-                $moduleDownloadUrl = $versionInfo->getDownloadUrl();
 
-                $downloader = new ZipDownloader($moduleDownloadUrl);
+                $downloader = new ZipDownloader($versionInfo->getDownloadUrl());
                 break;
         }
 
-        // check if module is already available
+        // early check if module is already available
         if ($moduleDirName) {
             $moduleDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
 
@@ -83,7 +88,7 @@ class DownloadCommand extends AbstractModuleCommand
 
         // download module
         try {
-            $this->info("Download {$moduleDownloadUrl} ... ");
+            $this->info("Download {$downloader->getDownloadUrl()} ... ");
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {
@@ -162,14 +167,6 @@ class DownloadCommand extends AbstractModuleCommand
             $command = $this->app()->commands()['module:upgrade'] ?? null;
             $command && $command->execute($moduleDirName);
         }
-    }
-
-    private function parseModuleVersionString($module_string): array {
-        $parts = explode(':', $module_string);
-        return [
-            'id' => $parts[0],
-            'version' => $parts[1] ?? null
-        ];
     }
 
     private function removeModule(string $path): void
