@@ -15,6 +15,10 @@ class GitDownloader implements DownloaderInterface {
         $this->tag = $parsedUrl['tag'];
     }
 
+    public function getDownloadUrl(): string
+    {
+        return $this->uri;
+    }
     public function download(): string
     {
         $tmpGitDestinationPath = FileUtils::createTempFolder('omeka-s-cli.');

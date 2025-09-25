@@ -11,6 +11,11 @@ class ZipDownloader implements DownloaderInterface {
     public function __construct(private string $url)
     {
     }
+
+    public function getDownloadUrl(): string
+    {
+        return $this->url;
+    }
     public function download(): string
     {
         $tmpZipDestinationPath = FileUtils::createTempFolder('omeka-s-cli.');
