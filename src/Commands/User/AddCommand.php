@@ -3,6 +3,7 @@ namespace OSC\Commands\User;
 
 use ErrorException;
 use InvalidArgumentException;
+use Omeka\Api\Representation\UserRepresentation;
 use OSC\Commands\AbstractCommand;
 use Omeka\Entity\User;
 
@@ -16,9 +17,10 @@ class AddCommand extends AbstractCommand
         $this->argument('<role>', 'Role of the user (global_admin, site_admin, editor, reviewer, author, researcher)');
         $this->argument('[password]', 'Password for the user (optional)');
         $this->option('--inactive -i', 'Set the user inactive (default: active)');
+        $this->optionJson();
     }
 
-    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false): void
+    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false, ?bool $json = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
@@ -57,6 +59,8 @@ class AddCommand extends AbstractCommand
         if (!$response) {
             throw new ErrorException("Failed to create user '{$email}'.");
         }
+        /** @var UserRepresentation $userRepresentation */
+        $userRepresentation = $response->getContent();
 
         // Set password if provided
         if ($password !== null) {
@@ -65,6 +69,17 @@ class AddCommand extends AbstractCommand
             $userEntity = $user->getEntity();
             $userEntity->setPassword($password);
             $em->flush();
+        }
+
+        if ($json) {
+            $userEntry = [
+                'id' => $userRepresentation->id(),
+                'display_name' => $userRepresentation->name(),
+                'email' => $userRepresentation->email(),
+                'is_active' => $userRepresentation->isActive(),
+                'role' => $userRepresentation->role()
+            ];
+            $this->outputFormatted($userEntry, 'json');
         }
 
         $this->ok("User '{$email}' successfully created with role '{$role}'.", true);
