@@ -3,6 +3,8 @@ namespace OSC\Commands\Module;
 
 use InvalidArgumentException;
 use OSC\Exceptions\WarningException;
+use OSC\Helper\ResourceUriParser;
+use OSC\Helper\Types\ResourceUriType;
 use Throwable;
 
 class UpdateCommand extends AbstractModuleCommand
@@ -23,13 +25,19 @@ class UpdateCommand extends AbstractModuleCommand
         }
 
         if ($moduleId) {
-            $argument = $moduleId;
-            ['id' => $moduleId, 'version' => $moduleVersion] = $this->parseModuleVersionString($moduleId);
-            $module = $this->getOmekaInstance()->getModuleApi()->getModule($moduleId);
+            // parse module id to check format
+            $moduleUri = ResourceUriParser::parse($moduleId);
+            if ($moduleUri->getType() !== ResourceUriType::IdVersion) {
+                throw new InvalidArgumentException("The module-id argument must be in the format 'module-id' or 'module-id:version'.");
+            }
 
+            // check if module exists (result is not used)
+            $module = $this->getOmekaInstance()->getModuleApi()->getModule($moduleUri->getId());
+
+            // download the module
             $command = new DownloadCommand();
             $command->bind($this->app());
-            $command->execute($argument, true);
+            $command->execute($moduleId, true);
         }
 
         if ($all) {
@@ -62,13 +70,5 @@ class UpdateCommand extends AbstractModuleCommand
                 }
             }
         }
-    }
-
-    private function parseModuleVersionString($module_string): array {
-        $parts = explode(':', $module_string);
-        return [
-            'id' => $parts[0],
-            'version' => $parts[1] ?? null
-        ];
     }
 }
