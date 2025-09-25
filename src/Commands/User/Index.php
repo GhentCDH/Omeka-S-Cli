@@ -2,5 +2,7 @@
 namespace OSC\Commands\User;
 
 return [
-    new AddCommand()
+    new AddCommand(),
+    new CreateApiKeyCommand(),
+    new DeleteApiKeyCommand(),
 ];
