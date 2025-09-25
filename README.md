@@ -35,69 +35,71 @@ Omeka-S-CLI is a command line tool to manage Omeka S installs.
     omeka-s-cli <command> --help
     omeka-s-cli <command> [options]
 
-### List modules
+### Example: List modules
 ```
-# omeka-s-cli module:list
-
-Omeka S found at /var/www/omeka-s
-+------------+-------------+---------------+-----------------------------+------------------+
-| Id         | Name        | State         | Version                     | Update Available |
-+------------+-------------+---------------+-----------------------------+------------------+
-| Common     | Common      | active        | 3.4.66                      | 3.4.68           |
-| EasyAdmin  | Easy Admin  | active        | 3.4.30                      | 3.4.31           |
-| IiifServer | IIIF Server | not_installed | 3.6.21                      | 3.6.25           |
-| Log        | Log         | needs_upgrade | 3.4.29 (3.4.28 in database) | up to date       |
-+------------+-------------+---------------+-----------------------------+------------------+
+omeka-s-cli module:list
 ```
 
-### Download module from the official repository
-
 ```
-# omeka-s-cli module:download --force common
-
-Omeka S found at /var/www/omeka-s
-Download https://github.com/Daniel-KM/Omeka-S-module-Common/releases/download/3.4.68/Common-3.4.68.zip ... done
-Remove previous version ... done
-Move module to folder /var/www/omeka-s/modules/Common ... done
-Cleaning up /tmp/omeka-s-cli.18fb088b ... done
-Module 'Common' successfully downloaded.
++--------------------------+----------------------------+---------------+---------+------------------+---------------+-----------------+
+| Id                       | Name                       | State         | Version | InstalledVersion | LatestVersion | UpdateAvailable |
++--------------------------+----------------------------+---------------+---------+------------------+---------------+-----------------+
+| AdvancedResourceTemplate | Advanced Resource Template | active        | 3.4.43  | 3.4.43           | 3.4.45        | yes             |
+| AdvancedSearch           | Advanced Search            | not_installed | 3.4.51  |                  | 3.4.51        |                 |
+| Common                   | Common                     | active        | 3.4.72  | 3.4.72           | 3.4.72        |                 |
++--------------------------+----------------------------+---------------+---------+------------------+---------------+-----------------+
 ```
 
-The module already exists, so we use the --force option to replace it with the latest version.
+You can export almost any command output with the `--json` option.
 
-### Download module from git repository
+### Example: Download a module
+
+The easiest way to download a module is to use its official name. The downloader will search the name in one of the supported module repositories and download a the latest zip release. 
 
 ```
-# omeka-s-cli module:download https://github.com/GhentCDH/Omeka-S-module-AuthCAS.git
-
-Omeka S found at /var/www/omeka-s
-Download https://github.com/GhentCDH/Omeka-S-module-AuthCAS.git ... done
-Move module to folder /var/www/omeka-s/modules/AuthCAS ... done
-Module 'AuthCAS' successfully downloaded.
+# omeka-s-cli module:download common
 ```
 
-The installer will run `composer install` in the module directory if a `composer.lock` file is present. Other dependencies must be installed manually.
+If the module already exists, you can use the `--force` option to replace it with the latest version.
 
-### Download specific module version
+#### Download a specific module version
+
+You can download a specific module version using the `<module>:<version>` syntax:
 
 ```
 omeka-s-cli module:download common:3.4.67
 ```
 
-```
-omeka-s-cli module:download https://github.com/GhentCDH/Omeka-S-module-AuthCAS.git#v1.0.2
-```
-
-### Download theme from the official repository
+### Example: Download module from a git repository
 
 ```
-# omeka-s-cli theme:download freedom
+omeka-s-cli module:download https://github.com/GhentCDH/Omeka-S-module-AuthCAS.git
+```
 
-Omeka S found at /var/www/omeka-s
-Download https://github.com/omeka-s-themes/freedom/releases/download/v1.0.7/freedom-v1.0.7.zip ... done
-Move theme to folder /var/www/omeka-s/themes/freedom ... done
-Cleaning up /tmp/omeka-s-cli.0ea2a8f4 ... done
-Theme 'freedom' successfully downloaded.
+You can use the short `gh:user/repo` syntax for GitHub repositories:
+
+```
+omeka-s-cli module:download gh:GhentCDH/Omeka-S-module-AuthCAS
+```
+You can checkout a specific tag, branch or commit by appending `#<branch|tag|commit>`.
+
+```
+omeka-s-cli module:download https://github.com/Daniel-KM/Omeka-S-module-AdvancedSearch.git#3.4.22
+omeka-s-cli module:download gh:Daniel-KM/Omeka-S-module-AdvancedSearch#3.4.22
+```
+
+The installer will run `composer install` in the module directory if a `composer.lock` file is present. Other dependencies must be installed manually.
+
+### Example: Download a theme
+
+```
+omeka-s-cli theme:download freedom
+```
+
+Or using the GitHub repository:
+
+```
+omeka-s-cli gh:omeka-s-themes/freedom#v1.0.6
 ```
 
 ## Requirements
