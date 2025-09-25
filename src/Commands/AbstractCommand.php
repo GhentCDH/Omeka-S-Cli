@@ -12,8 +12,6 @@ use OSC\Omeka\OmekaInstanceFactory;
 
 abstract class AbstractCommand extends Command
 {
-    protected static OmekaInstance $omeka;
-
     protected ModuleRepositoryManager $moduleRepositoryManager;
     protected OmekaDotOrgApi $webApi;
 
