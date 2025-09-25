@@ -20,7 +20,7 @@ class AddCommand extends AbstractCommand
         $this->optionJson();
     }
 
-    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false, ?bool $json): void
+    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false, ?bool $json = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
