@@ -2,8 +2,9 @@
 
 namespace OSC\Helper\Types;
 
-enum ArgumentType {
+enum ResourceUriType {
     case GitRepo;
+    case GitHubRepo;
     case ZipUrl;
     case IdVersion;
 }

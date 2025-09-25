@@ -13,9 +13,9 @@ abstract class AbstractModuleCommand extends AbstractCommand
         parent::__construct($_name, $_desc, $_allowUnknown, $_app);
     }
 
-    public function argumentModuleId(): self
+    public function argumentModuleId(bool $optional = false): self
     {
-        $argument = new Argument('<module-id>', 'The module ID (or id:version)', null, fn($raw) => trim($raw));
+        $argument = new Argument($optional ? '[module-id]' : '<module-id>', 'Module id', null, fn($raw) => trim($raw));
         $this->register($argument);
         return $this;
     }

@@ -6,22 +6,21 @@ use OSC\Helper\FileUtils;
 
 class GitDownloader implements DownloaderInterface {
 
-    private string $url;
-    private ?string $tag;
-    public function __construct(string $url)
+    public function __construct(private string $uri, private ?string $tag = null)
     {
-        $parsedUrl = $this->parseUrl($url);
-        $this->url = $parsedUrl['url'];
-        $this->tag = $parsedUrl['tag'];
     }
 
+    public function getDownloadUrl(): string
+    {
+        return $this->uri;
+    }
     public function download(): string
     {
         $tmpGitDestinationPath = FileUtils::createTempFolder('omeka-s-cli.');
 
         try {
             // Clone the repository
-            $cloneCommand = sprintf('git clone %s %s 2> /dev/null', escapeshellarg($this->url), escapeshellarg($tmpGitDestinationPath));
+            $cloneCommand = sprintf('git clone %s %s 2> /dev/null', escapeshellarg($this->uri), escapeshellarg($tmpGitDestinationPath));
             exec($cloneCommand, $output, $exitCode);
             $exitCode && throw new \ErrorException("Failed to clone repository");
 
@@ -45,12 +44,4 @@ class GitDownloader implements DownloaderInterface {
             throw new \ErrorException("Failed to download and set up repository: " . $e->getMessage());
         }
     }
-
-    private function parseUrl($url): array {
-        $parts = explode('#', $url);
-        return [
-            'url' => $parts[0],
-            'tag' => $parts[1] ?? null
-        ];
-    }    
 }
