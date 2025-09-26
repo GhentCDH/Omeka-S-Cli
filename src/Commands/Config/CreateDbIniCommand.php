@@ -31,7 +31,7 @@ class CreateDbIniCommand extends AbstractCommand
         }
 
         // check output dir
-        $outputPath = $this->getOmekaInstance(false)->getPath().'/config/database.ini';
+        $outputPath = $this->getOmekaPath().'/config/database.ini';
         $outputDir = dirname($outputPath);
         if (!is_dir($outputDir) || !is_writable($outputDir)) {
             throw new Exception('The config directory is not writable.');
