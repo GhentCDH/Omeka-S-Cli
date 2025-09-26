@@ -10,7 +10,7 @@ class CreateApiKeyCommand extends AbstractUserCommand
 {
     public function __construct()
     {
-        parent::__construct('user:createApiKey', 'Create an API key for a user in Omeka S');
+        parent::__construct('user:create-api-key', 'Create an API key for a user');
         $this->argument('<user>', 'User ID or email address');
         $this->argument('<label>', 'Label for the API key');
         $this->optionJson();

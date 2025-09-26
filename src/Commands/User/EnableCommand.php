@@ -7,7 +7,7 @@ class EnableCommand extends AbstractUserCommand
 {
     public function __construct()
     {
-        parent::__construct('user:enable', 'Enable (activate) a user in Omeka S');
+        parent::__construct('user:enable', 'Enable (activate) a user');
         $this->argument('<user>', 'User ID or email address');
     }
 

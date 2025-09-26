@@ -8,7 +8,7 @@ class DeleteApiKeyCommand extends AbstractUserCommand
 {
     public function __construct()
     {
-        parent::__construct('user:deleteApiKey', 'Delete an API key for a user in Omeka S');
+        parent::__construct('user:delete-api-key', 'Delete an API key for a user');
         $this->argument('<user>', 'User ID or email address');
         $this->argument('<label>', 'Label for the API key');
     }
