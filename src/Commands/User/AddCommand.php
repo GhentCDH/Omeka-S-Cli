@@ -11,7 +11,7 @@ class AddCommand extends AbstractCommand
 {
     public function __construct()
     {
-        parent::__construct('user:add', 'Add a new user to Omeka S');
+        parent::__construct('user:add', 'Add a new user');
         $this->argument('<email>', 'Email address of the user');
         $this->argument('<name>', 'Display name of the user');
         $this->argument('<role>', 'Role of the user (global_admin, site_admin, editor, reviewer, author, researcher)');

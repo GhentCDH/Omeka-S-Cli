@@ -7,7 +7,7 @@ class DisableCommand extends AbstractUserCommand
 {
     public function __construct()
     {
-        parent::__construct('user:disable', 'Disable (deactivate) a user in Omeka S');
+        parent::__construct('user:disable', 'Disable (deactivate) a user');
         $this->argument('<user>', 'User ID or email address');
     }
 

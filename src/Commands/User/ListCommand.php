@@ -7,7 +7,7 @@ class ListCommand extends AbstractUserCommand
 {
     public function __construct()
     {
-        parent::__construct('user:list', 'List all users in Omeka S');
+        parent::__construct('user:list', 'List all users');
         $this->optionJson();
         $this->optionTable();
     }
