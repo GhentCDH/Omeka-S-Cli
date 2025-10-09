@@ -3,6 +3,7 @@ namespace OSC\Commands\User;
 
 return [
     new AddCommand(),
+    new ExistsCommand(),
     new CreateApiKeyCommand(),
     new DeleteApiKeyCommand(),
     new ListCommand(),
