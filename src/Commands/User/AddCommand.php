@@ -6,21 +6,23 @@ use InvalidArgumentException;
 use Omeka\Api\Representation\UserRepresentation;
 use OSC\Commands\AbstractCommand;
 use Omeka\Entity\User;
+use OSC\Exceptions\WarningException;
 
 class AddCommand extends AbstractCommand
 {
     public function __construct()
     {
         parent::__construct('user:add', 'Add a new user');
+        $this->option('-i --inactive', 'Set the user inactive (default: active)');
+        $this->option('-e --ignore-existing', 'Ignore if the user already exists (default: throw an error)');
+        $this->optionJson();
         $this->argument('<email>', 'Email address of the user');
         $this->argument('<name>', 'Display name of the user');
         $this->argument('<role>', 'Role of the user (global_admin, site_admin, editor, reviewer, author, researcher)');
         $this->argument('[password]', 'Password for the user (optional)');
-        $this->option('--inactive -i', 'Set the user inactive (default: active)');
-        $this->optionJson();
     }
 
-    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false, ?bool $json = false): void
+    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false, ?bool $json = false, ?bool $ignoreExisting = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
@@ -39,6 +41,9 @@ class AddCommand extends AbstractCommand
         // Check if user exists
         $userExists = $api->search('users', ['email' => $email])->getTotalResults() > 0;
         if ($userExists) {
+            if ($ignoreExisting) {
+                throw new WarningException("User with email '{$email}' already exists.");
+            }
             throw new InvalidArgumentException("User with email '{$email}' already exists.");
         }
 
