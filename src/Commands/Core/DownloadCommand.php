@@ -4,6 +4,7 @@ namespace OSC\Commands\Core;
 use Exception;
 use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
+use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Helper\FileUtils;
 
@@ -53,8 +54,13 @@ class DownloadCommand extends AbstractModuleCommand
         }
 
         // Download the specified version
-        $url = "https://github.com/omeka/omeka-s/releases/download/v$versionNumber/omeka-s-$versionNumber.zip";
-        $downloader = new ZipDownloader($url);
+        if ( $versionNumber === "dev" ) {
+            $url = "https://github.com/omeka/omeka-s.git";
+            $downloader = new GitDownloader($url);
+        } else {
+            $url = "https://github.com/omeka/omeka-s/releases/download/v$versionNumber/omeka-s-$versionNumber.zip";
+            $downloader = new ZipDownloader($url);
+        }
 
         try {
             $this->info("Downloading Omeka S core version $versionNumber from $url ... ");
@@ -64,10 +70,20 @@ class DownloadCommand extends AbstractModuleCommand
             $this->io()->eol();
         }
 
+        try {
+            $this->info("Verify core files ... ");
+            $srcPath = FileUtils::findSubpath($tmpDownloadPath, 'application');
+            if (!$srcPath) {
+                throw new Exception("The downloaded core files are invalid.");
+            }
+            $this->info("done");
+        } finally {
+            $this->io()->eol();
+        }
+
         // Copy folders
         try {
             $this->info("Copying files ...");
-            $srcPath = FileUtils::createPath([$tmpDownloadPath, 'omeka-s']);
             FileUtils::copyFolder($srcPath, $destinationPath);
             $this->info("done");
         } finally {
