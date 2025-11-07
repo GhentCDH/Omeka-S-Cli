@@ -4,4 +4,5 @@ namespace OSC\Commands\ResourceTemplates;
 return [
     new ListCommand(),
     new ExportCommand(),
+    new ImportCommand(),
 ];
