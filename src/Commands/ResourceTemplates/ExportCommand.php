@@ -11,51 +11,57 @@ class ExportCommand extends AbstractCommand
 {
     public function __construct()
     {
-        parent::__construct('resource-template:export', 'Export a resource template to JSON');
+        parent::__construct('resource-template:export', 'Export a resource template');
         $this->argument('<id>', 'Resource template ID to export');
-//        $this->option('--output <file>', 'Output file path (default: template_name.json)');
+        $this->argument('[filename]', 'Export to file');
     }
 
-    public function execute(int $id, ?string $file = null): void
+    public function execute(int $id, ?string $filename = null): void
     {
-//        try {
-            // Get Omeka instance and service manager
-            $omekaInstance = $this->getOmekaInstance();
-            $serviceManager = $omekaInstance->getServiceManager();
+        // Get Omeka instance and service manager
+        $omekaInstance = $this->getOmekaInstance();
+        $api = $omekaInstance->getApi();
+        $serviceManager = $omekaInstance->getServiceManager();
 
-            // Create controller instance
-            $dataTypeManager = $serviceManager->get('Omeka\DataTypeManager');
-            $controller = new ResourceTemplateController($dataTypeManager);
-            $controller->setPluginManager($serviceManager->get('ControllerPluginManager'));
+        // Check if the resource template already exists.
+        try {
+            $resourceTemplate = $api->read('resource_templates', $id)->getContent();
+        } catch (Exception $e) {
+            $resourceTemplate = null;
+        }
+        if (!$resourceTemplate) {
+            throw new Exception("Resource Template with ID {$id} does not exist.");
+        }
 
-            // Create a mock request with the ID parameter
-            $request = new Request();
-            $request->setUri('/admin/resource-templates/'.$id.'/export');
-            $routeMatch = $serviceManager->get('Router')->match($request);
-            $routeMatch->setParam('id', $id);
+        // Create controller instance
+        $dataTypeManager = $serviceManager->get('Omeka\DataTypeManager');
+        $controller = new ResourceTemplateController($dataTypeManager);
+        $controller->setPluginManager($serviceManager->get('ControllerPluginManager'));
 
-            // Set up the controller context
-            $controller->getEvent()->setRouteMatch($routeMatch);
+        // Create a mock request with the ID parameter
+        $request = new Request();
+        $request->setUri('/admin/resource-templates/'.$id.'/export');
+        $routeMatch = $serviceManager->get('Router')->match($request);
+        $routeMatch->setParam('id', $id);
 
-            // Call the existing exportAction method
-            $response = $controller->exportAction();
+        // Set up the controller context
+        $controller->getEvent()->setRouteMatch($routeMatch);
 
-            // Get the exported content
-            $exportContent = $response->getContent();
+        // Call the existing exportAction method
+        $response = $controller->exportAction();
 
-            // Extract filename from headers or generate one
-            if (!$file) {
-                echo $exportContent;
-            } else {
-                // Write to file
-                if (file_put_contents($file, $exportContent) === false) {
-                    throw new Exception("Failed to write to file: {$file}");
-                }
-                $this->ok("Resource template exported successfully to: {$file}");
+        // Get the exported content
+        $exportContent = $response->getContent();
+
+        // Extract filename from headers or generate one
+        if (!$filename) {
+            $this->echo($exportContent, true);
+        } else {
+            // Write to file
+            if (file_put_contents($filename, $exportContent.PHP_EOL) === false) {
+                throw new Exception("Failed to write to file: {$filename}");
             }
-
-//        } catch (Exception $e) {
-//            throw new Exception("Failed to export resource template: " . $e->getMessage());
-//        }
+            $this->ok("Succesfully exported Resource Template  to: {$filename}", true);
+        }
     }
 }
