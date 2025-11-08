@@ -4,6 +4,7 @@ namespace OSC\Commands\Core;
 use Exception;
 use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
+use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\FileUtils;
@@ -36,7 +37,11 @@ class UpdateCommand extends AbstractModuleCommand
             }
         }
 
+
         // Check version
+        if ($versionNumber === 'dev') {
+            $skipVersionCheck = true;
+        }
         if (!$skipVersionCheck) {
             $serviceManager = $this->getOmekaInstance(false)->getServiceManager();
 
@@ -59,12 +64,28 @@ class UpdateCommand extends AbstractModuleCommand
         }
 
         // Download the specified version
-        $url = "https://github.com/omeka/omeka-s/releases/download/v$versionNumber/omeka-s-$versionNumber.zip";
-        $downloader = new ZipDownloader($url);
+        if ($versionNumber === "dev") {
+            $url = "https://github.com/omeka/omeka-s.git";
+            $downloader = new GitDownloader($url);
+        } else {
+            $url = "https://github.com/omeka/omeka-s/releases/download/v$versionNumber/omeka-s-$versionNumber.zip";
+            $downloader = new ZipDownloader($url);
+        }
 
         try {
-            $this->info("Downloading Omeka S core version $versionNumber from $url ...");
+            $this->info("Downloading Omeka S core version '$versionNumber' from $url ...");
             $tmpDownloadPath = $downloader->download();
+            $this->info("done");
+        } finally {
+            $this->io()->eol();
+        }
+
+        try {
+            $this->info("Verify core files ... ");
+            $srcPath = FileUtils::findSubpath($tmpDownloadPath, 'application');
+            if (!$srcPath) {
+                throw new Exception("The downloaded core files are invalid.");
+            }
             $this->info("done");
         } finally {
             $this->io()->eol();
@@ -73,22 +94,20 @@ class UpdateCommand extends AbstractModuleCommand
         try {
             // Clean source folders
             $this->info("Clean downloaded core files ... ");
-            $srcPath = FileUtils::createPath([$tmpDownloadPath, 'omeka-s']);
-
             FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'modules']));
             FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'files']));
             FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'themes']));
             FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'config']));
             FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'logs']));
-
-            // Clean destination folders
-            FileUtils::removeFolder(FileUtils::createPath([$destPath, 'application']));
-            FileUtils::removeFolder(FileUtils::createPath([$destPath, 'vendor']));
             $this->info('done', true);
 
             // Install the new Omeka S core files
             try {
                 $this->info("Install new core files ...");
+                // Clean destination folders
+                FileUtils::removeFolder(FileUtils::createPath([$destPath, 'application']));
+                FileUtils::removeFolder(FileUtils::createPath([$destPath, 'vendor']));
+                // Copy new files
                 FileUtils::copyFolder($srcPath, $destPath);
                 $this->info("done");
             } finally {
