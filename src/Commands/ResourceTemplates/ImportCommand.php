@@ -31,9 +31,10 @@ class ImportCommand extends AbstractCommand
 
         $api = $omekaInstance->getApi();
 
-        $this->easyMeta = $serviceManager->get('Common\EasyMeta');
-        if (!$this->easyMeta) {
-            throw new Exception("The Common module is not properly installed. The importer cannot be used.");
+        try {
+            $this->easyMeta = $serviceManager->get('Common\EasyMeta');
+        } catch (Exception $e) {
+            throw new Exception("This features requires the 'Common' module to be installed.");
         }
 
         // check if file exists and is readable
