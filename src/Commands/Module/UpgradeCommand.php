@@ -11,7 +11,7 @@ class UpgradeCommand extends AbstractModuleCommand
 
     public function __construct()
     {
-        parent::__construct('module:upgrade', 'Uninstall module');
+        parent::__construct('module:upgrade', 'Upgrade module');
         $this->argumentModuleId();
     }
 
