@@ -21,7 +21,7 @@ class DownloadCommand extends AbstractModuleCommand
         $this->option('-f --force', 'Force module overwrite', 'boolval', false);
         $this->option('-b --backup', 'Backup current module before download (delete otherwise)', 'boolval', false);
         $this->option('-i --install', 'Install module after download', 'boolval', false);
-        $this->option('-i --upgrade', 'Upgrade module after download', 'boolval', false);
+        $this->option('-u --upgrade', 'Upgrade module after download', 'boolval', false);
         $this->usage(
             'module:download common<eol>' .
             'module:download common:3.4.71<eol>' .
