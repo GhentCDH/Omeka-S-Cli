@@ -3,14 +3,12 @@ namespace OSC\Commands\ResourceTemplates;
 
 use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
-use Omeka\DataType\Manager;
-use OSC\Commands\AbstractCommand;
 use OSC\Exceptions\WarningException;
-use OSC\Helper\FileUtils;
 
 
-class ImportCommand extends AbstractCommand
+class ImportCommand extends AbstractResourceTemplateCommand
 {
+
     /** @var \Common\Stdlib\EasyMeta $easyMeta */
     protected $easyMeta;
 
@@ -18,12 +16,32 @@ class ImportCommand extends AbstractCommand
     {
         parent::__construct('resource-template:import', 'Import a resource template');
         $this->argument('<filename>', 'File to import from');
-        $this->argument('[label]', 'Resource template label');
-        $this->option('--update', 'Update existing resource template (if it exists)', 'boolval', false);
-        $this->option('--ignore-deps', 'Ignore missing dependencies', 'boolval', false);
+        $this->argument('[identifier]', 'Resource template ID or label (required for update)');
+        $this->option('-l --label', 'Set or override the resource template label');
+        $this->option('--update', 'Update existing resource template', 'boolval', false);
+        $this->option('--ignore-deps', 'Ignore missing dependencies (vocabularies, properties, classes, data types)', 'boolval', false);
+        $this->usage(
+            'resource-template:import FILENAME [IDENTIFIER] '
+            . '[-l|--label=LABEL] [--update] [--ignore-deps]<eol/>'
+            . '<eol/>Examples:<eol/><eol/>'
+            . '* Import a template:<eol/>'
+            . 'resource-template:import template.json<eol/>'
+            . '<eol/>'
+            . '* Import a template under a different label:<eol/>'
+            . 'resource-template:import template.json --label="My Custom Template"<eol/>'
+            . '<eol/>'
+            . '* Update an existing template by ID:<eol/>'
+            . 'resource-template:import template.json 5<eol/>'
+            . '<eol/>'
+            . '* Update an existing template by label:<eol/>'
+            . 'resource-template:import template.json "Existing Template"<eol/>'
+            . '<eol/>'
+            . '* Update and change the label:<eol/>'
+            . 'resource-template:import template.json "Old Label" -l "New Label"<eol/>'
+        );
     }
 
-    public function execute(string $filename, ?bool $update = false, ?string $label = null, ?bool $ignoreDeps = false): void
+    public function execute(string $filename, ?string $identifier = null, ?string $label = null, ?bool $update = false, ?bool $ignoreDeps = false): void
     {
         // Get Omeka instance and service manager
         $omekaInstance = $this->getOmekaInstance();
@@ -49,21 +67,29 @@ class ImportCommand extends AbstractCommand
             throw new Exception("Invalid JSON in file: {$filename}");
         }
 
-        // Get or check resource template label
+        // Determine the label to use (priority: --label option, then from file, then error)
         $label = $label ?? $resourceTemplateData['o:label'] ?? null;
         if (!$label) {
-            throw new Exception("The resource template label is missing. You can specify it as second argument.");
+            throw new Exception("The resource template label is missing. You can specify it with the --label option.");
         }
         $resourceTemplateData['o:label'] = $label;
 
-        // Check if the resource template already exists.
-        try {
-            $resourceTemplate = $api->read('resource_templates', ['label' => $label])->getContent();
-        } catch (Exception $e) {
-            $resourceTemplate = null;
-        }
-        if (!$update && $resourceTemplate)  {
-            throw new WarningException("The resource template named '{$label}' is already available and is skipped.");
+        // Check if we need to find an existing resource template
+        if ($identifier) {
+            $update = true;
+            // Find existing resource template by identifier (ID or label)
+            $existingResourceTemplate = $this->findResourceTemplate($identifier, $api);
+            if (!$existingResourceTemplate) {
+                throw new InvalidArgumentException("Resource template not found by ID or label: '{$identifier}'.");
+            }
+        } else {
+            // Check if a template with the same label already exists
+            $existingResourceTemplate = $this->findResourceTemplate($label, $api);
+            if ($existingResourceTemplate) {
+                if (!$update) {
+                    throw new WarningException("The resource template with label '{$label}' already exists. Use --update to force update.");
+                }
+            }
         }
 
         // Check for missing dependencies.
@@ -73,33 +99,31 @@ class ImportCommand extends AbstractCommand
             foreach ($missing as $type => $items) {
                 $messages[] = sprintf("- %s: %s", ucfirst(str_replace('_', ' ', $type)), implode(', ', $items));
             }
-            $this->warn("The resource template '{$label}' has missing dependencies:", true);
+            $this->warn("The resource template has missing dependencies:", true);
             $this->warn(implode("\n", $messages), true);
 
-            throw new Exception("Could not import the resource template '{$label}' due to missing dependencies.");
+            throw new Exception("Could not import the resource template due to missing dependencies.");
         }
 
         // Flag members and data types as valid.
         $resourceTemplateData = $this->flagValid($resourceTemplateData);
 
-        if ($resourceTemplate && $update) {
-            $response = $api->update('resource_templates', $resourceTemplate->id(), $resourceTemplateData)->getContent();
+        if ($existingResourceTemplate && $update) {
+            $currentLabel = $existingResourceTemplate->label();
+            $response = $api->update('resource_templates', $existingResourceTemplate->id(), $resourceTemplateData)->getContent();
             if (!$response) {
-                throw new Exception("An error occurred while updating the resource template '{$label}'.");
+                throw new Exception("An error occurred while updating the resource template '{$currentLabel}'.");
             }
-            $this->ok("Succesfully updated Resource template '{$label}'.", true);
+            $this->ok("Successfully updated resource template '{$currentLabel}'.", true);
         } else {
             $response = $api->create('resource_templates', $resourceTemplateData)->getContent();
             if (!$response) {
                 throw new Exception("An error occurred while creating the resource template '{$label}'.");
             }
-            $this->ok("Succesfully created Resource template '{$label}'.", true);
+            $this->ok("Successfully created resource template '{$label}'.", true);
         }
     }
 
-    /**
-     *
-     */
 
     /**
      * Flag members and data types as valid.
@@ -109,7 +133,7 @@ class ImportCommand extends AbstractCommand
      *
      * @see \Common\ManageModuleAndResources::flagValid()
      */
-    protected function flagValid(iterable $import)
+    protected function flagValid(iterable $import): iterable
     {
         $getDataTypesByName = function ($dataTypesNameLabels) {
             $result = [];

@@ -12,7 +12,7 @@ class ListCommand extends AbstractCommand
         $this->optionJson();
     }
 
-    public function execute(?bool $json = false): void
+    public function execute(): void
     {
         $format = $this->getOutputFormat('table');
 

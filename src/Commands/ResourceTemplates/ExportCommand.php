@@ -2,36 +2,35 @@
 namespace OSC\Commands\ResourceTemplates;
 
 use Exception;
-use OSC\Commands\AbstractCommand;
+use InvalidArgumentException;
 use Omeka\Controller\Admin\ResourceTemplateController;
 use Laminas\Http\Request;
-use Laminas\Stdlib\Parameters;
 
-class ExportCommand extends AbstractCommand
+class ExportCommand extends AbstractResourceTemplateCommand
 {
+
     public function __construct()
     {
         parent::__construct('resource-template:export', 'Export a resource template');
-        $this->argument('<id>', 'Resource template ID to export');
+        $this->argument('<identifier>', 'Resource template ID or label');
         $this->argument('[filename]', 'Export to file');
     }
 
-    public function execute(int $id, ?string $filename = null): void
+    public function execute(string $identifier, ?string $filename = null): void
     {
         // Get Omeka instance and service manager
         $omekaInstance = $this->getOmekaInstance();
         $api = $omekaInstance->getApi();
         $serviceManager = $omekaInstance->getServiceManager();
 
-        // Check if the resource template already exists.
-        try {
-            $resourceTemplate = $api->read('resource_templates', $id)->getContent();
-        } catch (Exception $e) {
-            $resourceTemplate = null;
+        // Find resource template by ID or label
+        $existingResourceTemplate = $this->findResourceTemplate($identifier, $api);
+        if (!$existingResourceTemplate) {
+            throw new InvalidArgumentException("Resource template '{$identifier}' not found by ID or label.");
         }
-        if (!$resourceTemplate) {
-            throw new Exception("Resource Template with ID {$id} does not exist.");
-        }
+
+        // Get the actual ID for the controller
+        $id = $existingResourceTemplate->id();
 
         // Create controller instance
         $dataTypeManager = $serviceManager->get('Omeka\DataTypeManager');
@@ -59,9 +58,9 @@ class ExportCommand extends AbstractCommand
         } else {
             // Write to file
             if (file_put_contents($filename, $exportContent.PHP_EOL) === false) {
-                throw new Exception("Failed to write to file: {$filename}");
+                throw new Exception("Failed to write resource template to file '{$filename}'.");
             }
-            $this->ok("Succesfully exported Resource Template  to: {$filename}", true);
+            $this->ok("Successfully exported resource template '{$existingResourceTemplate->label()}' to '{$filename}'.", true);
         }
     }
 }
