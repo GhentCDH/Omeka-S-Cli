@@ -88,7 +88,7 @@ class ImportCommand extends AbstractCommand
                 throw new Exception("Could not update vocabulary (" . $e->getMessage() . ")");
             }
 
-            $this->io()->ok("Vocabulary '{$label}' updated successfully.", true);
+            $this->io()->ok("Successfully updated vocabulary '{$label}'.", true);
         } else {
             // Import new vocabulary
             try {
@@ -105,7 +105,7 @@ class ImportCommand extends AbstractCommand
                 throw new Exception("Could not import vocabulary ({$e->getMessage()})");
             }
 
-            $this->io()->ok("Vocabulary '{$label}' imported successfully.", true);
+            $this->io()->ok("Successfully created vocabulary '{$label}'.", true);
         }
     }
 
