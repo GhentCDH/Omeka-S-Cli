@@ -17,23 +17,27 @@ class DeleteCommand extends AbstractCommand
     {
         $api = $this->getOmekaInstance()->getApi();
 
-        // Try to find user by ID or email
+        // Try to find vocabulary by ID or email
         /** @var VocabularyRepresentation $vocabularyRepresentation */
         $vocabularyRepresentation = $this->findVocabulary($identifier, $api);
         if (!$vocabularyRepresentation) {
-            throw new InvalidArgumentException("Could not find vocabulary '{$identifier}' by ID or prefix.");
+            throw new InvalidArgumentException("Could not find vocabulary by ID or prefix: '{$identifier}'.");
         }
 
-        // Delete user
+        // Check if vocabulary is protected
+        if ($vocabularyRepresentation->isPermanent()) {
+            throw new InvalidArgumentException("Vocabulary '{$vocabularyRepresentation->label()}' is protected and cannot be deleted.");
+        }
+
+        // Delete vocabulary
         $this->getOmekaInstance()->elevatePrivileges();
         $api->delete('vocabularies', [ 'id' => $vocabularyRepresentation->id() ]);
 
-        $this->ok("Vocabulary '{$vocabularyRepresentation->prefix()}' successfully deleted.", true);
+        $this->ok("Successfully deleted vocabulary '{$vocabularyRepresentation->label()}'.", true);
     }
 
     protected function findVocabulary(string $identifier, $api): ?VocabularyRepresentation
     {
-        // Try to find user by ID or email
         if (is_numeric($identifier)) {
             try {
                 $result = $api->read('vocabularies', (int)$identifier);
