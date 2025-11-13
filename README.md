@@ -26,6 +26,12 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - Import and export resource templates from/to JSON files
     - List all resource templates
     - Delete resource templates
+- Manage vocabularies
+    - Import vocabularies from file or url
+    - Import vocabularies from JSON config file
+    - Create JSON import configuration files 
+    - List all vocabularies
+    - Delete vocabularies
 - Config
     - Export list of installed modules and themes
     - Get, set and list global settings
@@ -50,6 +56,9 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
     - `module:download <module>` to download a module
     - `module:install <module>` to install a module
     - `theme:download <theme>` to download a theme
+- Import resource templates and vocabularies
+    - `resource-template:import <file>` to import resource templates
+    - `vocabulary:import <file-or-url>` to import vocabularies
 - Set config options
     - `config:set <id> <value>` to set global settings
 

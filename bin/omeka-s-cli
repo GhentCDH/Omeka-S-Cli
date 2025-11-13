@@ -53,6 +53,7 @@ $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Config/Index.p
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Core/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/User/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/../src/Commands/ResourceTemplates/Index.php')];
+$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Vocabulary/Index.php')];
 
 // init application
 $app = new CliApplication('Omeka S Cli', OMEKA_S_CLI_VERSION);
