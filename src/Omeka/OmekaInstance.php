@@ -1,4 +1,5 @@
 <?php
+
 namespace OSC\Omeka;
 
 use Exception;
@@ -22,6 +23,9 @@ class OmekaInstance
     public function init(): ?Application
     {
         try {
+            // get current working directory
+            $cwd = getcwd();
+
             ob_start();
             // bootstrap Omeka S
             require $this->path . "/bootstrap.php";
@@ -39,6 +43,11 @@ class OmekaInstance
             // todo: dirty! should fix module init on startup
             if (file_exists($this->path . '/modules/Common/vendor/autoload.php')) {
                 require_once($this->path . '/modules/Common/vendor/autoload.php');
+            }
+
+            // restore current working directory
+            if ($cwd) {
+                chdir($cwd);
             }
 
             return $this->application;
