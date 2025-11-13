@@ -21,11 +21,17 @@ class ImportCommand extends AbstractCommand
             ->option('--config', 'Path or URL to Vocabulary importer config file')
             ->option('-u --update', 'Update existing vocabulary (if it exists)', 'boolval', false)
             ->usage(
-                '<eol/>Import from url:<eol/>'
+                '<eol/>* Import from url:<eol/>'
                 . 'vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"<eol/>'
-                . '<eol/>'
-                . '<eol/>Import from config file:<eol/>'
-                . 'vocabulary:import --config ./schema-dot-org.json --update<eol/>'
+                . '<eol/>* Import from config file:<eol/>'
+                . 'vocabulary:import --config ./schema-dot-org.json<eol/>'
+                . '<eol/>Example config file (schema-dot-org.json):'
+                . '<eol/>{'
+                . '<eol/>    "url": "https://schema.org/version/latest/schemaorg-current-https.rdf",'
+                . '<eol/>    "label": "schema.org",'
+                . '<eol/>    "namespaceUri": "https://schema.org/",'
+                . '<eol/>    "prefix": "schema",'
+                . '<eol/>}'
             );
     }
 
