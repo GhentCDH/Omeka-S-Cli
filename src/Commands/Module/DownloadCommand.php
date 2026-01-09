@@ -120,6 +120,14 @@ class DownloadCommand extends AbstractModuleCommand
             }
             $moduleDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
 
+            // Install dependencies (if any)
+            if (!is_dir(FileUtils::createPath([$moduleSourcePath, "vendor"])) &&
+                file_exists(FileUtils::createPath([$moduleSourcePath, "composer.lock"]))){
+                $composerCommand = sprintf('cd %s && composer install -q --no-dev &> /dev/null', escapeshellarg($moduleSourcePath));
+                exec($composerCommand, $output, $exitCode);
+                $exitCode && throw new \ErrorException("Failed to install dependencies");
+            }
+
             // Backup or remove previous version
             if (is_dir($moduleDestinationPath)) {
                 if (!$force) {
