@@ -31,13 +31,6 @@ class GitDownloader implements DownloaderInterface {
                 $exitCode && throw new \ErrorException("Failed to checkout tag/version");
             }
 
-            // Install dependencies
-            if (file_exists($tmpGitDestinationPath . '/composer.lock')) {
-                $composerCommand = sprintf('cd %s && composer install -q --no-dev &> /dev/null', escapeshellarg($tmpGitDestinationPath));
-                exec($composerCommand, $output, $exitCode);
-                $exitCode && throw new \ErrorException("Failed to install dependencies");
-            }
-
             return $tmpGitDestinationPath;
         } catch (\Throwable $e) {
             FileUtils::removeFolder($tmpGitDestinationPath);
