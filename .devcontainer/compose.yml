@@ -6,7 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ../..:/workspaces:cached
+      - ../:/app/omeka-s-cli:cached
+      - omeka-s:/var/www/omeka-s
     depends_on:
       - db
     ports:
@@ -27,3 +28,4 @@ services:
 
 volumes:
   mysql-data:
+  omeka-s:
