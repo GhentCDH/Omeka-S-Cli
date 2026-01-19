@@ -16,4 +16,6 @@ interface VersionHistoryInterface
     public function getVersion(string $versionNumber): ?VersionableInterface;
 
     public function getLatestVersion(): ?VersionableInterface;
+
+    public function getLatestVersionNumber(): ?string;
 }
