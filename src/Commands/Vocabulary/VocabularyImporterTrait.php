@@ -24,7 +24,7 @@ trait VocabularyImporterTrait
             ->option('--comment-property', 'RDF property for comments');
     }
 
-    protected function filterVocabularyFormat(?string $format): ?string
+    public function filterVocabularyFormat(?string $format): ?string
     {
         $validFormats = ['auto', 'jsonld', 'rdfxml', 'turtle', 'ntriples'];
         if ($format === null || in_array(strtolower($format), $validFormats, true)) {
