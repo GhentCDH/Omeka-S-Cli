@@ -10,12 +10,18 @@ abstract class AbstractRepository implements RepositoryInterface
 
     /**
      * @param string $id
+     * @param string|null $type
      * @return T|null
      */
-    public function find(string $id): ?object
+    public function find(string $id, ?string $type = null): ?object
     {
-        $id = strtolower($id);
-        return $this->list()[$id] ?? null;
+        $ret = array_filter($this->list(), function ($item) use ($id, $type) {
+            return $item->resolves($id, $type);
+        });
+        if ($ret && count($ret)) {
+            return array_shift($ret);
+        }
+        return null;
     }
 
     /**
