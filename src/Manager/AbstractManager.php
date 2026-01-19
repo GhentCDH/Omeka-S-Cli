@@ -19,9 +19,12 @@ abstract class AbstractManager
         $cls = static::class;
         if (!isset(self::$instances[$cls])) {
             self::$instances[$cls] = new static();
+            self::$instances[$cls]->registerRepositories();
         }
         return self::$instances[$cls];
     }
+
+    protected abstract function registerRepositories(): void;
 
     /**
      * @param RepositoryInterface<T> $repository
