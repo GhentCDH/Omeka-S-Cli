@@ -24,4 +24,6 @@ interface RepositoryInterface extends IdentifiableInterface
      * @return T[]
      */
     public function search(string $query): array;
+
+    public function refresh(): void;
 }
