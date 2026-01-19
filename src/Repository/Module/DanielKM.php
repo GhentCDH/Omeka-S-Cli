@@ -1,8 +1,6 @@
 <?php
 namespace OSC\Repository\Module;
 
-use OSC\Cache;
-use OSC\Cache\CacheInterface;
 use OSC\Repository\AbstractRepository;
 
 /**
@@ -12,13 +10,6 @@ use OSC\Repository\AbstractRepository;
 class DanielKM extends AbstractRepository
 {
     private const API_ENDPOINT = 'https://raw.githubusercontent.com/Daniel-KM/UpgradeToOmekaS/master/_data/omeka_s_modules.csv';
-
-    private CacheInterface $cache;
-
-    public function __construct()
-    {
-        $this->cache = Cache::getCache();
-    }
 
     public function getId(): string
     {
@@ -33,81 +24,75 @@ class DanielKM extends AbstractRepository
     /**
      * @return ModuleDetails[]
      */
-    public function list(): array
+    public function entries(): array
     {
-        $cacheKey = $this->getId().'.modules';
-        $modules = $this->cache->get($cacheKey);
+        $modules = [];
 
-        if ( !$modules ) {
-            $modules = [];
+        // Get the CSV data from the Daniel-KM module list
+        $csv = file_get_contents(self::API_ENDPOINT);
+        if (!$csv) {
+            throw new \HttpRequestException("Failed to fetch data from " . self::API_ENDPOINT);
+        }
+        $csv = array_map('str_getcsv', explode(PHP_EOL, $csv));
 
-            // Get the CSV data from the Daniel-KM module list
-            $csv = file_get_contents(self::API_ENDPOINT);
-            if (!$csv) {
-                throw new \HttpRequestException("Failed to fetch data from " . self::API_ENDPOINT);
+        // validate csv structure
+        if (!is_array($csv)) {
+            throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+        }
+        if (empty($csv)) {
+            return $modules;
+        }
+
+        $header = array_shift($csv);
+        $expectedKeys = ['Last released zip', 'Directory name', 'Last version', 'Last update', 'Name', 'Description', 'Url', 'Author', 'Tags', 'Dependencies'];
+        if (count($expectedKeys) !== count(array_intersect($header, $expectedKeys)) ) {
+            throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+        }
+
+        // Convert csv to associative array
+        $data = [];
+        foreach ($csv as $row) {
+            if (count($row) === count($header)) {
+                $data[] = array_combine($header, $row);
             }
-            $csv = array_map('str_getcsv', explode(PHP_EOL, $csv));
+        }
 
-            // validate csv structure
-            if (!is_array($csv)) {
-                throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+        // Create the modules array
+        foreach ($data as $row) {
+            # skip unreleased modules
+            if (empty($row['Last released zip'])) {
+                continue;
             }
-            if (empty($csv)) {
-                return $modules;
+            # skip if directory name is missing
+            if (empty($row['Directory name'])) {
+                continue;
             }
+            $dirname = $row['Directory name'];
+            $moduleId = strtolower($row['Directory name']);
+            $version = $this->extractVersionNumberFromUrl($row['Last released zip']);
+            $version = $row['Last version'];
 
-            $header = array_shift($csv);
-            $expectedKeys = ['Last released zip', 'Directory name', 'Last version', 'Last update', 'Name', 'Description', 'Url', 'Author', 'Tags', 'Dependencies'];
-            if (count($expectedKeys) !== count(array_intersect($header, $expectedKeys)) ) {
-                throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
-            }
-
-            // Convert csv to associative array
-            $data = [];
-            foreach ($csv as $row) {
-                if (count($row) === count($header)) {
-                    $data[] = array_combine($header, $row);
-                }
+            if (empty($version)) {
+                continue;
             }
 
-            // Create the modules array
-            foreach ($data as $row) {
-                # skip unreleased modules
-                if (empty($row['Last released zip'])) {
-                    continue;
-                }
-                # skip if directory name is missing
-                if (empty($row['Directory name'])) {
-                    continue;
-                }
-                $dirname = $row['Directory name'];
-                $moduleId = strtolower($row['Directory name']);
-                $version = $this->extractVersionNumberFromUrl($row['Last released zip']);
-                $version = $row['Last version'];
-
-                if (empty($version)) {
-                    continue;
-                }
-
-                $versions = [ $version => new ModuleVersion(
-                        version: $version,
-                        created: $row['Last update'],
-                        downloadUrl: $row['Last released zip'],
-                    )
-                ];
-                $modules[$moduleId] = new ModuleDetails(
-                    name: $row['Name'],
-                    dirname: $dirname,
-                    latestVersion: $version,
-                    versions: $versions,
-                    description: $this->emptyToNull($row['Description']),
-                    link: $this->emptyToNull($row['Url']),
-                    owner: $this->emptyToNull($row['Author']),
-                    tags: $this->emptyToNull($row['Tags']),
-                    dependencies: explode(',', $row['Dependencies']), // todo: trim
-                );
-            }
-            $this->cache->set($cacheKey, $modules);
+            $versions = [ $version => new ModuleVersion(
+                    version: $version,
+                    created: $row['Last update'],
+                    downloadUrl: $row['Last released zip'],
+                )
+            ];
+            $modules[$moduleId] = new ModuleDetails(
+                name: $row['Name'],
+                dirname: $dirname,
+                latestVersion: $version,
+                versions: $versions,
+                description: $this->emptyToNull($row['Description']),
+                link: $this->emptyToNull($row['Url']),
+                owner: $this->emptyToNull($row['Author']),
+                tags: $this->emptyToNull($row['Tags']),
+                dependencies: explode(',', $row['Dependencies']), // todo: trim
+            );
         }
 
         return $modules;
