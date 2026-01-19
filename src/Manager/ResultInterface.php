@@ -13,9 +13,8 @@ interface ResultInterface {
     /**
      * @param RepositoryItemInterface<T> $item
      * @param RepositoryInterface $repository
-     * @param string|null $version
      */
-    public function __construct(RepositoryItemInterface $item, RepositoryInterface $repository, ?string $version);
+    public function __construct(RepositoryItemInterface $item, RepositoryInterface $repository);
 
     /**
      * @return T
@@ -26,6 +25,4 @@ interface ResultInterface {
      * @return RepositoryInterface<T>
      */
     public function getRepository(): RepositoryInterface;
-
-    public function getVersionNumber(): ?string;
 }
