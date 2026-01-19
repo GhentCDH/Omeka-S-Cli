@@ -56,12 +56,13 @@ abstract class AbstractManager
 
     /**
      * @param string $id
+     * @param string|null $type
      * @return Result<T>|null
      */
-    public function find(string $id): ?Result
+    public function find(string $id, ?string $type = null): ?Result
     {
         foreach($this->repositories as $repository) {
-            $item = $repository->find($id);
+            $item = $repository->find($id, $type);
             if ($item) {
                 return new Result($item, $repository);
             }

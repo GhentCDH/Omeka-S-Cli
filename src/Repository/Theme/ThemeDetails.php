@@ -19,10 +19,33 @@ class ThemeDetails implements RepositoryItemInterface
     ) {
 
     }
-
     public function getId(): string
     {
         return $this->dirname;
+    }
+
+    public function getIdentifiers(): array
+    {
+        return [
+            'id' => $this->dirname,
+        ];
+    }
+
+    public function matches($query): bool
+    {
+        $query = strtolower($query);
+        return str_contains(strtolower($this->dirname ?? ''), $query)
+            || str_contains(strtolower($this->name ?? ''), $query)
+            || str_contains(strtolower($this->owner ?? ''), $query)
+            || str_contains(strtolower($this->tags ?? ''), $query);
+    }
+
+    public function resolves(string $identifier, ?string $type = null): bool
+    {
+        $identifiers = $this->getIdentifiers();
+        return $type === null ?
+            (strcasecmp(current($identifiers), $identifier)) === 0 :
+            isset($identifiers[$type]) && (strcasecmp($identifiers[$type], $identifier) === 0);
     }
 
     public function getName(): string
@@ -68,14 +91,5 @@ class ThemeDetails implements RepositoryItemInterface
     public function getLatestVersion(): ThemeVersion
     {
         return $this->versions[$this->getLatestVersionNumber()];
-    }
-
-    public function matches($query): bool
-    {
-        $query = strtolower($query);
-        return str_contains(strtolower($this->dirname ?? ''), $query)
-            || str_contains(strtolower($this->name ?? ''), $query)
-            || str_contains(strtolower($this->owner ?? ''), $query)
-            || str_contains(strtolower($this->tags ?? ''), $query);
     }
 }

@@ -15,9 +15,10 @@ interface RepositoryInterface extends IdentifiableInterface
 
     /**
      * @param string $id
+     * @param string|null $type
      * @return T|null
      */
-    public function find(string $id): ?object;
+    public function find(string $id, ?string $type = null): ?object;
 
     /**
      * @return T[]
