@@ -20,9 +20,9 @@ trait FormattersTrait
             $formatted = [
                 'id' =>  $item->getId(),
                 'label' => $item->getName(),
-                'url' => $item->getUrl(),
-                'namespace uri' => $item->getNamespaceUri(),
+                'namespaceUri' => $item->getNamespaceUri(),
                 'prefix' => $item->getPrefix(),
+                'url' => $item->getUrl(),
                 'format' => $item->getFormat(),
             ];
 
