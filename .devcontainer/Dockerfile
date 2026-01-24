@@ -55,4 +55,11 @@ COPY ./imagemagick-policy.xml /etc/ImageMagick-6/policy.xml
 RUN install -g 1000 -o 1000 -d /var/www/omeka-s
 
 # Set working directory
-WORKDIR /workspaces
+WORKDIR /app/omeka-s-cli
+
+# Add CLI to PATH
+ENV PATH="/app/omeka-s-cli/bin/:${PATH}"
+
+# Add CLI to PATH for interactive shells
+RUN echo 'export PATH="/app/omeka-s-cli/bin:$PATH"' >> /etc/profile.d/omeka-s-cli.sh && \
+    chmod +x /etc/profile.d/omeka-s-cli.sh
