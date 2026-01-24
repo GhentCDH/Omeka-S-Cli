@@ -27,6 +27,7 @@ class VocabularyItem implements RepositoryItemInterface
         return [
             'id' => $this->id,
             'namespaceUri' => $this->namespaceUri,
+            'prefix' => $this->prefix,
         ];
     }
 
