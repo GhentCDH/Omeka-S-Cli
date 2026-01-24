@@ -17,24 +17,36 @@ class SearchCommand extends AbstractCommand
 
         $this
             ->argument('[query]', 'Part of the vocabulary id, name or description')
-            ->option('-r --repository [repositoryid]', 'Filter by repository', 'strval');
+            ->option('-r --repository [repositoryId]', 'Filter by repository id', 'strval')
+            ->option('--refresh', 'Refresh the repository data', 'boolval', false);
 
         $this->optionJson();
         $this->optionExtended();
     }
 
-    public function execute(?string $query, ?bool $json = false, ?bool $extended = false, ?string $repository = null): void
+    public function execute(?string $query, ?bool $json = false, ?bool $extended = false, ?string $repositoryId = null): void
     {
         $format = $this->getOutputFormat('table');
-        if ($query) {
-            $vocabularyResults = VocabularyRepositoryManager::getInstance()->search($query, $repository);
-        } else {
-            $vocabularyResults = VocabularyRepositoryManager::getInstance()->list($repository);
+
+        $manager = VocabularyRepositoryManager::getInstance();
+
+        // refresh repositories?
+        if ($this->values()['refresh'] ?? false) {
+            $this->info("Refreshing vocabulary repositories...");
+            $manager->refreshRepositories();
         }
-        $moduleList = $this->formatVocabularyResults($vocabularyResults, $extended);
-        if (!$moduleList) {
+
+        // fetch results
+        if ($query) {
+            $vocabularyResults = $manager->search($query, $repositoryId);
+        } else {
+            $vocabularyResults = $manager->list($repositoryId);
+        }
+
+        $output = $this->formatVocabularyResults($vocabularyResults, $extended);
+        if (!$output) {
             $this->warn("No vocabularies found for query '{$query}'", true);
         }
-        $this->outputFormatted($moduleList, $format);
+        $this->outputFormatted($output, $format);
     }
 }
