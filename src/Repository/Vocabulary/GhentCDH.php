@@ -62,7 +62,7 @@ class GhentCDH extends AbstractRepository
         foreach ($data as $row) {
             $vocabularyId = strtolower($row['id']);
             $vocabularies[$vocabularyId] = new VocabularyItem(
-                id: $vocabularyId,
+                id: $this->getId().":".$vocabularyId,
                 label: $row['label'],
                 url: $row['url'],
                 namespaceUri: $row['namespaceUri'],
