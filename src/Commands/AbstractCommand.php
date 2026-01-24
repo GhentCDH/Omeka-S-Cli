@@ -183,6 +183,10 @@ abstract class AbstractCommand extends Command
         return $instance;
     }
 
+    protected function ensureOmekaInstance(): OmekaInstance {
+        return $this->getOmekaInstance();
+    }
+
     protected function getModuleRepositoryManager(): ModuleRepositoryManager {
         return $this->moduleRepositoryManager;
     }
