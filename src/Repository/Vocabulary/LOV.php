@@ -13,8 +13,6 @@ use OSC\Repository\AbstractRepository;
  */
 class LOV extends AbstractRepository
 {
-    private const API_ENDPOINT = 'https://lov.linkeddata.es/dataset/lov/api/v2/vocabulary/list';
-
     public function getId(): string
     {
         return 'lov';
@@ -26,21 +24,119 @@ class LOV extends AbstractRepository
     }
 
     /**
+     * Query the LOV SPARQL endpoint and return results as CSV
+     *
+     * @return string CSV data from the SPARQL query
+     * @throws \RuntimeException If the query fails
+     */
+    protected function querySparqlEndpoint(): string
+    {
+        $SPARQL_ENDPOINT = 'https://lov.linkeddata.es/dataset/lov/sparql';
+        $SPARQL_QUERY = <<<'SPARQL'
+            PREFIX vann:<http://purl.org/vocab/vann/>
+            PREFIX voaf:<http://purl.org/vocommons/voaf#>
+            PREFIX dcat:<http://www.w3.org/ns/dcat#>
+            PREFIX dcterms:<http://purl.org/dc/terms/>
+            PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+             
+            SELECT ?vocabURI ?label ?vocabPrefix ?namespace ?distributionURI ?issued ?description 
+            WHERE {
+                GRAPH <https://lov.linkeddata.es/dataset/lov>{
+                    ?vocabURI a voaf:Vocabulary.
+                    ?vocabURI vann:preferredNamespacePrefix ?vocabPrefix.
+                    
+                    # Get label (title)
+                    OPTIONAL { ?vocabURI dcterms:title ?label filter (lang(?label) = "en") }
+                    
+                    # Get namespace URI
+                    OPTIONAL { ?vocabURI vann:preferredNamespaceUri ?namespace }
+                    
+                    # Get distribution - only those identified by URI (not blank nodes)
+                    OPTIONAL { 
+                        ?vocabURI dcat:distribution ?distributionURI.
+                        FILTER(isURI(?distributionURI))
+                  
+                        # Get the issued date
+                        OPTIONAL { ?distributionURI dcterms:issued ?issued }
+                        
+                        # Only keep this distribution if no other URI distribution has a later date
+                        FILTER NOT EXISTS {
+                            ?vocabURI dcat:distribution ?otherDist.
+                            FILTER(isURI(?otherDist))
+                            ?otherDist dcterms:issued ?otherIssued.
+                            ?distributionURI dcterms:issued ?thisIssued.
+                            FILTER(?otherIssued > ?thisIssued)
+                        }
+                    }
+                
+                    # Get description
+                    OPTIONAL { ?vocabURI dcterms:description ?description filter (lang(?description) = "en") }
+                }
+            } 
+            ORDER BY ?vocabPrefix
+        SPARQL;
+
+        // Prepare the query parameters
+        $params = [
+            'query' => $SPARQL_QUERY,
+            'format' => 'text/csv',
+        ];
+
+        // Build the URL with query parameters
+        $url = $SPARQL_ENDPOINT . '?' . http_build_query($params);
+
+        // Set up the HTTP context with proper headers
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => [
+                    'Accept: text/csv',
+                    'User-Agent: Omeka-S-CLI/1.0',
+                ],
+                'timeout' => 30,
+            ],
+        ]);
+
+        // Execute the query
+        $csv = @file_get_contents($url, false, $context);
+
+        if ($csv === false) {
+            throw new \RuntimeException("Failed to fetch data from SPARQL endpoint: " . $SPARQL_ENDPOINT);
+        }
+
+        return $csv;
+    }
+
+    /**
      * @return VocabularyItem[]
      */
     public function entries(): array
     {
         $vocabularies = [];
 
-        // Fetch JSON data from LOV API
-        $json = file_get_contents(self::API_ENDPOINT);
-        if (!$json) {
-            throw new \HttpRequestException("Failed to fetch data from " . self::API_ENDPOINT);
+        $csv = $this->querySparqlEndpoint();
+        $csv = array_map('str_getcsv', explode(PHP_EOL, $csv));
+
+        // validate csv structure
+        if (!is_array($csv)) {
+            throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+        }
+        if (empty($csv)) {
+            return $vocabularies;
         }
 
-        $data = json_decode($json, true);
-        if (!is_array($data)) {
-            throw new \UnexpectedValueException("Invalid JSON data from " . self::API_ENDPOINT);
+        $header = array_shift($csv);
+        $expectedKeys = ['vocabURI', 'label', 'vocabPrefix', 'namespace', 'distributionURI', 'issued'];
+        if (count($expectedKeys) !== count(array_intersect($header, $expectedKeys)) ) {
+            throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+        }
+
+        // Convert csv to associative array
+        $data = [];
+        foreach ($csv as $row) {
+            if (count($row) === count($header)) {
+                $data[] = array_combine($header, $row);
+            }
         }
 
         if (empty($data)) {
@@ -50,51 +146,25 @@ class LOV extends AbstractRepository
         // Convert LOV data to VocabularyItem objects
         foreach ($data as $item) {
             // Skip items without required fields
-            if (!isset($item['prefix']) || !isset($item['nsp'])) {
+            if (!isset($item['vocabPrefix']) || !isset($item['namespace'])) {
                 continue;
             }
 
-            $prefix = $item['prefix'];
-            $vocabularyId = strtolower($prefix);
+            $prefix = $item['vocabPrefix'];
+            $vocabularyId = $this->getId().":".strtolower($prefix);
 
-            // Extract the title (prefer English)
-            $label = $prefix; // Default to prefix
-            if (isset($item['titles']) && is_array($item['titles'])) {
-                foreach ($item['titles'] as $title) {
-                    if (isset($title['value'])) {
-                        $label = $title['value'];
-                        // Prefer English titles
-                        if (isset($title['lang']) && $title['lang'] === 'en') {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Extract description/comment if available
-            $comment = null;
-            if (isset($item['descriptions']) && is_array($item['descriptions'])) {
-                foreach ($item['descriptions'] as $desc) {
-                    if (isset($desc['value'])) {
-                        $comment = $desc['value'];
-                        // Prefer English descriptions
-                        if (isset($desc['lang']) && $desc['lang'] === 'en') {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Use the URI as the URL (LOV doesn't provide direct download URLs in this endpoint)
-            $url = $item['uri'] ?? $item['nsp'];
+            $label = $item['label'] ?? $prefix;
+            $comment = null; // Description not included in this query
+            $comment = $item['description'] ?? null;
+            $url = $item['distributionURI'];
 
             $vocabularies[$vocabularyId] = new VocabularyItem(
                 id: $vocabularyId,
                 label: $label,
                 url: $url,
-                namespaceUri: $item['nsp'],
+                namespaceUri: $item['namespace'],
                 prefix: $prefix,
-                format: 'auto', // LOV doesn't specify format in the list endpoint
+                format: 'turtle', // LOV doesn't specify format in the list endpoint
                 comment: $comment,
             );
         }
