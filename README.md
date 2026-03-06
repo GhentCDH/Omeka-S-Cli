@@ -56,9 +56,11 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
     - `module:download <module>` to download a module
     - `module:install <module>` to install a module
     - `theme:download <theme>` to download a theme
-- Import resource templates and vocabularies
+- Import vocabularies
+    - `vocabulary:import --config <file>` to import vocabulary from a JSON config file
+    - `vocabulary:import --url <url> --namespace-uri="<uri>" --prefix="<prefix>" --label="<label>"` to import vocabulary from a URL
+- Import resource templates
     - `resource-template:import <file>` to import resource templates
-    - `vocabulary:import <file-or-url>` to import vocabularies
 - Set config options
     - `config:set <id> <value>` to set global settings
 
@@ -139,6 +141,48 @@ Or using the GitHub repository:
 
 ```
 omeka-s-cli gh:omeka-s-themes/freedom#v1.0.6
+```
+
+### Example: Download and import a vocabulary
+Download directly from a URL:
+```bash
+omeka-s-cli vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
+```
+
+Or using a JSON config file. First create a JSON file with content like below:
+```json
+{
+    "url": "https://schema.org/version/latest/schemaorg-current-https.rdf",
+    "label": "schema.org",
+    "namespaceUri": "https://schema.org/",
+    "prefix": "schema"
+}
+```
+
+Then import the vocabulary with:
+```bash
+omeka-s-cli vocabulary:import --config ./schema-dot-org.json
+```
+
+### Example: Import a resource template
+Import a resource template from a file with:
+```bash
+omeka-s-cli resource-template:import "/path/to/template.json"
+```
+
+You can also specify a different label:
+```bash
+omeka-s-cli resource-template:import "/path/to/template.json" --label="My Custom Template"
+```
+
+Update an existing template by ID:
+```bash
+omeka-s-cli resource-template:import "/path/to/template.json" 2
+```
+
+Update an existing template by label:
+```bash
+omeka-s-cli resource-template:import "/path/to/template.json" "My Custom Template"
 ```
 
 ## Requirements
