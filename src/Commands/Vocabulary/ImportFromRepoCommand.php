@@ -15,9 +15,9 @@ class ImportFromRepoCommand extends AbstractCommand
         parent::__construct('vocabulary:import-from-repo', 'Import a vocabulary from a repository');
 
         $this
-            ->argument('<identifier>', 'Vocabulary identifier (ID, prefix, or namespace URI)')
-            ->option('-p --prefix', 'Treat identifier as vocabulary prefix', 'boolval', false)
-            ->option('-n --namespace-uri', 'Treat identifier as vocabulary namespace uri', 'boolval', false)
+            ->argument('<identifier>', 'Vocabulary identifier')
+            ->option('-p --prefix', 'Match vocabulary by prefix', 'boolval', false)
+            ->option('-n --namespace-uri', 'Match vocabulary by namespace uri', 'boolval', false)
             ->option('-r --repository-id [repositoryId]', 'Filter by repository', 'strval')
 
             ->option('-u --update', 'Update existing vocabulary (if it exists)', 'boolval', false)
