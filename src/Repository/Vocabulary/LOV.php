@@ -39,7 +39,7 @@ class LOV extends AbstractRepository
             PREFIX dcterms:<http://purl.org/dc/terms/>
             PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
              
-            SELECT ?vocabURI ?label ?vocabPrefix ?namespace ?distributionURI ?issued ?description 
+            SELECT ?vocabURI ?label ?vocabPrefix ?namespace ?distributionURI ?issued (IF(BOUND(?desc), REPLACE(?desc, "\r?\n|\r", "\u000B"), "") AS ?description) 
             WHERE {
                 GRAPH <https://lov.linkeddata.es/dataset/lov>{
                     ?vocabURI a voaf:Vocabulary.
@@ -70,7 +70,7 @@ class LOV extends AbstractRepository
                     }
                 
                     # Get description
-                    OPTIONAL { ?vocabURI dcterms:description ?description filter (lang(?description) = "en") }
+                    OPTIONAL { ?vocabURI dcterms:description ?desc filter (lang(?desc) = "en") }
                 }
             } 
             ORDER BY ?vocabPrefix
@@ -119,7 +119,7 @@ class LOV extends AbstractRepository
 
         // validate csv structure
         if (!is_array($csv)) {
-            throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+            throw new \UnexpectedValueException("Invalid SPARQL query result.");
         }
         if (empty($csv)) {
             return $vocabularies;
@@ -128,7 +128,7 @@ class LOV extends AbstractRepository
         $header = array_shift($csv);
         $expectedKeys = ['vocabURI', 'label', 'vocabPrefix', 'namespace', 'distributionURI', 'issued'];
         if (count($expectedKeys) !== count(array_intersect($header, $expectedKeys)) ) {
-            throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+            throw new \UnexpectedValueException("Invalid SPARQL query result.");
         }
 
         // Convert csv to associative array
@@ -154,8 +154,7 @@ class LOV extends AbstractRepository
             $vocabularyId = $this->getId().":".strtolower($prefix);
 
             $label = $item['label'] ?? $prefix;
-            $comment = null; // Description not included in this query
-            $comment = $item['description'] ?? null;
+            $comment = isset($item['description']) ? str_replace("\v", "\n", $item['description']) : null;
             $url = $item['distributionURI'];
 
             $vocabularies[$vocabularyId] = new VocabularyItem(
