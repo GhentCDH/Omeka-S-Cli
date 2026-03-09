@@ -14,17 +14,17 @@ trait VocabularyImporterTrait
         return $command
             ->option('--url', 'Vocabulary URL')
             ->option('--file', 'Path to Vocabulary file')
-            ->option('--label', 'Label for the vocabulary (required)')
-            ->option('--comment', 'Comment/description for the vocabulary')
-            ->option('--namespace-uri', 'Namespace URI for the vocabulary (required)')
-            ->option('--prefix', 'Namespace prefix for the vocabulary (required)')
-            ->option('--format', 'Format of the vocabulary (rdfxml, turtle, ntriples, or auto)', [$this, 'filterVocabularyFormat'], 'auto')
-            ->option('--lang', 'Preferred language for labels and comments (e.g., en, fr)')
-            ->option('--label-property', 'RDF property for labels')
-            ->option('--comment-property', 'RDF property for comments');
+            ->option('-l --label', 'Label for the vocabulary (required)')
+            ->option('-c --comment', 'Comment/description for the vocabulary')
+            ->option('-n --namespace-uri', 'Namespace URI for the vocabulary (required)')
+            ->option('-p --prefix', 'Namespace prefix for the vocabulary (required)')
+            ->option('-f --format', 'Format of the vocabulary (rdfxml, turtle, ntriples, or auto)', [$this, 'filterVocabularyFormat'], 'auto')
+            ->option('-l --lang', 'Preferred language for labels and comments (e.g., en, fr)')
+            ->option('-lp --label-property', 'RDF property for labels')
+            ->option('-cp --comment-property', 'RDF property for comments');
     }
 
-    protected function filterVocabularyFormat(?string $format): ?string
+    public function filterVocabularyFormat(?string $format): ?string
     {
         $validFormats = ['auto', 'jsonld', 'rdfxml', 'turtle', 'ntriples'];
         if ($format === null || in_array(strtolower($format), $validFormats, true)) {
