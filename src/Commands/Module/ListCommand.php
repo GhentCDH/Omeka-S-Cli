@@ -9,11 +9,12 @@ class ListCommand extends AbstractModuleCommand
     {
         parent::__construct('module:list', 'List downloaded modules');
         $this->optionJson();
+        $this->optionCSV();
         $this->optionExtended();
         $this->option('-o --outdated', 'Show outdated modules', null, false);
     }
 
-    public function execute(?bool $json = false, ?bool $extended = false, ?bool $outdated = false): void
+    public function execute(?bool $extended = false, ?bool $outdated = false): void
     {
         $format = $this->getOutputFormat('table');
 

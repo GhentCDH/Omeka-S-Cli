@@ -9,6 +9,7 @@ class StatusCommand extends AbstractThemeCommand
     {
         parent::__construct('theme:status', 'Get theme status');
         $this->optionJson();
+        $this->optionCSV();
         $this->optionExtended();
         $this->argumentThemeId();
     }

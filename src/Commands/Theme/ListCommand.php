@@ -9,6 +9,7 @@ class ListCommand extends AbstractThemeCommand
     {
         parent::__construct('theme:list', 'List downloaded themes');
         $this->optionJson();
+        $this->optionCSV();
         $this->optionExtended();
     }
 

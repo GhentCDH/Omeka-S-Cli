@@ -52,6 +52,11 @@ abstract class AbstractCommand extends Command
         return $this;
     }
 
+    public function optionCSV(): static {
+        $this->option('-c --csv', 'Output csv', 'boolval', false)->on([$this, 'beQuiet']);
+        return $this;
+    }
+
     public function optionExtended(): static {
         $this->option('-x --extended', 'Extended output', 'boolval', false);
         return $this;
@@ -59,7 +64,7 @@ abstract class AbstractCommand extends Command
 
     public function getOutputFormat($defaultFormat = null) {
         $values = $this->values();
-        $supportedFormats = ['json', 'table', 'env'];
+        $supportedFormats = ['json', 'table', 'env', 'csv'];
 
         $format = $defaultFormat;
         foreach($supportedFormats as $supportedFormat) {
@@ -133,6 +138,16 @@ abstract class AbstractCommand extends Command
             case 'table': $this->io()->table($object); break;
             case 'print_r': $this->io()->writer()->raw(print_r($object, true)); break;
             case 'var_export': $this->io()->writer()->raw(var_export($object, true)); break;
+            case 'csv':
+                if(is_array($object) && count($object) > 0 && is_array($object[0])) {
+                    $fp = fopen('php://output', 'w');
+                    fputcsv($fp, array_keys($object[0]));
+                    foreach ($object as $line) {
+                        fputcsv($fp, $line);
+                    }
+                    fclose($fp);
+                }
+                break;
             case 'json':
             default:
                 if(is_object($object))

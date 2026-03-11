@@ -18,6 +18,7 @@ class SearchCommand extends AbstractModuleCommand
             ->option('-r --repository [repositoryid]', 'Filter by repository', 'strval');
 
         $this->optionJson();
+        $this->optionCSV();
         $this->optionExtended();
     }
 

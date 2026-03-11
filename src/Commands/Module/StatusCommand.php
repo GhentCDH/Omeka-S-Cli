@@ -9,6 +9,7 @@ class StatusCommand extends AbstractModuleCommand
     {
         parent::__construct('module:status', 'Get module status');
         $this->optionJson();
+        $this->optionCSV();
         $this->optionExtended();
         $this->argumentModuleId();
     }
