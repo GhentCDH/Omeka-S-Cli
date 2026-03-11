@@ -15,11 +15,11 @@ class UpgradeCommand extends AbstractModuleCommand
     public function __construct()
     {
         parent::__construct('module:upgrade', 'Upgrade module');
-        $this->argument('[module-id]', 'Module name or ID to update', null);
-        $this->option('-a --all', 'Update all modules', null, false);
+        $this->argument('[module-id]', 'Module name or ID to upgrade', null);
+        $this->option('-a --all', 'Upgrade all modules', null, false);
     }
 
-    public function execute(?string $moduleId, ?bool $all): void
+    public function execute(?string $moduleId, bool $all = false): void
     {
         if(!$moduleId && !$all) {
             throw new InvalidArgumentException("You must specify a module ID or the --all option.");
@@ -75,7 +75,6 @@ class UpgradeCommand extends AbstractModuleCommand
                 }
             }
 
-            // Optionally, you could throw an exception or return a specific status if there were errors.
             if ($errors) {
                 $this->error("Some modules could not be upgraded due to errors.", true);
             }
