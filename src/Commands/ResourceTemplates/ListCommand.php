@@ -10,6 +10,7 @@ class ListCommand extends AbstractCommand
     {
         parent::__construct('resource-template:list', 'List available resource templates');
         $this->optionJson();
+        $this->optionCSV();
     }
 
     public function execute(): void

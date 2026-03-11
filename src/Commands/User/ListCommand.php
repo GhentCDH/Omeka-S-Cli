@@ -9,6 +9,7 @@ class ListCommand extends AbstractUserCommand
     {
         parent::__construct('user:list', 'List all users');
         $this->optionJson();
+        $this->optionCSV();
         $this->optionTable();
     }
 

@@ -13,6 +13,7 @@ class SearchCommand extends AbstractThemeCommand
 
         $this->argument('[query]', 'Part of the theme name');
         $this->optionJson();
+        $this->optionCSV();
     }
 
     public function execute(?string $query): void
