@@ -4,7 +4,7 @@ namespace OSC;
 
 use Ahc\Cli\Input\Command;
 use OSC\Cli\Application as CliApplication;
-use OSC\Manager\Module\Manager as ModuleRepositoryManager;
+use OSC\ServiceProvider\ModuleRepositoryServiceProvider;
 
 # read version from composer.json
 $composerFile = __DIR__ . '/../composer.json';
@@ -34,15 +34,7 @@ if (isset($GLOBALS['_composer_autoload_path'])) {
 error_reporting(E_ERROR);
 
 // init module repositories
-$repositories = [
-  new Repository\Module\OmekaDotOrg(),
-  new Repository\Module\DanielKM(),
-];
-
-$moduleRepository = ModuleRepositoryManager::getInstance();
-foreach ($repositories as $repository) {
-  $moduleRepository->addRepository($repository);
-}
+ModuleRepositoryServiceProvider::register();
 
 // load commands
 /** @var Command[] $commands */
