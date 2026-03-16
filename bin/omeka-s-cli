@@ -37,15 +37,7 @@ error_reporting(E_ERROR);
 ModuleRepositoryServiceProvider::register();
 
 // load commands
-/** @var Command[] $commands */
-$commands = [];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Module/Index.php')];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Theme/Index.php')];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Config/Index.php')];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Core/Index.php')];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/User/Index.php')];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/ResourceTemplates/Index.php')];
-$commands = [...$commands, ...require(__DIR__ . '/../src/Commands/Vocabulary/Index.php')];
+$commands = require(__DIR__ . '/../src/Commands/Index.php');
 
 // init application
 $app = new CliApplication('Omeka S Cli', OMEKA_S_CLI_VERSION);
