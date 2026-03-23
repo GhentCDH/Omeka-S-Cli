@@ -1,23 +1,28 @@
 <?php
 
-namespace OSC\Commands\Dummy\ValueGenerator;
+namespace OSC\Commands\Dummy\Generator\ResourceValue;
 
-use OSC\Commands\Dummy\Helper\LoremIpsumGenerator;
+use OSC\Commands\Dummy\Generator\Helper\LoremIpsumGenerator;
 
-class UriValueGenerator implements ValueGeneratorInterface
+class UriValueGenerator implements ResourceValueGeneratorInterface
 {
-    private array $config;
-
-    public function __construct(array $config)
+    public function __construct(private array $config)
     {
-        $this->config = $config;
+        if (isset($config['values']) && (empty($config['values']) || !is_array($config['values']))) {
+            throw new \InvalidArgumentException(
+                "Uri generator 'values' must be a non-empty array."
+            );
+        }
+    }
+
+    public function getId(): string
+    {
+        return "url";
     }
 
     public function generate(): array
     {
-        $mode = $this->config['mode'];
-
-        if ($mode === 'list') {
+        if (isset($this->config['values'])) {
             $item = $this->config['values'][array_rand($this->config['values'])];
             return [
                 'type'        => 'uri',

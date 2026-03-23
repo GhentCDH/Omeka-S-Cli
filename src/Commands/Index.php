@@ -11,5 +11,6 @@ $commands = [...$commands, ...require(__DIR__ . '/Core/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/User/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/ResourceTemplates/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/Vocabulary/Index.php')];
+$commands = [...$commands, ...require(__DIR__ . '/Dummy/Index.php')];
 
 return $commands;

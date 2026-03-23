@@ -1,6 +1,6 @@
 <?php
 
-namespace OSC\Commands\Dummy\Helper;
+namespace OSC\Commands\Dummy\Generator\Helper;
 
 class LoremIpsumGenerator
 {
