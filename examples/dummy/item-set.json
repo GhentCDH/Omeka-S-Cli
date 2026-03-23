@@ -1,0 +1,31 @@
+{
+  "dcterms:title": [
+    {
+      "generator": "literal",
+      "mode": "lorem",
+      "minWords": 2,
+      "maxWords": 5
+    }
+  ],
+  "dcterms:type": [
+    {
+      "generator": "literal",
+      "mode": "values",
+      "values": [
+        "Test Item Set"
+      ]
+    }
+  ],
+  "dcterms:subject": [
+    {
+      "generator": "literal",
+      "mode": "values",
+      "values": [
+        "Art",
+        "Science",
+        "History",
+        "Technology"
+      ]
+    }
+  ]
+}

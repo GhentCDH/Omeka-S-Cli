@@ -1,0 +1,108 @@
+{
+  "o:is_public": {
+    "generator": "boolean"
+  },
+  "o:item_set": {
+    "generator": "item_set",
+    "min": 2,
+    "max": 10
+  },
+  "o:resource_class": {
+    "generator": "resource_class",
+    "values": [ "dctype:Text", "dctype:Image", "dctype:Dataset" ]
+  },
+  "dcterms:title": [
+    {
+      "generator": "literal",
+      "mode": "lorem",
+      "minWords": 2,
+      "maxWords": 5
+    }
+  ],
+  "dcterms:type": [
+    {
+      "generator": "literal",
+      "mode": "values",
+      "values": [
+        "Test Item"
+      ]
+    }
+  ],
+  "dcterms:subject": [
+    {
+      "generator": "literal",
+      "mode": "values",
+      "values": [
+        "Art",
+        "Science",
+        "History",
+        "Technology"
+      ]
+    }
+  ],
+  "dcterms:extent": [
+    {
+      "generator": "literal",
+      "mode": "range",
+      "min": 1,
+      "max": 500
+    }
+  ],
+  "dcterms:created": [
+    {
+      "generator": "literal",
+      "mode": "date",
+      "min": 1900,
+      "max": 2024,
+      "format": "Y"
+    }
+  ],
+  "dcterms:modified": [
+    {
+      "generator": "literal",
+      "mode": "date",
+      "min": 2000,
+      "max": 2024,
+      "format": "Y-m"
+    }
+  ],
+  "dcterms:date": [
+    {
+      "generator": "literal",
+      "mode": "date",
+      "min": 2000,
+      "max": 2024,
+      "format": "Y-m-d"
+    }
+  ],
+  "dcterms:relation": [
+    {
+      "generator": "uri"
+    }
+  ],
+  "dcterms:source": [
+    {
+      "generator": "uri",
+      "values": [
+        {
+          "id": "https://example.com/source-1",
+          "label": "Source One"
+        },
+        {
+          "id": "https://example.com/source-2",
+          "label": "Source Two"
+        },
+        {
+          "id": "https://example.com/source-3",
+          "label": "Source Three"
+        }
+      ]
+    }
+  ],
+  "dcterms:isPartOf": [
+    {
+      "generator": "resource",
+      "resourceType": "any"
+    }
+  ]
+}
