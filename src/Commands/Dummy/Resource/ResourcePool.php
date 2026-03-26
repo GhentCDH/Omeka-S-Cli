@@ -74,7 +74,7 @@ class ResourcePool
 
     private function fetchType(string $type): array
     {
-        $response = $this->api->search($type, ['limit' => 1000], ['responseContent' => 'resource']);
+        $response = $this->api->search($type, ['limit' => 10000], ['responseContent' => 'resource']);
         if ($response->getTotalResults() === 0) {
             return [];
         }
