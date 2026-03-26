@@ -14,9 +14,9 @@
   "dcterms:title": [
     {
       "generator": "literal",
-      "mode": "lorem",
-      "minWords": 2,
-      "maxWords": 5
+      "mode": "words",
+      "min": 2,
+      "max": 5
     }
   ],
   "dcterms:type": [
@@ -103,6 +103,45 @@
     {
       "generator": "resource",
       "resourceType": "any"
+    }
+  ],
+  "dcterms:creator": [
+    {
+      "generator": "literal",
+      "mode": "name"
+    }
+  ],
+  "dcterms:contributor": [
+    {
+      "generator": "literal",
+      "mode": "name",
+      "gender": "female"
+    }
+  ],
+  "dcterms:description": [
+    {
+      "generator": "literal",
+      "mode": "sentences",
+      "min": 2,
+      "max": 5
+    }
+  ],
+  "dcterms:spatial": [
+    {
+      "generator": "literal",
+      "mode": "city"
+    }
+  ],
+  "dcterms:identifier": [
+    {
+      "generator": "literal",
+      "mode": "uuid"
+    }
+  ],
+  "dcterms:publisher": [
+    {
+      "generator": "literal",
+      "mode": "url"
     }
   ]
 }

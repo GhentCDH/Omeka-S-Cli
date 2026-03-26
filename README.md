@@ -32,6 +32,8 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - Create JSON import configuration files 
     - List all vocabularies
     - Delete vocabularies
+- Dummy data
+    - Generate dummy items and item sets with configurable generators
 - Config
     - Export list of installed modules and themes
     - Get, set and list global settings
@@ -163,6 +165,23 @@ Then import the vocabulary with:
 ```bash
 omeka-s-cli vocabulary:import --config ./schema-dot-org.json
 ```
+
+### Example: Create dummy items
+
+```bash
+# 100 items using built-in defaults
+omeka-s-cli dummy:create-items 100
+
+# 100 items from a config file
+omeka-s-cli dummy:create-items 100 --config ./examples/dummy/item.json
+```
+
+```bash
+omeka-s-cli dummy:create-item-sets 10
+omeka-s-cli dummy:create-item-sets 10 --config ./examples/dummy/item-set.json
+```
+
+See [docs/dummy.md](docs/dummy.md) for the full generator and config reference.
 
 ### Example: Import a resource template
 Import a resource template from a file with:

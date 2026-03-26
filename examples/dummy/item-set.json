@@ -2,9 +2,9 @@
   "dcterms:title": [
     {
       "generator": "literal",
-      "mode": "lorem",
-      "minWords": 2,
-      "maxWords": 5
+      "mode": "words",
+      "min": 2,
+      "max": 5
     }
   ],
   "dcterms:type": [
