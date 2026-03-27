@@ -14,7 +14,7 @@ services:
       - "8080:80"
 
   db:
-    image: mariadb:10.4
+    image: mariadb:11.4
     restart: no
     environment:
       MYSQL_ROOT_PASSWORD: root
