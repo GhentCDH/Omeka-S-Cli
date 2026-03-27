@@ -9,7 +9,7 @@ class CreateItems extends AbstractDummyCommand
     public function __construct()
     {
         parent::__construct('dummy:create-items', 'Add dummy items');
-        $this->argument('<total>', 'Number of items to create', 'intval', 1);
+        $this->argument('<total>', 'Number of items to create', 1);
         $this->option('--config', 'Path to JSON config file for item generation');
     }
 
