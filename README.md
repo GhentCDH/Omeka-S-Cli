@@ -91,7 +91,7 @@ You can export almost any command output with the `--json` option.
 
 ### Example: Download a module from a repository
 
-The easiest way to download a module is to use its official name. The downloader will search the name in one of the supported module repositories and download the latest zip release. 
+The easiest way to download a module is to use its official name. The downloader will search the name in one of the supported module repositories and automatically download the latest version compatible with the installed Omeka S core version.
 
 ```
 # omeka-s-cli module:download common
@@ -134,6 +134,8 @@ omeka-s-cli module:download gh:Daniel-KM/Omeka-S-module-AdvancedSearch#3.4.22
 The installer will run `composer install` in the module directory if a `composer.lock` file is present. Other dependencies must be installed manually.
 
 ### Example: Download a theme
+
+The theme downloader also automatically selects the latest version compatible with the installed Omeka S core version.
 
 ```
 omeka-s-cli theme:download freedom
@@ -231,9 +233,8 @@ box compile
 
 ## To do
 
-- [ ] Download/update multiple modules at once
 - [ ] Module dependency checking
-- [ ] Add support for resource templates
+- [ ] Add support for custom vocabularies
 - [ ] Add support for sites and site pages
 
 ## Credits
@@ -241,6 +242,17 @@ box compile
 Built @ the [Ghent Center For Digital Humanities](https://www.ghentcdh.ugent.be/), Ghent University by:
 
 * Frederic Lamsens
+
+Built with:
+
+- [adhocore/cli](https://github.com/adhocore/php-cli) — CLI framework
+- [fakerphp/faker](https://github.com/FakerPHP/Faker) — fake data generation
+
+Code copied from third-party sources:
+
+- `resource-template:import` — `flagValid()` and `checkMissingDependencies()` methods copied from
+  [Common module](https://gitlab.com/Daniel-KM/Omeka-S-module-Common)
+  by [Daniel Berthereau](https://gitlab.com/Daniel-KM), © 2020–2025
 
 Inspired by:
 
