@@ -23,7 +23,11 @@ class Result implements ResultInterface
         $this->repository = $repository;
     }
 
-    public function getItem(): object
+
+    /**
+     * @return T
+     */
+    public function getItem(): RepositoryItemInterface
     {
         return $this->item;
     }
