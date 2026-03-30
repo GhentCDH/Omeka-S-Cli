@@ -246,6 +246,9 @@ class ImportCommand extends AbstractResourceTemplateCommand
     /**
      * Check if a resource template has missing dependencies.
      *
+     * Copy of the method of the Common module
+     * Copyright Daniel Berthereau, 2020-2025
+     *
      * @param array $resourceTemplateData The resource template data from file
      * @return array Array of missing dependencies grouped by type
      * @throws Exception If critical dependencies are missing
