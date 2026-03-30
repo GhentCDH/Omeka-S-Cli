@@ -23,6 +23,7 @@
         "ext-pdo_mysql": "*",
         "ext-zip": "*",
         "adhocore/cli": "^1.9.0",
+        "composer/semver": "^3.4",
         "fakerphp/faker": "^1.23"
     },
     "autoload": {
