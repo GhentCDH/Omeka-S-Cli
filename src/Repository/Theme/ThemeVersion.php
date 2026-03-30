@@ -1,9 +1,9 @@
 <?php
 namespace OSC\Repository\Theme;
 
-use OSC\Repository\VersionableInterface;
+use OSC\Repository\OmekaVersionableInterface;
 
-class ThemeVersion implements VersionableInterface
+class ThemeVersion implements OmekaVersionableInterface
 {
     public function __construct(
         public string $version,

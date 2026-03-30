@@ -44,6 +44,7 @@ class OmekaDotOrg extends AbstractRepository
                     $version,
                     $versionInfo['created'],
                     $versionInfo['download_url'],
+                    $versionInfo['omeka_version_constraint'] ?? null
                 );
             }
 

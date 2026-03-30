@@ -6,10 +6,10 @@ use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
+use OSC\Helper\FileUtils;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUriType;
-use OSC\Helper\FileUtils;
-use OSC\Repository\Theme\OmekaDotOrg;
+use OSC\Helper\VersionCompatibility;
 
 class DownloadCommand extends AbstractThemeCommand
 {
@@ -54,21 +54,39 @@ class DownloadCommand extends AbstractThemeCommand
                 $downloader = new ZipDownloader($themeUri->getId());
                 break;
             case ResourceUriType::IdVersion:
-                $themeId = $themeUri->getId();
-                $themeVersion = $themeUri->getVersion();
-
-                // find theme in omeka.org
-                $themeRepo = new OmekaDotOrg();
-                $themeDetails = $themeRepo->find($themeId);
-                if(!$themeDetails){
-                    throw new NotFoundException("Theme '{$themeId}' is not found in the official theme list.");
+                $repoResult = $this->getThemeRepositoryManager()->find($themeUri->getId());
+                if (!$repoResult) {
+                    throw new NotFoundException("Could not find theme '{$themeUri->getId()}' in any repository.");
                 }
-                $themeDirName = $themeDetails->getDirName();
+                $themeDirName = $repoResult->getItem()->getDirname();
 
-                // check if version exists
-                $versionDetails = $themeDetails->getVersion($themeVersion ?? $themeDetails->getLatestVersionNumber());
-                if(!$versionDetails){
-                    throw new NotFoundException("Theme '{$themeDirName}' with version '{$themeVersion}' is not found in the official theme list.");
+                $omekaVersion = $this->getOmekaVersion();
+
+                if ($themeUri->getVersion()) {
+                    $versionDetails = $repoResult->getItem()->getVersion($themeUri->getVersion());
+                    if (!$versionDetails) {
+                        throw new NotFoundException("Theme '{$themeDirName}' has no version '{$themeUri->getVersion()}'.");
+                    }
+                    if (!VersionCompatibility::isCompatible($versionDetails, $omekaVersion)) {
+                        if (!$force) {
+                            throw new \Exception("Cannot use theme '{$themeDirName}' version '{$themeUri->getVersion()}': incompatible with Omeka S {$omekaVersion}.");
+                        }
+                    }
+                } else {
+                    $versionDetails = VersionCompatibility::getLatestCompatible(
+                        $repoResult->getItem()->getVersions(),
+                        $omekaVersion
+                    );
+                    if (!$versionDetails) {
+                        throw new NotFoundException("Theme '{$themeDirName}' has no version compatible with Omeka S {$omekaVersion}.");
+                    }
+
+                    $latestVersionNumber = $repoResult->getItem()->getLatestVersion()->getVersionNumber();
+                    if ($versionDetails->getVersionNumber() !== $latestVersionNumber) {
+                        $this->warn("Cannot use theme '{$themeDirName}' latest version v{$latestVersionNumber}: incompatible with Omeka S {$omekaVersion}.", true);
+                    }
+
+                    $this->info("Selected '{$themeDirName}' v{$versionDetails->getVersionNumber()} (compatible with Omeka S {$omekaVersion}).", true);
                 }
 
                 $downloader = new ZipDownloader($versionDetails->getDownloadUrl());
