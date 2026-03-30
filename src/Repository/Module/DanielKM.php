@@ -44,7 +44,7 @@ class DanielKM extends AbstractRepository
         }
 
         $header = array_shift($csv);
-        $expectedKeys = ['Last released zip', 'Directory name', 'Last version', 'Last update', 'Name', 'Description', 'Url', 'Author', 'Tags', 'Dependencies'];
+        $expectedKeys = ['Last released zip', 'Directory name', 'Last version', 'Last update', 'Name', 'Description', 'Url', 'Author', 'Tags', 'Dependencies', 'Omeka constraint'];
         if (count($expectedKeys) !== count(array_intersect($header, $expectedKeys)) ) {
             throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
         }
@@ -80,6 +80,7 @@ class DanielKM extends AbstractRepository
                     version: $version,
                     created: $row['Last update'],
                     downloadUrl: $row['Last released zip'],
+                    omekaVersionConstraint: $row['Omeka constraint'],
                 )
             ];
             $modules[$moduleId] = new ModuleDetails(
