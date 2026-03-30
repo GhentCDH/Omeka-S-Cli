@@ -17,11 +17,10 @@ class Result implements ResultInterface
     protected RepositoryInterface $repository;
     protected ?string $version;
 
-    public function __construct(RepositoryItemInterface $item, RepositoryInterface $repository, ?string $versionNumber)
+    public function __construct(RepositoryItemInterface $item, RepositoryInterface $repository)
     {
         $this->item = $item;
         $this->repository = $repository;
-        $this->version = $versionNumber;
     }
 
     public function getItem(): object
@@ -32,10 +31,5 @@ class Result implements ResultInterface
     public function getRepository(): RepositoryInterface
     {
         return $this->repository;
-    }
-
-    public function getVersionNumber(): ?string
-    {
-        return $this->version;
     }
 }

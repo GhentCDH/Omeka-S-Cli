@@ -41,7 +41,6 @@ class DownloadCommand extends AbstractModuleCommand
         $moduleDirName = null;
         $downloader = null;
 
-
         // create downloader
         $moduleUri = ResourceUriParser::parse($module);
         switch ($moduleUri->getType()) {
@@ -57,20 +56,23 @@ class DownloadCommand extends AbstractModuleCommand
                 break;
             case ResourceUriType::IdVersion:
                 // find module in repositories
-                $repoResult = $this->getModuleRepositoryManager()->find($moduleUri->getId(), $moduleUri->getVersion());
+                $repoResult = $this->getModuleRepositoryManager()->find($moduleUri->getId());
                 if (!$repoResult) {
                     throw new NotFoundException("Could not find module '{$moduleUri->getId()}' in any repository.");
                 }
                 $moduleDirName = $repoResult->getItem()->getDirname();
 
-                // check if version exists
-                if ($moduleUri->getVersion() && !$repoResult->getVersionNumber()) {
-                    throw new NotFoundException("Module '{$moduleDirName}' has no version '{$moduleUri->getVersion()}'.");
+                // find version (specific or latest)
+                if ($moduleUri->getVersion()) {
+                    $versionInfo = $repoResult->getItem()->getVersion($moduleUri->getVersion());
+                    if (!$versionInfo) {
+                        throw new NotFoundException("Module '{$moduleDirName}' has no version '{$moduleUri->getVersion()}'.");
+                    }
+                } else {
+                    $versionInfo = $repoResult->getItem()->getLatestVersion();
                 }
 
-                // get download url
-                $versionInfo = $repoResult->getItem()->getVersion($repoResult->getVersionNumber());
-
+                // get downloader
                 $downloader = new ZipDownloader($versionInfo->getDownloadUrl());
                 break;
         }

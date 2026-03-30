@@ -2,7 +2,6 @@
 <?php
 namespace OSC;
 
-use Ahc\Cli\Input\Command;
 use OSC\Cli\Application as CliApplication;
 use OSC\ServiceProvider\ModuleRepositoryServiceProvider;
 

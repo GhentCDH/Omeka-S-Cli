@@ -2,6 +2,6 @@
 
 namespace OSC\Repository;
 
-interface RepositoryItemInterface extends IdentifiableInterface, MatchableInterface, VersionHistoryInterface
+interface RepositoryItemInterface extends IdentifiableInterface, MatchableInterface, ResolvableInterface, VersionHistoryInterface
 {
 }

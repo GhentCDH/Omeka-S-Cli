@@ -19,9 +19,12 @@ abstract class AbstractManager
         $cls = static::class;
         if (!isset(self::$instances[$cls])) {
             self::$instances[$cls] = new static();
+            self::$instances[$cls]->registerRepositories();
         }
         return self::$instances[$cls];
     }
+
+    protected abstract function registerRepositories(): void;
 
     /**
      * @param RepositoryInterface<T> $repository
@@ -52,20 +55,29 @@ abstract class AbstractManager
     }
 
     /**
+     * Refresh all repositories.
+     */
+    public function refreshRepositories(): void
+    {
+        foreach ($this->repositories as $repository) {
+            $repository->refresh();
+        }
+    }
+
+    /**
      * @param string $id
-     * @param string|null $version
+     * @param string|null $type
      * @return Result<T>|null
      */
-    public function find(string $id, ?string $version = null): ?Result
+    public function find(string $id, ?string $type = null, ?string $repositoryId = null): ?Result
     {
         foreach($this->repositories as $repository) {
-            $item = $repository->find($id);
+            if ($repositoryId && $repository->getId() !== $repositoryId) {
+                continue;
+            }
+            $item = $repository->find($id, $type);
             if ($item) {
-                // todo: implement semantic version comparison
-                $versionNumber = $version ?
-                    $item->getVersion($version)?->getVersionNumber() :
-                    $item->getLatestVersionNumber();
-                return new Result($item, $repository, $versionNumber);
+                return new Result($item, $repository);
             }
         }
         return null;
@@ -78,7 +90,7 @@ abstract class AbstractManager
     {
         if ($repositoryId) {
             if (!isset($this->repositories()[$repositoryId])) {
-                throw new NotFoundException("Repository '$repositoryId' not found");
+                return []; // Repository not found, return empty array
             }
             $repositories = [$this->repositories()[$repositoryId]];
         } else {
@@ -91,7 +103,7 @@ abstract class AbstractManager
             foreach ($items as $item) {
                 $key = strtolower($item->getId());
                 if (!isset($result[$key])) {
-                    $result[$key] = new Result($item, $repository, $item->getLatestVersion()->getVersionNumber());
+                    $result[$key] = new Result($item, $repository);
                 }
             }
         }
@@ -106,7 +118,7 @@ abstract class AbstractManager
     {
         if ($repositoryId) {
             if (!isset($this->repositories()[$repositoryId])) {
-                throw new NotFoundException("Repository not found: $repositoryId");
+                return []; // Repository not found, return empty array
             }
             $repositories = [$this->repositories()[$repositoryId]];
         } else {
@@ -119,7 +131,7 @@ abstract class AbstractManager
             foreach ($items as $item) {
                 $key = strtolower($item->getId());
                 if (!isset($ret[$key])) {
-                    $ret[$key] = new Result($item, $repository, $item->getLatestVersion()->getVersionNumber());
+                    $ret[$key] = new Result($item, $repository);
                 }
             }
         }

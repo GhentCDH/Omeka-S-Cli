@@ -1,8 +1,6 @@
 <?php
 namespace OSC\Repository\Theme;
 
-use OSC\Cache;
-use OSC\Cache\CacheInterface;
 use OSC\Repository\AbstractRepository;
 
 
@@ -13,13 +11,6 @@ use OSC\Repository\AbstractRepository;
 class OmekaDotOrg extends AbstractRepository
 {
     private const API_ENDPOINT = 'https://omeka.org/add-ons/json/s_theme.json';
-
-    private CacheInterface $cache;
-
-    public function __construct()
-    {
-        $this->cache = Cache::getCache();
-    }
 
     public function getId(): string
     {
@@ -34,46 +25,40 @@ class OmekaDotOrg extends AbstractRepository
     /**
      * @return ThemeDetails[]
      */
-    public function list():  array
+    public function entries():  array
     {
-        $cacheKey = $this->getId().'.themes';
-        $output = $this->cache->get($cacheKey);
+        $output = [];
 
-        if (!$output) {
-            $output = [];
+        // Get the JSON data from the Omeka.org module list
+        $json = file_get_contents(self::API_ENDPOINT);
+        if (!$json) {
+            throw new \Exception("Failed to fetch data from " . self::API_ENDPOINT);
+        }
+        $data = json_decode($json, true) ?? [];
 
-            // Get the JSON data from the Omeka.org module list
-            $json = file_get_contents(self::API_ENDPOINT);
-            if (!$json) {
-                throw new \Exception("Failed to fetch data from " . self::API_ENDPOINT);
-            }
-            $data = json_decode($json, true) ?? [];
-
-            // Create the modules array
-            foreach ($data as $item) {
-                $versions = [];
-                foreach ($item['versions'] as $version => $versionInfo) {
-                    $versions[$version] = new ThemeVersion(
-                        $version,
-                        $versionInfo['created'],
-                        $versionInfo['download_url'],
-                    );
-                }
-
-                $latestVersion = $item['latest_version'];
-                $link = preg_replace('/\/releases.*/', '', $versions[$latestVersion]->downloadUrl);
-                $moduleId = strtolower($item['dirname']);
-
-                $output[$moduleId] = new ThemeDetails(
-                    name: $item['dirname'],
-                    dirname: $item['dirname'],
-                    latestVersion: $latestVersion,
-                    versions: $versions,
-                    link: $link,
-                    owner: $item['owner']
+        // Create the modules array
+        foreach ($data as $item) {
+            $versions = [];
+            foreach ($item['versions'] as $version => $versionInfo) {
+                $versions[$version] = new ThemeVersion(
+                    $version,
+                    $versionInfo['created'],
+                    $versionInfo['download_url'],
                 );
             }
-            $this->cache->set($cacheKey, $output);
+
+            $latestVersion = $item['latest_version'];
+            $link = preg_replace('/\/releases.*/', '', $versions[$latestVersion]->downloadUrl);
+            $moduleId = strtolower($item['dirname']);
+
+            $output[$moduleId] = new ThemeDetails(
+                name: $item['dirname'],
+                dirname: $item['dirname'],
+                latestVersion: $latestVersion,
+                versions: $versions,
+                link: $link,
+                owner: $item['owner']
+            );
         }
 
         return $output;

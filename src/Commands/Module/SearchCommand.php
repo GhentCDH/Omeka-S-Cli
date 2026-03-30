@@ -15,7 +15,9 @@ class SearchCommand extends AbstractModuleCommand
 
         $this
             ->argument('[query]', 'Part of the module name or description')
-            ->option('-r --repository [repositoryid]', 'Filter by repository', 'strval');
+            ->option('-r --repository [repositoryid]', 'Filter by repository', 'strval')
+            ->option('--refresh', 'Refresh the repository data', 'boolval', false);
+
 
         $this->optionJson();
         $this->optionCSV();
@@ -25,11 +27,21 @@ class SearchCommand extends AbstractModuleCommand
     public function execute(?string $query, ?bool $json = false, ?bool $extended = false, ?string $repository = null): void
     {
         $format = $this->getOutputFormat('table');
-        if ($query) {
-            $moduleResults = ModuleRepositoryManager::getInstance()->search($query, $repository);
-        } else {
-            $moduleResults = ModuleRepositoryManager::getInstance()->list($repository);
+
+        $manager = ModuleRepositoryManager::getInstance();
+
+        // refresh repositories?
+        if ($this->values()['refresh'] ?? false) {
+            $this->info("Refreshing vocabulary repositories...");
+            $manager->refreshRepositories();
         }
+
+        if ($query) {
+            $moduleResults = $manager->search($query, $repository);
+        } else {
+            $moduleResults = $manager->list($repository);
+        }
+
         $moduleList = $this->formatModuleResults($moduleResults, $extended);
         if (!$moduleList) {
             $this->warn("No modules found for query '{$query}'", true);
