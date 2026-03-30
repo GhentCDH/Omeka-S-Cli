@@ -32,9 +32,6 @@ if (isset($GLOBALS['_composer_autoload_path'])) {
 // set error reporting
 error_reporting(E_ERROR);
 
-// init module repositories
-ModuleRepositoryServiceProvider::register();
-
 // load commands
 $commands = require(__DIR__ . '/../src/Commands/Index.php');
 
