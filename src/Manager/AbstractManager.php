@@ -55,13 +55,26 @@ abstract class AbstractManager
     }
 
     /**
+     * Refresh all repositories.
+     */
+    public function refreshRepositories(): void
+    {
+        foreach ($this->repositories as $repository) {
+            $repository->refresh();
+        }
+    }
+
+    /**
      * @param string $id
      * @param string|null $type
      * @return Result<T>|null
      */
-    public function find(string $id, ?string $type = null): ?Result
+    public function find(string $id, ?string $type = null, ?string $repositoryId = null): ?Result
     {
         foreach($this->repositories as $repository) {
+            if ($repositoryId && $repository->getId() !== $repositoryId) {
+                continue;
+            }
             $item = $repository->find($id, $type);
             if ($item) {
                 return new Result($item, $repository);
@@ -77,7 +90,7 @@ abstract class AbstractManager
     {
         if ($repositoryId) {
             if (!isset($this->repositories()[$repositoryId])) {
-                throw new NotFoundException("Repository '$repositoryId' not found");
+                return []; // Repository not found, return empty array
             }
             $repositories = [$this->repositories()[$repositoryId]];
         } else {
@@ -105,7 +118,7 @@ abstract class AbstractManager
     {
         if ($repositoryId) {
             if (!isset($this->repositories()[$repositoryId])) {
-                throw new NotFoundException("Repository not found: $repositoryId");
+                return []; // Repository not found, return empty array
             }
             $repositories = [$this->repositories()[$repositoryId]];
         } else {
