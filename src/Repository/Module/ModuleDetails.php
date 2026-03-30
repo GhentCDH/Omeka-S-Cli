@@ -68,7 +68,7 @@ class ModuleDetails implements RepositoryItemInterface
     }
 
     /**
-     * @return VersionableInterface[]
+     * @return ModuleVersion[]
      */
     public function getVersions(): array
     {
