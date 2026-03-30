@@ -7,6 +7,7 @@ use Ahc\Cli\Input\Command;
 use Exception;
 use OSC\Helper\OmekaVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
+use OSC\Manager\Theme\Manager as ThemeRepositoryManager;
 use OSC\Omeka\OmekaDotOrgApi;
 use OSC\Omeka\OmekaInstance;
 use OSC\Omeka\OmekaInstanceFactory;
@@ -14,6 +15,7 @@ use OSC\Omeka\OmekaInstanceFactory;
 abstract class AbstractCommand extends Command
 {
     protected ModuleRepositoryManager $moduleRepositoryManager;
+    protected ThemeRepositoryManager $themeRepositoryManager;
     protected OmekaDotOrgApi $webApi;
 
     public function __construct(string $_name, string $_desc = '', bool $_allowUnknown = false, ?App $_app = null)
@@ -21,7 +23,8 @@ abstract class AbstractCommand extends Command
         parent::__construct($_name, $_desc, $_allowUnknown, $_app);
 
         $this->moduleRepositoryManager = ModuleRepositoryManager::getInstance();
-        $this->webApi = OmekaDotOrgApi::getInstance(); // todo: remove (or replace with themeRepositoryManager)
+        $this->themeRepositoryManager = ThemeRepositoryManager::getInstance();
+        $this->webApi = OmekaDotOrgApi::getInstance();
     }
 
     public function defaults(): Command
@@ -212,6 +215,10 @@ abstract class AbstractCommand extends Command
 
     protected function getModuleRepositoryManager(): ModuleRepositoryManager {
         return $this->moduleRepositoryManager;
+    }
+
+    protected function getThemeRepositoryManager(): ThemeRepositoryManager {
+        return $this->themeRepositoryManager;
     }
 
     # check for

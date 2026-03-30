@@ -8,6 +8,7 @@ use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\FileUtils;
 use OSC\Helper\ResourceUriParser;
+use OSC\Helper\VersionCompatibility;
 use OSC\Helper\Types\ResourceUriType;
 
 class DownloadCommand extends AbstractModuleCommand
@@ -18,7 +19,7 @@ class DownloadCommand extends AbstractModuleCommand
     {
         parent::__construct('module:download', 'Download module');
         $this->argument('<module>', 'Module URI (syntax: module-id:version, zip-release-url, git-url#version|tag|branch)', null);
-        $this->option('-f --force', 'Force module overwrite', 'boolval', false);
+        $this->option('-f --force', 'Force module download', 'boolval', false);
         $this->option('-b --backup', 'Backup current module before download (delete otherwise)', 'boolval', false);
         $this->option('-i --install', 'Install module after download', 'boolval', false);
         $this->option('-u --upgrade', 'Upgrade module after download', 'boolval', false);
@@ -62,14 +63,36 @@ class DownloadCommand extends AbstractModuleCommand
                 }
                 $moduleDirName = $repoResult->getItem()->getDirname();
 
+                $omekaVersion = $this->getOmekaVersion();
+
                 // find version (specific or latest)
                 if ($moduleUri->getVersion()) {
                     $versionInfo = $repoResult->getItem()->getVersion($moduleUri->getVersion());
                     if (!$versionInfo) {
                         throw new NotFoundException("Module '{$moduleDirName}' has no version '{$moduleUri->getVersion()}'.");
                     }
+                    if (!VersionCompatibility::isCompatible($versionInfo, $omekaVersion)) {
+                        if (!$force) {
+                            throw new \Exception("Cannot use module '{$moduleDirName}' version '{$moduleUri->getVersion()}': incompatible with Omeka S {$omekaVersion}.");
+                        }
+                    }
                 } else {
-                    $versionInfo = $repoResult->getItem()->getLatestVersion();
+                    // find latest version compatible with current Omeka S version
+                    $versionInfo = VersionCompatibility::getLatestCompatible(
+                        $repoResult->getItem()->getVersions(),
+                        $omekaVersion
+                    );
+
+                    if (!$versionInfo) {
+                        throw new NotFoundException("Module '{$moduleDirName}' has no version compatible with Omeka S {$omekaVersion}.");
+                    }
+
+                    $latestVersionNumber = $repoResult->getItem()->getLatestVersion()->getVersionNumber();
+                    if ($versionInfo->getVersionNumber() !== $latestVersionNumber) {
+                        $this->warn("Cannot use module '{$moduleDirName}' latest version v{$latestVersionNumber}: incompatible with Omeka S {$omekaVersion}.", true);
+                    }
+
+                    $this->info("Selected '{$moduleDirName}' v{$versionInfo->getVersionNumber()} (compatible with Omeka S {$omekaVersion}).", true);
                 }
 
                 // get downloader
