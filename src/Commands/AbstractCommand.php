@@ -5,6 +5,7 @@ namespace OSC\Commands;
 use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Command;
 use Exception;
+use OSC\Helper\OmekaVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 use OSC\Omeka\OmekaDotOrgApi;
 use OSC\Omeka\OmekaInstance;
@@ -196,6 +197,17 @@ abstract class AbstractCommand extends Command
             $instance->elevatePrivileges();
         }
         return $instance;
+    }
+
+    protected function getOmekaVersion(): string {
+        static $version = null;
+
+        if ($version) {
+            return $version;
+        }
+
+        $version = OmekaVersion::getVersion($this->getOmekaPath());
+        return $version;
     }
 
     protected function getModuleRepositoryManager(): ModuleRepositoryManager {
