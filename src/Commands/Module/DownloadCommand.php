@@ -56,7 +56,7 @@ class DownloadCommand extends AbstractModuleCommand
                 break;
             case ResourceUriType::IdVersion:
                 // find module in repositories
-                $repoResult = $this->getModuleRepositoryManager()->find($moduleUri->getId(), $moduleUri->getVersion());
+                $repoResult = $this->getModuleRepositoryManager()->find($moduleUri->getId());
                 if (!$repoResult) {
                     throw new NotFoundException("Could not find module '{$moduleUri->getId()}' in any repository.");
                 }
