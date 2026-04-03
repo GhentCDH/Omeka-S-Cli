@@ -43,20 +43,21 @@ RUN apt-get -qq update && \
     apt-get clean && \
     apt-get autoclean
 
-# Add extra php dba extension
-RUN docker-php-ext-install dba
-
 # Disable apache2 modules
 RUN a2dismod -f autoindex
 
 # Override default ImageMagick policy
-COPY ./.devcontainer/imagemagick-policy.xml /etc/ImageMagick-6/policy.xml
+COPY imagemagick-policy.xml /etc/ImageMagick-6/policy.xml
 
 # Create web root folder
 RUN install -g 1000 -o 1000 -d /var/www/omeka-s
 
 # Set working directory
-WORKDIR /app
+WORKDIR /app/omeka-s-cli
 
-# Set user to non-root
-USER application
+# Add CLI to PATH
+ENV PATH="/app/omeka-s-cli/bin/:${PATH}"
+
+# Add CLI to PATH for interactive shells
+RUN echo 'export PATH="/app/omeka-s-cli/bin:$PATH"' >> /etc/profile.d/omeka-s-cli.sh && \
+    chmod +x /etc/profile.d/omeka-s-cli.sh

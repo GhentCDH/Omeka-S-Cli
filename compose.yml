@@ -6,14 +6,15 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - .:/app:cached
+      - .:/app/omeka-s-cli:cached
+      - omeka-s:/var/www/omeka-s
     depends_on:
       - db
     ports:
       - "8080:80"
 
   db:
-    image: mariadb:10.4
+    image: mariadb:11.4
     restart: no
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -27,3 +28,4 @@ services:
 
 volumes:
   mysql-data:
+  omeka-s:
