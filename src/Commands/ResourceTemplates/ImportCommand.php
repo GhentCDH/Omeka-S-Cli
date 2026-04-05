@@ -192,12 +192,16 @@ class ImportCommand extends AbstractResourceTemplateCommand
                     $import['o:resource_template_property'][$key]['data_types'] = $getDataTypesByName($import['o:resource_template_property'][$key]['data_types']);
                     // Prepare the list of standard data types.
                     $import['o:resource_template_property'][$key]['o:data_type'] = [];
-                    foreach (array_keys($import['o:resource_template_property'][$key]['data_types']) as $name) {
+                    //foreach (array_keys($import['o:resource_template_property'][$key]['data_types']) as $name) {
+                    foreach ($import['o:resource_template_property'][$key]['data_types'] as $name => $label) {
                         $known = $this->easyMeta->dataTypeName($name);
                         if ($known) {
                             $import['o:resource_template_property'][$key]['o:data_type'][] = $known;
                             $import['o:resource_template_property'][$key]['data_types'][$name]['name'] = $known;
                         }
+                        // todo: if $name starts with customvocab, use label to resolve the custom vocabulary id, and store customvocab:$id
+
+
                     }
                     $import['o:resource_template_property'][$key]['o:data_type'] = array_unique($import['o:resource_template_property'][$key]['o:data_type']);
                     // Prepare the list of standard data types for duplicated
