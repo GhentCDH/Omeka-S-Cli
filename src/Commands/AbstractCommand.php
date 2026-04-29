@@ -18,6 +18,8 @@ abstract class AbstractCommand extends Command
     protected ThemeRepositoryManager $themeRepositoryManager;
     protected OmekaDotOrgApi $webApi;
 
+    protected array $moduleDependencies = [];
+
     public function __construct(string $_name, string $_desc = '', bool $_allowUnknown = false, ?App $_app = null)
     {
         parent::__construct($_name, $_desc, $_allowUnknown, $_app);
@@ -25,6 +27,19 @@ abstract class AbstractCommand extends Command
         $this->moduleRepositoryManager = ModuleRepositoryManager::getInstance();
         $this->themeRepositoryManager = ThemeRepositoryManager::getInstance();
         $this->webApi = OmekaDotOrgApi::getInstance();
+    }
+
+    public function init(): void {
+        // check module dependencies
+        if ($this->moduleDependencies) {
+            $moduleApi = $this->getOmekaInstance(false)->getModuleApi();
+
+            foreach ($this->moduleDependencies as $dependency) {
+                if (!$moduleApi->isActive($dependency)) {
+                    throw new \Exception("This action requires the '$dependency' module. Install/enable it before using this command.");
+                }
+            }
+        }
     }
 
     public function defaults(): Command
@@ -131,8 +146,8 @@ abstract class AbstractCommand extends Command
 
     public function outputFormatted($object, $format='json', $return_value = false): ?string
     {
-        if(!$object)
-            return null;
+//        if(!$object)
+//            return null;
         if($return_value)
             ob_start();
         switch($format){

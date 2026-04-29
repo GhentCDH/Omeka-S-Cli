@@ -15,13 +15,7 @@ class ListCommand extends AbstractCustomVocabularyCommand
         $format = $this->getOutputFormat('table');
 
         // Get Omeka instance and API
-        $omekaInstance = $this->getOmekaInstance(false);
-        $api = $omekaInstance->getServiceManager()->get('Omeka\ApiManager');
-
-        // Check if CustomVocab module is installed
-        if (!$omekaInstance->getModuleApi()->isActive('CustomVocab')) {
-            throw new Exception("Custom Vocab module is not installed or active. Install/enable it before using custom-vocabulary:* commands.");
-        }
+        $api = $this->getOmekaInstance(false)->getApi();
 
         // Prepare query parameters
         $params = [];

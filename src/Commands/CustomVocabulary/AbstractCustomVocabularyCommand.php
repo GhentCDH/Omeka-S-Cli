@@ -17,6 +17,7 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
     /** Search by both ID and label (default) */
     public const SEARCH_BY_BOTH = 'both';
 
+    protected array $moduleDependencies = ['CustomVocab'];
 
     /**
      * Find a custom vocabulary by ID or label

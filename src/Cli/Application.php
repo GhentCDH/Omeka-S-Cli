@@ -31,6 +31,17 @@ class Application extends \Ahc\Cli\Application
         return parent::handle($argv);
     }
 
+    public function doAction(Command $command): mixed
+    {
+        if ($command->name() === '__default__') {
+            return $this->notFound();
+        }
+
+        $command->init();
+
+        return parent::doAction($command);
+    }
+
     protected function onError(Throwable $e, int $exitCode): void {
         if ( $e instanceof \OSC\Exceptions\WarningException) {
             $this->io()->warn($e->getMessage(), true);
