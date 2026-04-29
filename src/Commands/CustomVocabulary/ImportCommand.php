@@ -1,7 +1,6 @@
 <?php
 namespace OSC\Commands\CustomVocabulary;
 
-use Ahc\Cli\Exception\InvalidArgumentException;
 use CustomVocab\Stdlib\ImportExport;
 use Exception;
 use OSC\Exceptions\WarningException;
@@ -9,16 +8,14 @@ use OSC\Helper\ResourceFetcher;
 
 class ImportCommand extends AbstractCustomVocabularyCommand
 {
-    use VocabularyImporterTrait;
     public function __construct()
     {
         parent::__construct('custom-vocabulary:import', 'Import a custom vocabulary');
         $this->argument('<source>', 'File or url to import from');
         $this->argument('[identifier]', 'Custom vocabulary ID or label (required for update)');
-        $this->option('-l --label', 'Set or override the resource template label');
-        $this->option('--update', 'Update existing resource template', 'boolval', false);
         $this->option('-l --label', 'Set or override the custom vocabulary label');
         $this->option('--update', 'Update existing custom vocabulary', 'boolval', false);
+//        $this->optionJson();
     }
 
     public function execute(
@@ -42,6 +39,7 @@ class ImportCommand extends AbstractCustomVocabularyCommand
         $customVocabularyData['o:label'] = $label;
 
         // Check if we need to find an existing custom vocabulary
+        $existingCustomVocabulary = null;
         if ($identifier) {
             $update = true;
             $existingCustomVocabulary = $this->getCustomVocabulary($identifier, $api);
@@ -62,12 +60,26 @@ class ImportCommand extends AbstractCustomVocabularyCommand
                 throw new Exception("An error occurred while updating the custom vocabulary '{$currentLabel}'.");
             }
             $this->ok("Successfully updated custom vocabulary '{$currentLabel}'.", true);
+//            if ($this->getOutputFormat() === 'json') {
+//                $this->outputFormatted([
+//                    'id' => $existingCustomVocabulary->id(),
+//                    'label' => $existingCustomVocabulary->label(),
+//                    'message' => "Successfully updated custom vocabulary '{$currentLabel}' (ID: {$response->id()})."
+//                ]);
+//            }
         } else {
             $response = $api->create('custom_vocabs', $customVocabularyData)->getContent();
             if (!$response) {
                 throw new Exception("An error occurred while creating the custom vocabulary '{$label}'.");
             }
-            $this->ok("Successfully created custom vocabulary '{$label}'.", true);
+            $this->ok("Successfully created custom vocabulary '{$label}' (ID: {$response->id()}).", true);
+//            if ($this->getOutputFormat() === 'json') {
+//                $this->outputFormatted([
+//                    'id' => $response->id(),
+//                    'label' => $response->label(),
+//                    'message' => "Successfully updated custom vocabulary '{$response->label()}' (ID: {$response->id()})."
+//                ]);
+//            }
         }
 
     }
