@@ -1,0 +1,9 @@
+{
+    "o:label": "custom-vocab-uris",
+    "o:lang": "fr",
+    "o:uris": {
+        "http:\/\/example.com\/ns#a": "a",
+        "http:\/\/example.com\/ns#b": "b",
+        "http:\/\/example.com\/ns#c": "c"
+    }
+}
