@@ -17,14 +17,8 @@ class ListCommand extends AbstractCustomVocabularyCommand
         // Get Omeka instance and API
         $api = $this->getOmekaInstance(false)->getApi();
 
-        // Prepare query parameters
-        $params = [];
-
-        // Fetch resource templates via API
-        $response = $api->search('custom_vocabs', $params);
-//        /** @var ResourceTemplateRepresentation[] $vocabularies */
-        $vocabularies = $response->getContent();
-
+        // Get vocabularies
+        $vocabularies = $api->search('custom_vocabs')->getContent();
         if (empty($vocabularies)) {
             $this->info('No custom vocabularies found.', true);
             return;
