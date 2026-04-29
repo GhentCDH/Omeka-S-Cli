@@ -45,9 +45,15 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
         }
 
         // Search by label
+        // can't filter by label using CustomVocab api
+        // todo: consider adding label filtering to the api adapter to avoid fetching all records here
         if ($searchBy === self::SEARCH_BY_LABEL || $searchBy === self::SEARCH_BY_BOTH) {
-            $search = $api->search('custom_vocabs', ['label' => $identifier]);
-            return $search->getTotalResults() > 0 ? $search->getContent()[0] : null;
+            $search = $api->search('custom_vocabs');
+            foreach($search->getContent() as $item) {
+                if (strtolower($item->label()) === strtolower($identifier)) {
+                    return $item;
+                }
+            }
         }
 
         return null;
