@@ -5,4 +5,5 @@ return [
     new ListCommand(),
     new ExportCommand(),
     new ImportCommand(),
+    new DeleteCommand(),
 ];
