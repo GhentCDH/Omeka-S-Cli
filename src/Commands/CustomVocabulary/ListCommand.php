@@ -36,7 +36,7 @@ class ListCommand extends AbstractCustomVocabularyCommand
         $vocabularies = $response->getContent();
 
         if (empty($vocabularies)) {
-            $this->warn('No custom vocabularies found.');
+            $this->info('No custom vocabularies found.', true);
             return;
         }
 
