@@ -1,10 +1,6 @@
 <?php
 namespace OSC\Commands\CustomVocabulary;
 
-use Exception;
-use Omeka\Api\Representation\ResourceTemplateRepresentation;
-use OSC\Commands\AbstractCommand;
-
 class ListCommand extends AbstractCustomVocabularyCommand
 {
     public function __construct()

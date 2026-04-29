@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Commands\CustomVocabulary;
 
+use Ahc\Cli\Exception\InvalidArgumentException;
 use Omeka\Api\Manager as ApiManager;
 use OSC\Commands\AbstractCommand;
 use CustomVocab\Api\Representation\CustomVocabRepresentation;
@@ -18,9 +19,9 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
 
 
     /**
-     * Find a resource template by ID or label
+     * Find a custom vocabulary by ID or label
      *
-     * @param string $identifier Resource template ID or label
+     * @param string $identifier Custom vocabulary ID or label
      * @param ApiManager $api Omeka API instance
      * @param string $searchBy Search strategy: 'id', 'label', or 'both' (default: 'both')
      * @return CustomVocabRepresentation|null
@@ -57,5 +58,24 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
         }
 
         return null;
+    }
+
+    protected function getCustomVocabulary(
+        string $identifier,
+        ApiManager $api,
+        string $searchBy = self::SEARCH_BY_BOTH
+    ): CustomVocabRepresentation {
+        $customVocab = $this->findCustomVocabulary($identifier, $api, $searchBy);
+
+        $byLabel = match($searchBy) {
+            static::SEARCH_BY_LABEL => 'label',
+            static::SEARCH_BY_ID => 'ID',
+            static::SEARCH_BY_BOTH => 'ID or label'
+        };
+
+        if (!$customVocab) {
+            throw new InvalidArgumentException("Custom vocabulary not found by {$byLabel}: '{$identifier}'.");
+        }
+        return $customVocab;
     }
 }

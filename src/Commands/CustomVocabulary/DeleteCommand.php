@@ -1,8 +1,6 @@
 <?php
 namespace OSC\Commands\CustomVocabulary;
 
-use Ahc\Cli\Exception\InvalidArgumentException;
-
 class DeleteCommand extends AbstractCustomVocabularyCommand
 {
 
@@ -17,11 +15,8 @@ class DeleteCommand extends AbstractCustomVocabularyCommand
     {
         $api = $this->getOmekaInstance()->getApi();
 
-        // Find resource template by ID or label
-        $existingCustomVocabulary = $this->findCustomVocabulary($identifier, $api);
-        if (!$existingCustomVocabulary) {
-            throw new InvalidArgumentException("Custom vocabulary not found by ID or label: '{$identifier}'.");
-        }
+        // Get vocabulary
+        $existingCustomVocabulary = $this->getCustomVocabulary($identifier, $api);
 
         // Delete resource template
         $this->getOmekaInstance()->elevatePrivileges();

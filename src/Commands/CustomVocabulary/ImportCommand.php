@@ -4,9 +4,6 @@ namespace OSC\Commands\CustomVocabulary;
 use Ahc\Cli\Exception\InvalidArgumentException;
 use CustomVocab\Stdlib\ImportExport;
 use Exception;
-use Omeka\Stdlib\RdfImporter;
-use OSC\Commands\AbstractCommand;
-use OSC\Commands\Vocabulary\VocabularyImporterTrait;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceFetcher;
 
@@ -20,15 +17,15 @@ class ImportCommand extends AbstractCustomVocabularyCommand
         $this->argument('[identifier]', 'Custom vocabulary ID or label (required for update)');
         $this->option('-l --label', 'Set or override the resource template label');
         $this->option('--update', 'Update existing resource template', 'boolval', false);
+        $this->option('-l --label', 'Set or override the custom vocabulary label');
+        $this->option('--update', 'Update existing custom vocabulary', 'boolval', false);
     }
 
     public function execute(
         string $source, ?string $identifier = null, ?string $label = null, ?bool $update = false
     ): void {
         // Get Omeka instance and service manager
-        $omekaInstance = $this->getOmekaInstance();
-
-        $api = $omekaInstance->getApi();
+        $api = $this->getOmekaInstance()->getApi();
 
         $importExport = new ImportExport($api);
 
@@ -47,14 +44,9 @@ class ImportCommand extends AbstractCustomVocabularyCommand
         // Check if we need to find an existing custom vocabulary
         if ($identifier) {
             $update = true;
-            // Find existing custom vocabulary by identifier (ID or label)
-            $existingCustomVocabulary = $this->findCustomVocabulary($identifier, $api);
-            if (!$existingCustomVocabulary) {
-                throw new InvalidArgumentException("Custom vocabulary not found by ID or label: '{$identifier}'.");
-            }
+            $existingCustomVocabulary = $this->getCustomVocabulary($identifier, $api);
         } else {
             // Check if a custom vocabulary with the same label already exists
-            var_dump($label);
             $existingCustomVocabulary = $this->findCustomVocabulary($label, $api, static::SEARCH_BY_LABEL);
             if ($existingCustomVocabulary) {
                 if (!$update) {

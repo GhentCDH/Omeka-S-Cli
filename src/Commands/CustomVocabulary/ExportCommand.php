@@ -3,7 +3,6 @@ namespace OSC\Commands\CustomVocabulary;
 
 use CustomVocab\Stdlib\ImportExport;
 use Exception;
-use InvalidArgumentException;
 
 class ExportCommand extends AbstractCustomVocabularyCommand
 {
@@ -21,11 +20,8 @@ class ExportCommand extends AbstractCustomVocabularyCommand
         $omekaInstance = $this->getOmekaInstance();
         $api = $omekaInstance->getApi();
 
-        // Find resource template by ID or label
-        $existingVocabulary = $this->findCustomVocabulary($identifier, $api);
-        if (!$existingVocabulary) {
-            throw new InvalidArgumentException("Custom vocabulary '{$identifier}' not found by ID or label.");
-        }
+        // Get vocabulary
+        $existingVocabulary = $this->getCustomVocabulary($identifier, $api);
 
         // Get the actual ID of the vocabulary
         $vocabularyId = $existingVocabulary->id();
