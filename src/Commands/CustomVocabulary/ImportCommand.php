@@ -15,7 +15,7 @@ class ImportCommand extends AbstractCustomVocabularyCommand
     use VocabularyImporterTrait;
     public function __construct()
     {
-        parent::__construct('custom-vocabulary:vocabulary', 'Import a custom vocabulary');
+        parent::__construct('custom-vocabulary:import', 'Import a custom vocabulary');
         $this->argument('<source>', 'File or url to import from');
         $this->argument('[identifier]', 'Custom vocabulary ID or label (required for update)');
         $this->option('-l --label', 'Set or override the resource template label');
@@ -54,7 +54,8 @@ class ImportCommand extends AbstractCustomVocabularyCommand
             }
         } else {
             // Check if a custom vocabulary with the same label already exists
-            $existingCustomVocabulary = $this->findCustomVocabulary($label, $api);
+            var_dump($label);
+            $existingCustomVocabulary = $this->findCustomVocabulary($label, $api, static::SEARCH_BY_LABEL);
             if ($existingCustomVocabulary) {
                 if (!$update) {
                     throw new WarningException("The custom vocabulary with label '{$label}' already exists. Use --update to force update.");
