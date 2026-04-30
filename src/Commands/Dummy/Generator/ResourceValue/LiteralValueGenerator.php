@@ -4,6 +4,8 @@ namespace OSC\Commands\Dummy\Generator\ResourceValue;
 
 class LiteralValueGenerator implements ResourceValueGeneratorInterface
 {
+    public const ID = 'literal';
+
     private const VALID_MODES = [
         // built-in
         'values', 'range', 'date',
@@ -35,6 +37,26 @@ class LiteralValueGenerator implements ResourceValueGeneratorInterface
                 "Unknown literal mode '{$mode}'. Supported modes: " . implode(', ', self::VALID_MODES) . '.'
             );
         }
+
+        // defaults
+        if ($mode === 'words') {
+            $this->config['min'] = $config['min'] ?? 3;
+            $this->config['max'] = $config['max'] ?? 5;
+        }
+        if ($mode === 'sentences') {
+            $this->config['min'] = $config['min'] ?? 2;
+            $this->config['max'] = $config['max'] ?? 4;
+        }
+        if ($mode === 'paragraphs') {
+            $this->config['min'] = $config['min'] ?? 1;
+            $this->config['max'] = $config['max'] ?? 3;
+        }
+        if ($mode === 'year') {
+            $this->config['min'] = (int) ($this->config['min'] ?? 1900);
+            $this->config['max'] = (int) ($this->config['max'] ?? (int) date('Y'));
+        }
+
+
         // mode=values requires non-empty 'values' array
         if ($mode === 'values' && (empty($config['values']) || !is_array($config['values']))) {
             throw new \InvalidArgumentException(
@@ -85,13 +107,11 @@ class LiteralValueGenerator implements ResourceValueGeneratorInterface
                 );
             }
         }
-
-        $this->config = $config;
     }
 
     public function getId(): string
     {
-        return "literal";
+        return self::ID;
     }
 
     public function generate(): array
@@ -105,13 +125,13 @@ class LiteralValueGenerator implements ResourceValueGeneratorInterface
             'date'   => $this->generateDate(),
             // text
             'words'     => implode(' ', $this->getFaker()->words(
-                random_int((int) ($this->config['min'] ?? 3), (int) ($this->config['max'] ?? 5))
+                random_int((int) $this->config['min'], (int) $this->config['max'])
             )),
             'sentences' => implode(' ', $this->getFaker()->sentences(
-                random_int((int) ($this->config['min'] ?? 2), (int) ($this->config['max'] ?? 4))
+                random_int((int) $this->config['min'], (int) $this->config['max'])
             )),
             'paragraphs' => implode("\n", $this->getFaker()->paragraphs(
-                random_int((int) ($this->config['min'] ?? 1), (int) ($this->config['max'] ?? 3))
+                random_int((int) $this->config['min'], (int) $this->config['max'])
             )),
             'text'     => $this->getFaker()->text((int) ($this->config['maxNbChars'] ?? 200)),
             'realText' => $this->getFaker()->realText((int) ($this->config['maxNbChars'] ?? 200)),
@@ -131,10 +151,7 @@ class LiteralValueGenerator implements ResourceValueGeneratorInterface
             'address'       => $this->getFaker()->address(),
             // date/time
             'time'    => $this->getFaker()->time($this->config['format'] ?? 'H:i:s'),
-            'year'    => (string) random_int(
-                (int) ($this->config['min'] ?? 1900),
-                (int) ($this->config['max'] ?? (int) date('Y'))
-            ),
+            'year'    => (string) random_int((int) $this->config['min'], (int) $this->config['max']),
             'century' => $this->getFaker()->century(),
             // internet
             'email' => $this->getFaker()->safeEmail(),

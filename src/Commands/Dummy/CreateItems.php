@@ -8,20 +8,20 @@ class CreateItems extends AbstractDummyCommand
 {
     public function __construct()
     {
-        parent::__construct('dummy:create-items', 'Add dummy items');
-        $this->argument('<total>', 'Number of items to create', 1);
-        $this->option('--config', 'Path to JSON config file for item generation');
+        parent::__construct('dummy:create-items', 'Create dummy items');
+        $this->option('-n --number', 'Number of items to create', 'intval', 1);
+        $this->option('-c --config', 'Path to JSON config file for item generation');
     }
 
-    public function execute(int $total, ?string $config = null): void
+    public function execute(int $number, ?string $config = null): void
     {
         $api        = $this->getOmekaInstance()->getApi();
-        $total      = max(1, $total);
+        $number      = max(1, $number);
         $itemConfig = match (true) {
             $config !== null => ItemConfig::fromFile($config),
             default          => ItemConfig::fromDefaultConfig(),
         };
 
-        $this->executeWithConfig($api, $total, $itemConfig, 'items');
+        $this->executeWithConfig($api, $number, $itemConfig, 'items');
     }
 }
