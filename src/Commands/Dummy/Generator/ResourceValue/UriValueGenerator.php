@@ -4,6 +4,8 @@ namespace OSC\Commands\Dummy\Generator\ResourceValue;
 
 class UriValueGenerator implements ResourceValueGeneratorInterface
 {
+    public const ID = 'uri';
+
     private ?\Faker\Generator $faker = null;
 
     public function __construct(private array $config)
@@ -17,7 +19,7 @@ class UriValueGenerator implements ResourceValueGeneratorInterface
 
     public function getId(): string
     {
-        return "url";
+        return self::ID;
     }
 
     public function generate(): array

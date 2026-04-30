@@ -6,6 +6,8 @@ use OSC\Commands\Dummy\Resource\ResourceClassResolver;
 
 class ResourceClassGenerator implements PropertyGeneratorInterface
 {
+    public const ID = 'resource_class';
+
     private array $classIds;
 
     public function __construct(array $config, ResourceClassResolver $resolver)
@@ -21,7 +23,7 @@ class ResourceClassGenerator implements PropertyGeneratorInterface
 
     public function getId(): string
     {
-        return "resource_class";
+        return self::ID;
     }
 
     public function generate(): ?array

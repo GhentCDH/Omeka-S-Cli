@@ -8,6 +8,8 @@ use OSC\Commands\Dummy\Resource\ResourcePool;
 
 class ResourceValueGenerator implements ResourceValueGeneratorInterface
 {
+    public const ID = 'resource';
+
     private const VALID_RESOURCE_TYPES = ['items', 'item_sets', 'any'];
 
     private string $resourceType;
@@ -44,7 +46,7 @@ class ResourceValueGenerator implements ResourceValueGeneratorInterface
 
     public function getId(): string
     {
-        return "resource";
+        return self::ID;
     }
 
     public function generate(): array

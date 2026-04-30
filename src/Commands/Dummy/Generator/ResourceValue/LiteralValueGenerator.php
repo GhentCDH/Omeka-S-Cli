@@ -4,6 +4,8 @@ namespace OSC\Commands\Dummy\Generator\ResourceValue;
 
 class LiteralValueGenerator implements ResourceValueGeneratorInterface
 {
+    public const ID = 'literal';
+
     private const VALID_MODES = [
         // built-in
         'values', 'range', 'date',
@@ -91,7 +93,7 @@ class LiteralValueGenerator implements ResourceValueGeneratorInterface
 
     public function getId(): string
     {
-        return "literal";
+        return self::ID;
     }
 
     public function generate(): array

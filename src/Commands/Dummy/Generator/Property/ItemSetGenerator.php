@@ -6,6 +6,8 @@ use OSC\Commands\Dummy\Resource\ResourcePool;
 
 class ItemSetGenerator implements PropertyGeneratorInterface
 {
+    public const ID = 'item_set';
+
     public function __construct(private array $config, private ResourcePool $pool)
     {
         if (isset($config['values'])) {
@@ -44,7 +46,7 @@ class ItemSetGenerator implements PropertyGeneratorInterface
 
     public function getId(): string
     {
-        return "item_set";
+        return self::ID;
     }
 
     public function generate(): ?array
