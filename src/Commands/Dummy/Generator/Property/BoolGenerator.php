@@ -2,8 +2,6 @@
 
 namespace OSC\Commands\Dummy\Generator\Property;
 
-use OSC\Commands\Dummy\Resource\ResourceClassResolver;
-
 class BoolGenerator implements PropertyGeneratorInterface
 {
     public const ID = 'boolean';
@@ -19,7 +17,6 @@ class BoolGenerator implements PropertyGeneratorInterface
 
     public function generate(): bool
     {
-        $values = [ true, false];
-        return $values[array_rand($values)];
+        return (bool) random_int(0, 1);
     }
 }

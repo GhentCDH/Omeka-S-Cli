@@ -18,7 +18,7 @@ class ResourceClassGenerator implements PropertyGeneratorInterface
             );
         }
 
-        $this->classIds = $resolver->resolve($config['values'] ?? null);
+        $this->classIds = $resolver->resolve($config['values']);
     }
 
     public function getId(): string
