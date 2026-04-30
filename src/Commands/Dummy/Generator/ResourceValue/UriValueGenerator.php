@@ -10,10 +10,20 @@ class UriValueGenerator implements ResourceValueGeneratorInterface
 
     public function __construct(private array $config)
     {
-        if (isset($config['values']) && (empty($config['values']) || !is_array($config['values']))) {
-            throw new \InvalidArgumentException(
-                "Uri generator 'values' must be a non-empty array."
-            );
+        if (isset($config['values'])) {
+            if (empty($config['values']) || !is_array($config['values'])) {
+                throw new \InvalidArgumentException(
+                    "Uri generator 'values' must be a non-empty array."
+                );
+            }
+
+            foreach($config['values'] as $key => $value) {
+                if (!is_array($value) || empty($value) || !isset($value['id'])) {
+                    throw new \InvalidArgumentException(
+                        "Uri generator 'values' must be a non-empty array. Each value must be an array with an 'id' property and an optional 'label' property."
+                    );
+                }
+            }
         }
     }
 
@@ -24,7 +34,7 @@ class UriValueGenerator implements ResourceValueGeneratorInterface
 
     public function generate(): array
     {
-        if (isset($this->config['values'])) {
+        if (isset($this->config['values']) && !empty($this->config['values'])) {
             $item = $this->config['values'][array_rand($this->config['values'])];
             return [
                 'type'        => 'uri',

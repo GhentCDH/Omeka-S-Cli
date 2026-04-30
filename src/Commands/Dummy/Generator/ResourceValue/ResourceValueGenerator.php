@@ -38,8 +38,13 @@ class ResourceValueGenerator implements ResourceValueGeneratorInterface
         }
 
         if (empty($pool->get($this->resourceType))) {
-            throw new Exception(
-                "No resources found for pool '{$this->resourceType}'."
+            $message = match($this->resourceType) {
+                "items" => "No items found. You must add at least one item before you can create resource values.",
+                "item_sets" => "No item sets found. You must add at least one item set before you can create resource values.",
+                "any" => "No resources found. You must add at least one item or item set before you can create resource values.",
+            };
+            throw new \InvalidArgumentException(
+                $message
             );
         }
     }
@@ -49,16 +54,20 @@ class ResourceValueGenerator implements ResourceValueGeneratorInterface
         return self::ID;
     }
 
-    public function generate(): array
+    public function generate(): array|null
     {
-        $ids = $this->values ?: $this->pool->get($this->resourceType);
-        $id  = $ids[array_rand($ids)];
+        $resourceIds = $this->values ?: $this->pool->get($this->resourceType);
+        if (empty($resourceIds)) {
+            return null;
+        }
+
+        $resourceId  = $resourceIds[array_rand($resourceIds)];
 
         return [
             'type'              => 'resource',
             'property_id'       => 'auto',
             'is_public'         => true,
-            'value_resource_id' => $id,
+            'value_resource_id' => $resourceId,
         ];
     }
 }
