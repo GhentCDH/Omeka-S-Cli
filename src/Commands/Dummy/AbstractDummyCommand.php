@@ -19,7 +19,21 @@ abstract class AbstractDummyCommand extends AbstractCommand
         $resolver  = new ResourceClassResolver($api);
         $generator = new ResourceGenerator($config, $pool, $resolver);
 
-        $this->info('Start creation ...', true);
+        $allowedTypes = ['items', 'item_sets'];
+        if (!in_array($resourceType, $allowedTypes)) {
+            // throw error
+            throw new \Exception('Invalid resource type');
+        }
+
+        $batchSize = 100;
+        $resourceLabel = match($resourceType) {
+            "items" => $total > 1 ? "items" : "item",
+            "item_sets" => $total > 1 ? "item sets": "item set",
+        };
+
+        if ($total > $batchSize) {
+            $this->info("Start creating $total $resourceLabel ...", true);
+        }
         for ($i = 1; $i <= $total; $i++) {
             $ret = $generator->generate();
             $api->create($resourceType, $ret, [], [
@@ -27,10 +41,10 @@ abstract class AbstractDummyCommand extends AbstractCommand
                 'initialize'      => false,
                 'finalize'        => false,
             ]);
-            if ($i % 100 === 0) {
-                $this->info("Created $i ...", true);
+            if ($i % $batchSize === 0) {
+                $this->info("Created $i $resourceLabel ...", true);
             }
         }
-        $this->ok("Successfully created {$total} {$resourceType}.", true);
+        $this->ok("Successfully created {$total} {$resourceLabel}.", true);
     }
 }
