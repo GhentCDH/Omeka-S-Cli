@@ -4,6 +4,7 @@ namespace OSC\Commands\ResourceTemplates;
 use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
 use OSC\Exceptions\WarningException;
+use OSC\Helper\ResourceFetcher;
 
 
 class ImportCommand extends AbstractResourceTemplateCommand
@@ -15,17 +16,20 @@ class ImportCommand extends AbstractResourceTemplateCommand
     public function __construct()
     {
         parent::__construct('resource-template:import', 'Import a resource template');
-        $this->argument('<filename>', 'File to import from');
+        $this->argument('<source>', 'File or URL to import from');
         $this->argument('[identifier]', 'Resource template ID or label (required for update)');
         $this->option('-l --label', 'Set or override the resource template label');
         $this->option('--update', 'Update existing resource template', 'boolval', false);
         $this->option('--ignore-deps', 'Ignore missing dependencies (vocabularies, properties, classes, data types)', 'boolval', false);
         $this->usage(
-            'resource-template:import FILENAME [IDENTIFIER] '
+            'resource-template:import SOURCE [IDENTIFIER] '
             . '[-l|--label=LABEL] [--update] [--ignore-deps]<eol/>'
             . '<eol/>Examples:<eol/><eol/>'
-            . '* Import a template:<eol/>'
+            . '* Import a template from a file:<eol/>'
             . 'resource-template:import template.json<eol/>'
+            . '<eol/>'
+            . '* Import a template from a URL:<eol/>'
+            . 'resource-template:import https://example.com/template.json<eol/>'
             . '<eol/>'
             . '* Import a template under a different label:<eol/>'
             . 'resource-template:import template.json --label="My Custom Template"<eol/>'
@@ -41,7 +45,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
         );
     }
 
-    public function execute(string $filename, ?string $identifier = null, ?string $label = null, ?bool $update = false, ?bool $ignoreDeps = false): void
+    public function execute(string $source, ?string $identifier = null, ?string $label = null, ?bool $update = false, ?bool $ignoreDeps = false): void
     {
         // Get Omeka instance and service manager
         $omekaInstance = $this->getOmekaInstance();
@@ -55,17 +59,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
             throw new Exception("This features requires the 'Common' module to be installed.");
         }
 
-        // check if file exists and is readable
-        if (!is_readable($filename)) {
-            throw new Exception("File not found or not readable: {$filename}");
-        }
-
-        // read file content and check if valid json
-        $content = file_get_contents($filename);
-        $resourceTemplateData = json_decode($content, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception("Invalid JSON in file: {$filename}");
-        }
+        $resourceTemplateData = ResourceFetcher::fetchJson($source);
 
         // Determine the label to use (priority: --label option, then from file, then error)
         $label = $label ?? $resourceTemplateData['o:label'] ?? null;
