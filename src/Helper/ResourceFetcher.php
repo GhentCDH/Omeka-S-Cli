@@ -32,6 +32,9 @@ use Exception;
  */
 class ResourceFetcher
 {
+    public const FILE = "file";
+    public const URL = "url";
+
     /**
      * Fetch content from a file or URL
      *
@@ -44,7 +47,7 @@ class ResourceFetcher
     {
         $type = self::detectType($source);
 
-        if ($type === 'file') {
+        if ($type === self::FILE) {
             return self::fetchFromFile($source);
         } else {
             return self::fetchFromUrl($source);
@@ -74,7 +77,7 @@ class ResourceFetcher
     {
         // Check if it's a URL
         if (filter_var($source, FILTER_VALIDATE_URL)) {
-            return 'url';
+            return self::URL;
         }
 
         // Check if it starts with http:// or https://
@@ -83,7 +86,7 @@ class ResourceFetcher
         }
 
         // Otherwise treat as file
-        return 'file';
+        return self::FILE;
     }
 
     /**
@@ -198,7 +201,7 @@ class ResourceFetcher
      */
     public static function isFile(string $source): bool
     {
-        return self::detectType($source) === 'file';
+        return self::detectType($source) === self::FILE;
     }
 
     /**
@@ -209,7 +212,7 @@ class ResourceFetcher
      */
     public static function isUrl(string $source): bool
     {
-        return self::detectType($source) === 'url';
+        return self::detectType($source) === self::URL;
     }
 
     /**
@@ -223,20 +226,24 @@ class ResourceFetcher
     {
         $type = self::detectType($source);
 
-        if ($type === 'file') {
+        if ($type === self::FILE) {
             if (!file_exists($source)) {
                 throw new InvalidArgumentException("File not found: {$source}");
             }
             if (!is_readable($source)) {
                 throw new InvalidArgumentException("File is not readable: {$source}");
             }
-        } else {
+            return true;
+        }
+
+        if ($type === self::URL) {
             if (!filter_var($source, FILTER_VALIDATE_URL)) {
                 throw new InvalidArgumentException("Invalid URL: {$source}");
             }
+            return true;
         }
 
-        return true;
+        return false;
     }
 }
 

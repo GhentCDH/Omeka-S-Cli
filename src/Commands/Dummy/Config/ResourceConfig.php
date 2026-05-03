@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Commands\Dummy\Config;
 
+use OSC\Helper\ResourceFetcher;
+
 abstract class ResourceConfig implements ResourceConfigInterface, \IteratorAggregate {
 
     private array $generators;
@@ -21,22 +23,10 @@ abstract class ResourceConfig implements ResourceConfigInterface, \IteratorAggre
         return $instance;
     }
 
-    public static function fromFile(string $path): static
+    public static function fromSource(string $source): static
     {
-        if (!is_readable($path)) {
-            throw new \Exception("Config file not found or not readable: {$path}");
-        }
-
-        $content = file_get_contents($path);
-        $config  = json_decode($content, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \Exception("Invalid JSON in config file '{$path}': " . json_last_error_msg());
-        }
-
-        $instance = new static($config);
-
-        return $instance;
+        $config = ResourceFetcher::fetchJson($source);
+        return new static($config);
     }
 
     public function getGeneratorConfigs(): array

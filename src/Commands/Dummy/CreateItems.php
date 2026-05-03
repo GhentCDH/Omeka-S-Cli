@@ -10,7 +10,7 @@ class CreateItems extends AbstractDummyCommand
     {
         parent::__construct('dummy:create-items', 'Create dummy items');
         $this->option('-n --number', 'Number of items to create', 'intval', 1);
-        $this->option('-c --config', 'Path to JSON config file for item generation');
+        $this->option('-c --config', 'Path or URL to JSON config for item generation');
     }
 
     public function execute(int $number, ?string $config = null): void
@@ -18,7 +18,7 @@ class CreateItems extends AbstractDummyCommand
         $api        = $this->getOmekaInstance()->getApi();
         $number      = max(1, $number);
         $itemConfig = match (true) {
-            $config !== null => ItemConfig::fromFile($config),
+            $config !== null => ItemConfig::fromSource($config),
             default          => ItemConfig::fromDefaultConfig(),
         };
 
