@@ -1,0 +1,6 @@
+{
+  "url": "https://schema.org/version/latest/schemaorg-current-https.rdf",
+  "label": "schema.org",
+  "namespaceUri": "https://schema.org/",
+  "prefix": "schema"
+}
