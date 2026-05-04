@@ -3,6 +3,7 @@ namespace OSC\Commands\ResourceTemplates;
 
 use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
+use Omeka\DataType\Manager as DataTypeManager;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceFetcher;
 
@@ -194,14 +195,22 @@ class ImportCommand extends AbstractResourceTemplateCommand
                     $import['o:resource_template_property'][$key]['o:data_type'] = [];
                     //foreach (array_keys($import['o:resource_template_property'][$key]['data_types']) as $name) {
                     foreach ($import['o:resource_template_property'][$key]['data_types'] as $name => $label) {
+                        // try to resolve custom vocabularies by label first
+                        if (str_starts_with($name, "customvocab:")) {
+                            $vocabLabel = $label['label'] ?? null;
+                            $known = $vocabLabel ? $this->resolveCustomVocabByLabel($vocabLabel) : null;
+                            if ($known) {
+                                $import['o:resource_template_property'][$key]['o:data_type'][] = $known;
+                                $import['o:resource_template_property'][$key]['data_types'][$name]['name'] = $known;
+                                continue;
+                            }
+                        }
+                        // check data types by name
                         $known = $this->easyMeta->dataTypeName($name);
                         if ($known) {
                             $import['o:resource_template_property'][$key]['o:data_type'][] = $known;
                             $import['o:resource_template_property'][$key]['data_types'][$name]['name'] = $known;
                         }
-                        // todo: if $name starts with customvocab, use label to resolve the custom vocabulary id, and store customvocab:$id
-
-
                     }
                     $import['o:resource_template_property'][$key]['o:data_type'] = array_unique($import['o:resource_template_property'][$key]['o:data_type']);
                     // Prepare the list of standard data types for duplicated
@@ -261,6 +270,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
         ];
 
         $serviceManager = $this->getOmekaInstance()->getServiceManager();
+        /** @var DataTypeManager $dataTypeManager */
         $dataTypeManager = $serviceManager->get('Omeka\DataTypeManager');
         $registeredDataTypes = $dataTypeManager->getRegisteredNames();
 
@@ -326,6 +336,16 @@ class ImportCommand extends AbstractResourceTemplateCommand
 
             foreach ($dataTypes as $dataType) {
                 $name = is_array($dataType) ? $dataType['name'] : $dataType;
+
+                // resolve custom vocabs by label, not by id
+                if (str_starts_with($name, 'customvocab:')) {
+                    $vocabLabel = is_array($dataType) ? $dataType['label'] : null;
+                    if ($vocabLabel && $this->resolveCustomVocabByLabel($vocabLabel)) {
+                        continue;
+                    }
+                }
+
+                // check data types
                 if (!in_array($name, $registeredDataTypes)) {
                     if (!in_array($name, $missing['data_types'])) {
                         $missing['data_types'][] = $name;
@@ -350,6 +370,22 @@ class ImportCommand extends AbstractResourceTemplateCommand
         $missing = array_filter($missing);
 
         return $missing;
+    }
+
+    public function resolveCustomVocabByLabel($label): ?string {
+
+        static $customVocabsByLabel = null;
+
+        if ($customVocabsByLabel === null) {
+            $customVocabsByLabel = [];
+            foreach($this->easyMeta->dataTypeLabels() as $key => $label) {
+                if (str_starts_with($key, 'customvocab:')) {
+                    $customVocabsByLabel[$label] = $key;
+                }
+            };
+        }
+
+        return $customVocabsByLabel[$label] ?? null;
     }
 
 }
