@@ -219,21 +219,13 @@ section "Users"
 assert_success "user:list returns results"                          $CLI user:list
 assert_success "create test user"                                   $CLI user:add test@example.com "Test User" reviewer test
 assert_success "create API key for test user"                       $CLI user:create-api-key test@example.com "test-key"
+assert_success "delete API key for test user"                       $CLI user:delete-api-key test@example.com "test-key"
 assert_success "disable test user"                                  $CLI user:disable test@example.com
 assert_success "enable test user"                                   $CLI user:enable test@example.com
 assert_success "test user exists"                                   $CLI user:exists test@example.com
 assert_fail    "nonexistent user must not exist"                    $CLI user:exists nonexistent@example.com
 assert_success "delete test user"                                   $CLI user:delete test@example.com
 assert_fail    "delete nonexistent user fails"                      $CLI user:delete nonexistent@example.com
-
-# ── dummy data ───────────────────────────────────────────────────────────────
-
-section "Dummy data"
-assert_success "dummy:create-items creates 5 items"             $CLI dummy:create-items -n 5
-assert_success "dummy:create-item-sets creates 2 item sets"     $CLI dummy:create-item-sets -n 2
-assert_success "dummy:create-items creates 5 items from local config"             $CLI dummy:create-items -n 5 --config /app/omeka-s-cli/examples/dummy/item.json
-assert_success "dummy:create-item-sets creates 5 items from remote config"             $CLI dummy:create-item-sets -n 5 --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/refs/heads/main/examples/dummy/item-set.json
-assert_fail    "dummy:create-items with invalid config must fail"   $CLI dummy:create-items --config /tmp/nonexistent.json
 
 # ── vocabularies ─────────────────────────────────────────────────────────────
 
@@ -245,6 +237,13 @@ assert_success "add vocabulary schema.org from local config" $CLI vocabulary:imp
 assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
 assert_success "add vocabulary person-name-vocabulary from remote config" $CLI vocabulary:import --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Vocabularies/refs/heads/main/person-name-vocabulary.json
 
+# ── custom vocabularies ──────────────────────────────────────────────────────
+
+section "Custom vocabularies"
+
+# todo: add tests for custom vocabularies once implemented, e.g.:
+#assert_success "custom-vocabulary:list returns results"         $CLI custom-vocabulary:list
+
 # ── resource templates ───────────────────────────────────────────────────────
 
 section "Resource templates"
@@ -255,10 +254,20 @@ assert_success "install dependency: module numericdatatypes" $CLI module:downloa
 assert_success "resource-template:import from remote source has no missing dependencies"    $CLI resource-template:import https://raw.githubusercontent.com/MaastrichtU-Library/omekas-resource-templates/refs/heads/main/Letters.json
 assert_fail    "import nonexistent file fails"                  $CLI resource-template:import /tmp/nonexistent.json
 
-# ── custom vocabularies ──────────────────────────────────────────────────────
+# todo: add test for resource-template with customvocab dependency
 
-section "Custom vocabularies"
-assert_success "custom-vocabulary:list returns results"         $CLI custom-vocabulary:list
+# ── config ───────────────────────────────────────────────────────
+
+section "Configuration"
+
+# ── dummy data ───────────────────────────────────────────────────────────────
+
+section "Dummy data"
+assert_success "dummy:create-items creates 5 items"             $CLI dummy:create-items -n 5
+assert_success "dummy:create-item-sets creates 2 item sets"     $CLI dummy:create-item-sets -n 2
+assert_success "dummy:create-items creates 5 items from local config"             $CLI dummy:create-items -n 5 --config /app/omeka-s-cli/examples/dummy/item.json
+assert_success "dummy:create-item-sets creates 5 items from remote config"             $CLI dummy:create-item-sets -n 5 --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/refs/heads/main/examples/dummy/item-set.json
+assert_fail    "dummy:create-items with invalid config must fail"   $CLI dummy:create-items --config /tmp/nonexistent.json
 
 # ── summary ──────────────────────────────────────────────────────────────────
 
