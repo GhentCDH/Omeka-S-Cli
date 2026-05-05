@@ -4,6 +4,7 @@ namespace OSC\Commands\Module;
 use InvalidArgumentException;
 use Omeka\Module\Manager as ModuleManager;
 use OSC\Exceptions\WarningException;
+use Throwable;
 
 class UninstallCommand extends AbstractModuleCommand
 {
@@ -35,7 +36,7 @@ class UninstallCommand extends AbstractModuleCommand
                 return;
             }
 
-            $this->getOmekaInstance()->getModuleApi()->uninstall($module);
+            $moduleApi->uninstall($module);
             $this->ok("Module '{$moduleId}' successfully uninstalled.", true);
         }
 
