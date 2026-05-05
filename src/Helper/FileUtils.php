@@ -7,6 +7,7 @@ use Exception;
 use FilesystemIterator;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use RuntimeException;
 
 class FileUtils {
@@ -23,8 +24,11 @@ class FileUtils {
             return realpath($baseFolder);
         }
 
-        // iterate through the directory structure
-        $iterator = new RecursiveDirectoryIterator($baseFolder, FilesystemIterator::SKIP_DOTS);
+        // iterate through the directory structure recursively
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($baseFolder, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
 
         foreach ($iterator as $file) {
             if ($file->isDir() && !$file->isLink()) {
