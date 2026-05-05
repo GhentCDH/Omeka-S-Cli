@@ -70,7 +70,7 @@ class ModuleApi
     {
         try {
             $module = $this->getModule($moduleId);
-            return in_array($module->getState(), [ModuleManager::STATE_ACTIVE, ModuleManager::STATE_NOT_ACTIVE], true);
+            return $module->getState() === ModuleManager::STATE_ACTIVE;
         } catch (Throwable $e) {
             return false;
         }

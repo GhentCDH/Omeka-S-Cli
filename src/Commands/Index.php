@@ -13,5 +13,6 @@ $commands = [...$commands, ...require(__DIR__ . '/ResourceTemplates/Index.php')]
 $commands = [...$commands, ...require(__DIR__ . '/Vocabulary/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/Dummy/Index.php')];
 $commands = [...$commands, ...require(__DIR__ . '/Cli/Index.php')];
+$commands = [...$commands, ...require(__DIR__ . '/CustomVocabulary/Index.php')];
 
 return $commands;
