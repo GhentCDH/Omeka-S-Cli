@@ -248,11 +248,14 @@ section "Custom vocabularies"
 
 section "Resource templates"
 assert_success "resource-template:list returns results"         $CLI resource-template:list
-assert_fail "resource-template:import from remote source has missing dependencies"    $CLI resource-template:import https://raw.githubusercontent.com/MaastrichtU-Library/omekas-resource-templates/refs/heads/main/Letters.json
+assert_success "delete base resource template"                  $CLI resource-template:delete "base resource"
+assert_fail 'delete nonexistent resource template fails'        $CLI resource-template:delete "nonexistent resource template"
+assert_fail    "import nonexistent file fails"                  $CLI resource-template:import /tmp/nonexistent.json
+assert_success "import base resource template"                  $CLI resource-template:import /app/omeka-s-cli/examples/resource-template/base_resource.json
+assert_fail "import resource template with missing dependencies"    $CLI resource-template:import /app/omeka-s-cli/examples/resource-template/template-with-dependencies.json
 assert_success "install dependency: vocabulary schema.org from local config" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/schema-dot-org.json
 assert_success "install dependency: module numericdatatypes" $CLI module:download numericdatatypes --install
-assert_success "resource-template:import from remote source has no missing dependencies"    $CLI resource-template:import https://raw.githubusercontent.com/MaastrichtU-Library/omekas-resource-templates/refs/heads/main/Letters.json
-assert_fail    "import nonexistent file fails"                  $CLI resource-template:import /tmp/nonexistent.json
+assert_success "re-import resource template with dependencies"    $CLI resource-template:import /app/omeka-s-cli/examples/resource-template/template-with-dependencies.json
 
 # todo: add test for resource-template with customvocab dependency
 
