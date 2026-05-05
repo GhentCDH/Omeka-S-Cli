@@ -27,7 +27,7 @@ class FileUtils {
         $iterator = new RecursiveDirectoryIterator($baseFolder, FilesystemIterator::SKIP_DOTS);
 
         foreach ($iterator as $file) {
-            if ($file->isDir()) {
+            if ($file->isDir() && !$file->isLink()) {
                 $potentialPath = $file->getPathname() . DIRECTORY_SEPARATOR . $subpath;
                 if (file_exists($potentialPath)) {
                     return realpath($file->getPathname());
@@ -83,7 +83,7 @@ class FileUtils {
             $sourcePath = $fileInfo->getPathname();
             $destinationPath = $destination . DIRECTORY_SEPARATOR . $fileInfo->getBasename();
 
-            if ($fileInfo->isDir()) {
+            if ($fileInfo->isDir() && !$fileInfo->isLink()) {
                 static::moveFolder($sourcePath, $destinationPath);
             } else {
                 if (!rename($sourcePath, $destinationPath)) {
@@ -104,17 +104,21 @@ class FileUtils {
             throw new InvalidArgumentException("Folder '{$path}' does not exist or is not a directory.");
         }
         $iterator = new DirectoryIterator($path);
-        foreach ( $iterator as $fileinfo ) {
-            if($fileinfo->isDot()) continue;
-            if($fileinfo->isDir()){
-                static::removeFolder($fileinfo->getPathname());
-                @rmdir($fileinfo->getPathname());
+        foreach ($iterator as $fileinfo) {
+            if ($fileinfo->isDot()) {
+                continue;
             }
-            if($fileinfo->isFile()){
-                @unlink($fileinfo->getPathname());
+            if ($fileinfo->isDir() && !$fileinfo->isLink()) {
+                static::removeFolder($fileinfo->getPathname());
+            } else {
+                if (!unlink($fileinfo->getPathname())) {
+                    throw new RuntimeException("Failed to delete '{$fileinfo->getPathname()}'.");
+                }
             }
         }
-        @rmdir($path);
+        if (!rmdir($path)) {
+            throw new RuntimeException("Failed to remove folder '{$path}'.");
+        }
     }
 
     public static function copyFolder(string $source, string $destination): void
@@ -138,7 +142,7 @@ class FileUtils {
             $sourcePath = $fileInfo->getPathname();
             $destinationPath = $destination . DIRECTORY_SEPARATOR . $fileInfo->getBasename();
 
-            if ($fileInfo->isDir()) {
+            if ($fileInfo->isDir() && !$fileInfo->isLink()) {
                 static::copyFolder($sourcePath, $destinationPath);
             } else {
                 if (!copy($sourcePath, $destinationPath)) {
