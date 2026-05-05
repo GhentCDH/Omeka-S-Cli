@@ -5,6 +5,7 @@ use Exception;
 use InvalidArgumentException;
 use Omeka\Module\Manager as ModuleManager;
 use OSC\Exceptions\WarningException;
+use Throwable;
 
 class DeleteCommand extends AbstractModuleCommand
 {
