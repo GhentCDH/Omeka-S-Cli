@@ -3,7 +3,9 @@ namespace OSC\Commands\ResourceTemplates;
 
 use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
+use Omeka\DataType\Manager as DataTypeManager;
 use OSC\Exceptions\WarningException;
+use OSC\Helper\ResourceFetcher;
 
 
 class ImportCommand extends AbstractResourceTemplateCommand
@@ -15,17 +17,20 @@ class ImportCommand extends AbstractResourceTemplateCommand
     public function __construct()
     {
         parent::__construct('resource-template:import', 'Import a resource template');
-        $this->argument('<filename>', 'File to import from');
+        $this->argument('<source>', 'File or URL to import from');
         $this->argument('[identifier]', 'Resource template ID or label (required for update)');
         $this->option('-l --label', 'Set or override the resource template label');
         $this->option('--update', 'Update existing resource template', 'boolval', false);
         $this->option('--ignore-deps', 'Ignore missing dependencies (vocabularies, properties, classes, data types)', 'boolval', false);
         $this->usage(
-            'resource-template:import FILENAME [IDENTIFIER] '
+            'resource-template:import SOURCE [IDENTIFIER] '
             . '[-l|--label=LABEL] [--update] [--ignore-deps]<eol/>'
             . '<eol/>Examples:<eol/><eol/>'
-            . '* Import a template:<eol/>'
+            . '* Import a template from a file:<eol/>'
             . 'resource-template:import template.json<eol/>'
+            . '<eol/>'
+            . '* Import a template from a URL:<eol/>'
+            . 'resource-template:import https://example.com/template.json<eol/>'
             . '<eol/>'
             . '* Import a template under a different label:<eol/>'
             . 'resource-template:import template.json --label="My Custom Template"<eol/>'
@@ -41,7 +46,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
         );
     }
 
-    public function execute(string $filename, ?string $identifier = null, ?string $label = null, ?bool $update = false, ?bool $ignoreDeps = false): void
+    public function execute(string $source, ?string $identifier = null, ?string $label = null, ?bool $update = false, ?bool $ignoreDeps = false): void
     {
         // Get Omeka instance and service manager
         $omekaInstance = $this->getOmekaInstance();
@@ -55,17 +60,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
             throw new Exception("This features requires the 'Common' module to be installed.");
         }
 
-        // check if file exists and is readable
-        if (!is_readable($filename)) {
-            throw new Exception("File not found or not readable: {$filename}");
-        }
-
-        // read file content and check if valid json
-        $content = file_get_contents($filename);
-        $resourceTemplateData = json_decode($content, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception("Invalid JSON in file: {$filename}");
-        }
+        $resourceTemplateData = ResourceFetcher::fetchJson($source);
 
         // Determine the label to use (priority: --label option, then from file, then error)
         $label = $label ?? $resourceTemplateData['o:label'] ?? null;
@@ -198,7 +193,19 @@ class ImportCommand extends AbstractResourceTemplateCommand
                     $import['o:resource_template_property'][$key]['data_types'] = $getDataTypesByName($import['o:resource_template_property'][$key]['data_types']);
                     // Prepare the list of standard data types.
                     $import['o:resource_template_property'][$key]['o:data_type'] = [];
-                    foreach (array_keys($import['o:resource_template_property'][$key]['data_types']) as $name) {
+                    //foreach (array_keys($import['o:resource_template_property'][$key]['data_types']) as $name) {
+                    foreach ($import['o:resource_template_property'][$key]['data_types'] as $name => $label) {
+                        // try to resolve custom vocabularies by label first
+                        if (str_starts_with($name, "customvocab:")) {
+                            $vocabLabel = $label['label'] ?? null;
+                            $known = $vocabLabel ? $this->resolveCustomVocabByLabel($vocabLabel) : null;
+                            if ($known) {
+                                $import['o:resource_template_property'][$key]['o:data_type'][] = $known;
+                                $import['o:resource_template_property'][$key]['data_types'][$name]['name'] = $known;
+                                continue;
+                            }
+                        }
+                        // check data types by name
                         $known = $this->easyMeta->dataTypeName($name);
                         if ($known) {
                             $import['o:resource_template_property'][$key]['o:data_type'][] = $known;
@@ -263,6 +270,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
         ];
 
         $serviceManager = $this->getOmekaInstance()->getServiceManager();
+        /** @var DataTypeManager $dataTypeManager */
         $dataTypeManager = $serviceManager->get('Omeka\DataTypeManager');
         $registeredDataTypes = $dataTypeManager->getRegisteredNames();
 
@@ -328,6 +336,16 @@ class ImportCommand extends AbstractResourceTemplateCommand
 
             foreach ($dataTypes as $dataType) {
                 $name = is_array($dataType) ? $dataType['name'] : $dataType;
+
+                // resolve custom vocabs by label, not by id
+                if (str_starts_with($name, 'customvocab:')) {
+                    $vocabLabel = is_array($dataType) ? $dataType['label'] : null;
+                    if ($vocabLabel && $this->resolveCustomVocabByLabel($vocabLabel)) {
+                        continue;
+                    }
+                }
+
+                // check data types
                 if (!in_array($name, $registeredDataTypes)) {
                     if (!in_array($name, $missing['data_types'])) {
                         $missing['data_types'][] = $name;
@@ -352,6 +370,22 @@ class ImportCommand extends AbstractResourceTemplateCommand
         $missing = array_filter($missing);
 
         return $missing;
+    }
+
+    public function resolveCustomVocabByLabel($label): ?string {
+
+        static $customVocabsByLabel = null;
+
+        if ($customVocabsByLabel === null) {
+            $customVocabsByLabel = [];
+            foreach($this->easyMeta->dataTypeLabels() as $key => $label) {
+                if (str_starts_with($key, 'customvocab:')) {
+                    $customVocabsByLabel[$label] = $key;
+                }
+            };
+        }
+
+        return $customVocabsByLabel[$label] ?? null;
     }
 
 }
