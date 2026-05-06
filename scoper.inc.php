@@ -11,6 +11,8 @@ return [
         'OSC',
         'Omeka',
         'Laminas',
+        'CustomVocab',
+        'Common'
     ],
 
     'expose-global-constants' => true,
