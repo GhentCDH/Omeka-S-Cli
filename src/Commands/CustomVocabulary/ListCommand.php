@@ -20,8 +20,10 @@ class ListCommand extends AbstractCustomVocabularyCommand
         // Get vocabularies
         $vocabularies = $api->search('custom_vocabs')->getContent();
         if (empty($vocabularies)) {
-            $this->info('No custom vocabularies found.', true);
-            return;
+            if ($format === 'table') {
+                $this->info('No custom vocabularies found.', true);
+                return;
+            }
         }
 
         // Prepare data for output
