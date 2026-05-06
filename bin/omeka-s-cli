@@ -3,7 +3,9 @@
 namespace OSC;
 
 use OSC\Cli\Application as CliApplication;
-use OSC\ServiceProvider\ModuleRepositoryServiceProvider;
+
+// capture CWD before autoloading or bootstrap can change it
+define('OMEKA_S_CLI_CWD', getcwd());
 
 # read version from composer.json
 $composerFile = __DIR__ . '/../composer.json';

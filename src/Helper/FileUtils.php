@@ -156,6 +156,14 @@ class FileUtils {
         }
     }
 
+    public static function toAbsolutePath(string $path, string $cwd): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+        return $cwd . DIRECTORY_SEPARATOR . $path;
+    }
+
     public static function createPath(array $parts): string
     {
         return implode(DIRECTORY_SEPARATOR,  $parts);
