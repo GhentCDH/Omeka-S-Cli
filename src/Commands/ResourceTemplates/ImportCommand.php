@@ -58,7 +58,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
         try {
             $this->easyMeta = $serviceManager->get('Common\EasyMeta');
         } catch (Exception $e) {
-            throw new Exception("This features requires the 'Common' module to be installed.");
+            throw new Exception("This command requires the 'Common' module to be active.");
         }
 
         $resourceTemplateData = ResourceFetcher::fetchJson($source);

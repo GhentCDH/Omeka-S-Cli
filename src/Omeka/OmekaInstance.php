@@ -40,11 +40,6 @@ class OmekaInstance
             $this->themeApi = new ThemeApi($this->getServiceManager());
             $this->moduleApi = new ModuleApi($this->getServiceManager());
 
-            // todo: dirty! should fix module init on startup
-            if (file_exists($this->path . '/modules/Common/vendor/autoload.php')) {
-                require_once($this->path . '/modules/Common/vendor/autoload.php');
-            }
-
             // restore current working directory
             if ($cwd) {
                 chdir($cwd);
