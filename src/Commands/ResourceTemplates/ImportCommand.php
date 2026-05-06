@@ -10,6 +10,7 @@ use OSC\Helper\ResourceFetcher;
 
 class ImportCommand extends AbstractResourceTemplateCommand
 {
+    protected array $moduleDependencies = ['Common'];
 
     /** @var \Common\Stdlib\EasyMeta $easyMeta */
     protected $easyMeta;
