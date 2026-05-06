@@ -7,7 +7,7 @@ use OSC\Commands\Module\FormattersTrait;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 
 class UpdateCommand extends AbstractModuleCommand
 {
@@ -82,7 +82,7 @@ class UpdateCommand extends AbstractModuleCommand
 
         try {
             $this->info("Verify core files ... ");
-            $srcPath = FileUtils::findSubpath($tmpDownloadPath, 'application');
+            $srcPath = Path::findSubpath($tmpDownloadPath, 'application');
             if (!$srcPath) {
                 throw new Exception("The downloaded core files are invalid.");
             }
@@ -94,21 +94,21 @@ class UpdateCommand extends AbstractModuleCommand
         try {
             // Clean source folders
             $this->info("Clean downloaded core files ... ");
-            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'modules']));
-            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'files']));
-            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'themes']));
-            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'config']));
-            FileUtils::removeFolder(FileUtils::createPath([$srcPath, 'logs']));
+            Path::removeFolder(Path::createPath([$srcPath, 'modules']));
+            Path::removeFolder(Path::createPath([$srcPath, 'files']));
+            Path::removeFolder(Path::createPath([$srcPath, 'themes']));
+            Path::removeFolder(Path::createPath([$srcPath, 'config']));
+            Path::removeFolder(Path::createPath([$srcPath, 'logs']));
             $this->info('done', true);
 
             // Install the new Omeka S core files
             try {
                 $this->info("Install new core files ...");
                 // Clean destination folders
-                FileUtils::removeFolder(FileUtils::createPath([$destPath, 'application']));
-                FileUtils::removeFolder(FileUtils::createPath([$destPath, 'vendor']));
+                Path::removeFolder(Path::createPath([$destPath, 'application']));
+                Path::removeFolder(Path::createPath([$destPath, 'vendor']));
                 // Copy new files
-                FileUtils::copyFolder($srcPath, $destPath);
+                Path::copyFolder($srcPath, $destPath);
                 $this->info("done");
             } finally {
                 $this->io()->eol();
@@ -116,7 +116,7 @@ class UpdateCommand extends AbstractModuleCommand
         } finally {
             // Clean up temporary files
             $this->info("Cleaning up {$tmpDownloadPath} ... ");
-            FileUtils::removeFolder($tmpDownloadPath);
+            Path::removeFolder($tmpDownloadPath);
             $this->info("done", true);
         }
     }

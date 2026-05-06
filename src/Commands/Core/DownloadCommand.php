@@ -6,7 +6,7 @@ use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -72,7 +72,7 @@ class DownloadCommand extends AbstractModuleCommand
 
         try {
             $this->info("Verify core files ... ");
-            $srcPath = FileUtils::findSubpath($tmpDownloadPath, 'application');
+            $srcPath = Path::findSubpath($tmpDownloadPath, 'application');
             if (!$srcPath) {
                 throw new Exception("The downloaded core files are invalid.");
             }
@@ -84,7 +84,7 @@ class DownloadCommand extends AbstractModuleCommand
         // Copy folders
         try {
             $this->info("Copying files ...");
-            FileUtils::copyFolder($srcPath, $destinationPath);
+            Path::copyFolder($srcPath, $destinationPath);
             $this->info("done");
         } finally {
             $this->info("", true);
@@ -92,7 +92,7 @@ class DownloadCommand extends AbstractModuleCommand
 
         // Clean up temporary files
         $this->debug("Cleaning up {$tmpDownloadPath} ... ");
-        FileUtils::removeFolder($tmpDownloadPath);
+        Path::removeFolder($tmpDownloadPath);
         $this->debug("done", true);
 
         $this->ok("Omeka S core version $versionNumber successfully downloaded to {$destinationPath}", true);

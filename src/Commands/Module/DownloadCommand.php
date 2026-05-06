@@ -6,7 +6,7 @@ use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\VersionCompatibility;
 use OSC\Helper\Types\ResourceUriType;
@@ -34,7 +34,7 @@ class DownloadCommand extends AbstractModuleCommand
 
     public function execute(?string $module, ?bool $force = false, ?bool $backup = false, ?bool $install = false, ?bool $upgrade = false): void
     {
-        $modulesPath = FileUtils::createPath([$this->getOmekaPath(), "modules"]);
+        $modulesPath = Path::createPath([$this->getOmekaPath(), "modules"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Modules directory is not writable. Please check permissions.");
         }
@@ -102,7 +102,7 @@ class DownloadCommand extends AbstractModuleCommand
 
         // early check if module is already available
         if ($moduleDirName) {
-            $moduleDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
+            $moduleDestinationPath = Path::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
 
             // Check if module is already available
             $moduleExists = is_dir($moduleDestinationPath);
@@ -122,13 +122,13 @@ class DownloadCommand extends AbstractModuleCommand
 
         try {
             // Find module folder
-            $moduleSourcePath = FileUtils::findSubpath($tmpDownloadPath, 'config/module.ini');
+            $moduleSourcePath = Path::findSubpath($tmpDownloadPath, 'config/module.ini');
             if (!$moduleSourcePath) {
                 throw new NotFoundException("No valid module found in download folder.");
             }
 
             // Parse module.ini
-            $moduleConfigPath = FileUtils::createPath([$moduleSourcePath, "config", "module.ini"]);
+            $moduleConfigPath = Path::createPath([$moduleSourcePath, "config", "module.ini"]);
             $moduleIni = parse_ini_file($moduleConfigPath, true);
             if (!$moduleIni) {
                 throw new NotFoundException("No valid module.ini found in download folder.");
@@ -137,17 +137,17 @@ class DownloadCommand extends AbstractModuleCommand
             // Get module destination path
             if (!$moduleDirName) {
                 // Get module dirname based on module namespace
-                $moduleSrc = file_get_contents(FileUtils::createPath([$moduleSourcePath, "Module.php"]));
+                $moduleSrc = file_get_contents(Path::createPath([$moduleSourcePath, "Module.php"]));
                 if (!$moduleSrc) {
                     throw new NotFoundException("No valid Module.php found in download folder.");
                 }
                 $moduleDirName = $this->getModuleNameSpace($moduleSrc);
             }
-            $moduleDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
+            $moduleDestinationPath = Path::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
 
             // Install dependencies (if any)
-            if (!is_dir(FileUtils::createPath([$moduleSourcePath, "vendor"])) &&
-                file_exists(FileUtils::createPath([$moduleSourcePath, "composer.lock"]))){
+            if (!is_dir(Path::createPath([$moduleSourcePath, "vendor"])) &&
+                file_exists(Path::createPath([$moduleSourcePath, "composer.lock"]))){
                 $composerCommand = sprintf('cd %s && composer install -q --no-dev &> /dev/null', escapeshellarg($moduleSourcePath));
                 exec($composerCommand, $output, $exitCode);
                 $exitCode && throw new \ErrorException("Failed to install dependencies");
@@ -176,7 +176,7 @@ class DownloadCommand extends AbstractModuleCommand
             // Move to modules directory
             try {
                 $this->debug("Move module to folder $moduleDestinationPath ... ");
-                FileUtils::moveFolder($moduleSourcePath, $moduleDestinationPath);
+                Path::moveFolder($moduleSourcePath, $moduleDestinationPath);
                 $this->debug("done");
             } finally {
                 $this->debug("", true);
@@ -184,7 +184,7 @@ class DownloadCommand extends AbstractModuleCommand
         } finally {
             if (is_dir($tmpDownloadPath)) {
                 $this->debug("Cleaning up {$tmpDownloadPath} ... ");
-                FileUtils::removeFolder($tmpDownloadPath);
+                Path::removeFolder($tmpDownloadPath);
                 $this->debug("done", true);
             }
         }
@@ -216,7 +216,7 @@ class DownloadCommand extends AbstractModuleCommand
             throw new Exception("Could not create backup directory '{$backupDir}'.");
         }
 
-        FileUtils::moveFolder($path, FileUtils::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
+        Path::moveFolder($path, Path::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
     }
 
     private function getModuleNameSpace($src): ?string

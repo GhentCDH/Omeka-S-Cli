@@ -4,7 +4,7 @@ namespace OSC\Commands\Cli;
 
 use Exception;
 use OSC\Commands\AbstractCommand;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 
 class SelfUpdateCommand extends AbstractCommand
 {
@@ -80,7 +80,7 @@ class SelfUpdateCommand extends AbstractCommand
             throw new Exception('Failed to download latest release. Check your internet connection.');
         }
 
-        $tmpFile = FileUtils::createTempFile('omeka-s-cli-update.');
+        $tmpFile = Path::createTempFile('omeka-s-cli-update.');
 
         if (file_put_contents($tmpFile, $data) === false) {
             @unlink($tmpFile);

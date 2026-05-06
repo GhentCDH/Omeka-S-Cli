@@ -8,7 +8,7 @@ use Omeka\Service\ThemeManagerFactory;
 use Omeka\Site\Theme\Manager as ThemeManager;
 use Omeka\Site\Theme\Theme;
 use OSC\Exceptions\NotFoundException;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 
 class ThemeApi
 {
@@ -86,7 +86,7 @@ class ThemeApi
         $path = $theme->getPath();
         if (empty($path) || $path == '/' || !(str_contains($path, 'themes')))
             throw new Exception('Incorrect or dangerous path detected. Please remove the folder manually.');
-        FileUtils::removeFolder($path);
+        Path::removeFolder($path);
     }
 
     public function isActiveOnSite(Theme $theme): bool

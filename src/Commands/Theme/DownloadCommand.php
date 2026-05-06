@@ -6,7 +6,7 @@ use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUriType;
 use OSC\Helper\VersionCompatibility;
@@ -32,7 +32,7 @@ class DownloadCommand extends AbstractThemeCommand
 
     public function execute(?string $theme, ?bool $force, ?bool $backup): void
     {
-        $modulesPath = FileUtils::createPath([$this->getOmekaPath(), "themes"]);
+        $modulesPath = Path::createPath([$this->getOmekaPath(), "themes"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Themes directory is not writable. Please check permissions.");
         }
@@ -95,7 +95,7 @@ class DownloadCommand extends AbstractThemeCommand
 
         // check if module is already available
         if ($themeDirName) {
-            $themeDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
+            $themeDestinationPath = Path::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
 
             // Check if module is already available
             $themeExists = is_dir($themeDestinationPath);
@@ -115,13 +115,13 @@ class DownloadCommand extends AbstractThemeCommand
 
         try {
             // Find module folder
-            $themeSourcePath = FileUtils::findSubpath($tmpDownloadPath, 'config/theme.ini');
+            $themeSourcePath = Path::findSubpath($tmpDownloadPath, 'config/theme.ini');
             if (!$themeSourcePath) {
                 throw new NotFoundException("No valid theme found in download folder.");
             }
 
             // Parse module.ini
-            $themeConfigPath = FileUtils::createPath([$themeSourcePath, "config", "theme.ini"]);
+            $themeConfigPath = Path::createPath([$themeSourcePath, "config", "theme.ini"]);
             $themeIni = parse_ini_file($themeConfigPath, true);
             if (!$themeIni) {
                 throw new NotFoundException("No valid theme.ini found in download folder.");
@@ -129,9 +129,9 @@ class DownloadCommand extends AbstractThemeCommand
 
             // Get theme destination path
             if (!$themeDirName) {
-                $themeDirName = FileUtils::createSafeName($themeIni['info']['name']);
+                $themeDirName = Path::createSafeName($themeIni['info']['name']);
             }
-            $themeDestinationPath = FileUtils::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
+            $themeDestinationPath = Path::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
 
             // Check if theme is already available
             if (is_dir($themeDestinationPath)) {
@@ -156,13 +156,13 @@ class DownloadCommand extends AbstractThemeCommand
 
             // Move to themes directory
             $this->debug("Move theme to folder $themeDestinationPath ... ");
-            FileUtils::moveFolder($themeSourcePath, $themeDestinationPath);
+            Path::moveFolder($themeSourcePath, $themeDestinationPath);
             $this->debug("done", true);
 
         } finally {
             if (is_dir($tmpDownloadPath)) {
                 $this->debug("Cleaning up {$tmpDownloadPath} ... ");
-                FileUtils::removeFolder($tmpDownloadPath);
+                Path::removeFolder($tmpDownloadPath);
                 $this->debug("done", true);
             }
         }
@@ -174,7 +174,7 @@ class DownloadCommand extends AbstractThemeCommand
     {
         if (empty($path) || $path == '/' || !(str_contains($path, 'themes')))
             throw new Exception('Incorrect or dangerous path detected. Please remove the folder manually.');
-        FileUtils::removeFolder($path);
+        Path::removeFolder($path);
     }
 
     private function backupTheme(string $path): void
@@ -184,7 +184,7 @@ class DownloadCommand extends AbstractThemeCommand
             throw new Exception("Could not create backup directory '{$backupDir}'.");
         }
 
-        FileUtils::moveFolder($path, FileUtils::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
+        Path::moveFolder($path, Path::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
     }
 
 }

@@ -5,7 +5,7 @@ namespace OSC\Commands;
 use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Command;
 use Exception;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 use OSC\Helper\OmekaVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 use OSC\Manager\Theme\Manager as ThemeRepositoryManager;
@@ -191,7 +191,7 @@ abstract class AbstractCommand extends Command
 
         $basePath = $this->values()['basePath'] ?? null;
         if ($basePath) {
-            $basePath = realpath(FileUtils::toAbsolutePath(rtrim($basePath, DIRECTORY_SEPARATOR), $this->getCwd()));
+            $basePath = realpath(Path::toAbsolutePath(rtrim($basePath, DIRECTORY_SEPARATOR), $this->getCwd()));
             if ($basePath === false) {
                 throw new Exception("The provided base path does not exist.");
             }

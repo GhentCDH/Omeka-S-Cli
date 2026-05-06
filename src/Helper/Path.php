@@ -10,7 +10,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 
-class FileUtils {
+class Path {
 
     static function findSubpath(string $baseFolder, string $subpath): ?string
     {
