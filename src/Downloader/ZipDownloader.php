@@ -3,7 +3,7 @@
 namespace OSC\Downloader;
 
 use Exception;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 use ZipArchive;
 
 class ZipDownloader implements DownloaderInterface {
@@ -18,8 +18,8 @@ class ZipDownloader implements DownloaderInterface {
     }
     public function download(): string
     {
-        $tmpZipDestinationPath = FileUtils::createTempFolder('omeka-s-cli.');
-        $tmpZipFilePath = FileUtils::createTempFile('omeka-s-cli.');
+        $tmpZipDestinationPath = Path::createTempFolder('omeka-s-cli.');
+        $tmpZipFilePath = Path::createTempFile('omeka-s-cli.');
 
         try {
             $tmpZipResource = fopen($tmpZipFilePath, "w+");

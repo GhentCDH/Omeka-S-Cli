@@ -5,6 +5,7 @@ namespace OSC\Commands;
 use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Command;
 use Exception;
+use OSC\Helper\Path;
 use OSC\Helper\OmekaVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 use OSC\Manager\Theme\Manager as ThemeRepositoryManager;
@@ -190,7 +191,10 @@ abstract class AbstractCommand extends Command
 
         $basePath = $this->values()['basePath'] ?? null;
         if ($basePath) {
-            $basePath = rtrim($basePath, DIRECTORY_SEPARATOR);
+            $basePath = realpath(Path::toAbsolutePath(rtrim($basePath, DIRECTORY_SEPARATOR), $this->getCwd()));
+            if ($basePath === false) {
+                throw new Exception("The provided base path does not exist.");
+            }
             if (!$this->isOmekaDir($basePath)) {
                 throw new Exception("The provided base path {$basePath} does not contain a valid Omeka S context.");
             }
@@ -257,10 +261,16 @@ abstract class AbstractCommand extends Command
         return false;
     }
 
+    protected function getCwd(): string
+    {
+        return defined('OMEKA_S_CLI_CWD') ? OMEKA_S_CLI_CWD : getcwd();
+    }
+
     // search for Omeka S context from current directory
     private function searchOmekaDir(): ?string
     {
-        $dir = realpath('.');
+        $cwd = $this->getCwd();
+        $dir = realpath($cwd);
         while ($dir !== false && $dir !== '/' && !$this->isOmekaDir($dir)) {
             $dir = realpath($dir . '/..');
         }

@@ -10,7 +10,7 @@ class OmekaVersion
      */
     public static function getVersion(string $omekaPath): ?string
     {
-        $modulePath = FileUtils::createPath([$omekaPath, 'application', 'Module.php']);
+        $modulePath = Path::createPath([$omekaPath, 'application', 'Module.php']);
         if (!is_file($modulePath)) {
             return null;
         }

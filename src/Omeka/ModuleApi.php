@@ -7,7 +7,7 @@ use Omeka\Module\Module;
 use Omeka\Service\ModuleManagerFactory;
 use Exception;
 use OSC\Exceptions\NotFoundException;
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 use Throwable;
 
 class ModuleApi
@@ -128,6 +128,6 @@ class ModuleApi
         if (empty($path) || $path == '/' || !(str_contains($path, 'modules')))
             throw new Exception('Incorrect or dangerous path detected. Please remove the folder manually.');
 
-        FileUtils::removeFolder($path);
+        Path::removeFolder($path);
     }
 }

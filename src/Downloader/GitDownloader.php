@@ -2,7 +2,7 @@
 
 namespace OSC\Downloader;
 
-use OSC\Helper\FileUtils;
+use OSC\Helper\Path;
 
 class GitDownloader implements DownloaderInterface {
 
@@ -16,7 +16,7 @@ class GitDownloader implements DownloaderInterface {
     }
     public function download(): string
     {
-        $tmpGitDestinationPath = FileUtils::createTempFolder('omeka-s-cli.');
+        $tmpGitDestinationPath = Path::createTempFolder('omeka-s-cli.');
 
         try {
             // Clone the repository
@@ -33,7 +33,7 @@ class GitDownloader implements DownloaderInterface {
 
             return $tmpGitDestinationPath;
         } catch (\Throwable $e) {
-            FileUtils::removeFolder($tmpGitDestinationPath);
+            Path::removeFolder($tmpGitDestinationPath);
             throw new \ErrorException("Failed to download and set up repository: " . $e->getMessage());
         }
     }
