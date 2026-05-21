@@ -15,7 +15,6 @@ class DeleteCommand extends AbstractUserCommand
     public function execute(string $user): void
     {
         $api = $this->getOmekaInstance()->getApi();
-        $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
         // Try to find user by ID or email
         $userRepresentation = $this->findUser($user, $api);
@@ -29,7 +28,7 @@ class DeleteCommand extends AbstractUserCommand
         $this->getOmekaInstance()->elevatePrivileges();
         $api->delete('users', [ 'id' => $userId ]);
 
-        $this->ok("User '{$userRepresentation->email()}' deleted successfully.", true);
+        $this->ok("User '{$userRepresentation->email()}' successfully deleted.", true);
     }
 }
 

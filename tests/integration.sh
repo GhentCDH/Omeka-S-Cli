@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Integration tests for omeka-s-cli
-# Usage: ./tests/integration.sh [-v] [--skip <section>...]
+# Usage: ./tests/integration.sh [-v] [--skip <section>...] [--section <section>...]
 
 set -euo pipefail
 
@@ -14,8 +14,10 @@ VERBOSE=0
 PASS=0
 FAIL=0
 SECTION_SKIP=0
+HAS_SECTION_FILTER=0
 declare -a FAILURES
 declare -a SKIP_SECTIONS
+declare -a ONLY_SECTIONS
 
 # ── flags ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1 ;;
         --skip) SKIP_SECTIONS+=("$2"); shift ;;
+        --section) ONLY_SECTIONS+=("$2"); HAS_SECTION_FILTER=1; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
     shift
@@ -39,6 +42,12 @@ NC='\033[0m'
 
 section() {
     SECTION_SKIP=0
+    if [[ $HAS_SECTION_FILTER -eq 1 ]]; then
+        SECTION_SKIP=1
+        for s in "${ONLY_SECTIONS[@]+"${ONLY_SECTIONS[@]}"}"; do
+            if [[ "${s,,}" == "${1,,}" ]]; then SECTION_SKIP=0; break; fi
+        done
+    fi
     for s in "${SKIP_SECTIONS[@]+"${SKIP_SECTIONS[@]}"}"; do
         if [[ "${s,,}" == "${1,,}" ]]; then SECTION_SKIP=1; break; fi
     done
@@ -236,7 +245,7 @@ assert_success    "module:uninstall ValueSuggest"   $CLI module:uninstall ValueS
 assert_success "module:delete --not-installed"   $CLI module:delete --not-installed
 assert_output_is "verify 0 modules are not installed" "0"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
 
-exit
+[[ $HAS_SECTION_FILTER -eq 0 ]] && exit
 
 # ── themes ──────────────────────────────────────────────────────────────────
 
@@ -256,16 +265,33 @@ assert_fail    "install unknown theme fails"   $CLI theme:download nonexistent-t
 
 section "Users"
 
-assert_success "user:list returns results"                          $CLI user:list
-assert_success "create test user"                                   $CLI user:add test@example.com "Test User" reviewer test
-assert_success "create API key for test user"                       $CLI user:create-api-key test@example.com "test-key"
-assert_success "delete API key for test user"                       $CLI user:delete-api-key test@example.com "test-key"
-assert_success "disable test user"                                  $CLI user:disable test@example.com
-assert_success "enable test user"                                   $CLI user:enable test@example.com
-assert_success "test user exists"                                   $CLI user:exists test@example.com
-assert_fail    "nonexistent user must not exist"                    $CLI user:exists nonexistent@example.com
-assert_success "delete test user"                                   $CLI user:delete test@example.com
-assert_fail    "delete nonexistent user fails"                      $CLI user:delete nonexistent@example.com
+assert_success "user:list returns results"                                                    $CLI user:list
+assert_success "create test user"                                                             $CLI user:add test@example.com "Test User" reviewer test
+
+assert_success "update test user name"                                                        $CLI user:update test@example.com --name "Updated User"
+assert_output_contains "user:update --json shows updated name"            "Updated User"      bash -c "$CLI user:update test@example.com --name 'Updated User' --json"
+assert_success "update test user role"                                                        $CLI user:update test@example.com --role editor
+assert_fail    "update test user with invalid role fails"                                      $CLI user:update test@example.com --role invalid_role
+assert_fail    "update test user with both --activate and --deactivate fails"                  $CLI user:update test@example.com --activate --deactivate
+assert_fail    "update nonexistent user fails"                                                 $CLI user:update nonexistent@example.com --name "Foo"
+
+assert_success "update test user password"                                                    $CLI user:update-password test@example.com "newpassword123"
+assert_fail    "update password for nonexistent user fails"                                   $CLI user:update-password nonexistent@example.com "password"
+
+assert_success "list API keys for test user (none yet)"                                       $CLI user:list-api-keys test@example.com
+assert_success "create API key for test user"                                                 $CLI user:create-api-key test@example.com "test-key"
+assert_success "list API keys for test user"                                                  $CLI user:list-api-keys test@example.com
+assert_output_contains "user:list-api-keys --json shows key label"        "test-key"          bash -c "$CLI user:list-api-keys test@example.com --json"
+assert_output_is "user:list-api-keys --json returns 1 key"                "1"                 bash -c "$CLI user:list-api-keys test@example.com --json | jq '. | length'"
+assert_success "delete API key for test user"                                                 $CLI user:delete-api-key test@example.com "test-key"
+assert_fail    "list API keys for nonexistent user fails"                                      $CLI user:list-api-keys nonexistent@example.com
+
+assert_success "disable test user"                                                            $CLI user:disable test@example.com
+assert_success "enable test user"                                                             $CLI user:enable test@example.com
+assert_success "test user exists"                                                             $CLI user:exists test@example.com
+assert_fail    "nonexistent user must not exist"                                               $CLI user:exists nonexistent@example.com
+assert_success "delete test user"                                                             $CLI user:delete test@example.com
+assert_fail    "delete nonexistent user fails"                                                 $CLI user:delete nonexistent@example.com
 
 # ── vocabularies ─────────────────────────────────────────────────────────────
 
