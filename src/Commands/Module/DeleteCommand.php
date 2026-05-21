@@ -14,19 +14,19 @@ class DeleteCommand extends AbstractModuleCommand
     public function __construct()
     {
         parent::__construct('module:delete', 'Delete module');
-        $this->option('-f --force', 'Force module uninstall', 'boolval', false);
-        $this->option('-u --uninstalled', 'Delete all uninstalled modules', 'boolval', false);
         $this->argumentModuleId(true);
+        $this->option('-f --force', 'Force module uninstall', 'boolval', false);
+        $this->option('--not-installed', 'Delete all uninstalled modules', 'boolval', false);
     }
 
-    public function execute(?string $moduleId, ?bool $force, ?bool $uninstalled): void
+    public function execute(?string $moduleId, ?bool $force, ?bool $notInstalled): void
     {
-        if(!$moduleId && !$uninstalled) {
-            throw new InvalidArgumentException("You must specify a module ID or the --uninstalled option.");
+        if(!$moduleId && !$notInstalled) {
+            throw new InvalidArgumentException("You must specify a module ID or the --not-installed option.");
         }
 
-        if ($moduleId && $uninstalled) {
-            throw new InvalidArgumentException("You cannot specify both a module ID and the --uninstalled option.");
+        if ($moduleId && $notInstalled) {
+            throw new InvalidArgumentException("You cannot specify both a module ID and the --not-installed option.");
         }
 
         $moduleApi = $this->getOmekaInstance()->getModuleApi();
@@ -47,7 +47,7 @@ class DeleteCommand extends AbstractModuleCommand
             $this->ok("Module '{$moduleId}' successfully deleted.", true);
         }
 
-        if ($uninstalled) {
+        if ($notInstalled) {
             $modulesToDelete = [];
             $modules = $moduleApi->getModules();
             foreach ($modules as $module) {
