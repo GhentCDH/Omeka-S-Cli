@@ -24,13 +24,12 @@ trait FormattersTrait
             'installedVersion' => $module->getDb('version'),
             'latestVersion' => $latestVersion,
             'updateAvailable' => $latestVersion && $version ? ($version !== $latestVersion) : null,
-            'path' => $module->getModuleFilePath(),
-            'isConfigurable' => $module->isConfigurable(),
+            'author' => $module->getIni('author'),
+            'path' => dirname($module->getModuleFilePath()),
         ];
 
         if (!$extended) {
             unset($status['path']);
-            unset($status['isConfigurable']);
         }
         return $status;
     }
