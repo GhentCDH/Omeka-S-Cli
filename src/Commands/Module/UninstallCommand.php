@@ -13,18 +13,18 @@ class UninstallCommand extends AbstractModuleCommand
     public function __construct()
     {
         parent::__construct('module:uninstall', 'Uninstall module');
-        $this->option('--inactive', 'Delete all inactive modules', 'boolval', false);
+        $this->option('--not-active', 'Uninstall all inactive modules', 'boolval', false);
         $this->argumentModuleId(true);
     }
 
-    public function execute(?string $moduleId, ?bool $inactive): void
+    public function execute(?string $moduleId, ?bool $notActive): void
     {
-        if(!$moduleId && !$inactive) {
-            throw new InvalidArgumentException("You must specify a module ID or the --inactive option.");
+        if(!$moduleId && !$notActive) {
+            throw new InvalidArgumentException("You must specify a module ID or the --not-active option.");
         }
 
-        if ($moduleId && $inactive) {
-            throw new InvalidArgumentException("You cannot specify both a module ID and the --inactive option.");
+        if ($moduleId && $notActive) {
+            throw new InvalidArgumentException("You cannot specify both a module ID and the --not-active option.");
         }
 
         $moduleApi = $this->getOmekaInstance()->getModuleApi();
@@ -40,7 +40,7 @@ class UninstallCommand extends AbstractModuleCommand
             $this->ok("Module '{$moduleId}' successfully uninstalled.", true);
         }
 
-        if ($inactive) {
+        if ($notActive) {
             $modulesToUninstall = [];
             $modules = $moduleApi->getModules();
             foreach ($modules as $module) {

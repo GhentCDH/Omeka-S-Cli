@@ -217,16 +217,28 @@ assert_success "update and upgrade all outdated modules" $CLI module:update --al
 assert_output_is "verify no outdated modules" "0"   bash -c "$CLI module:list --outdated --json | jq '. | length'"
 
 assert_fail    "module:delete customvocab (can't delete installed module)"   $CLI module:delete customvocab
-assert_success    "module:uninstall customvocab"   $CLI module:uninstall customvocab
-# check status of customvocab is 'not_installed' before deletion
-assert_output_contains "module:status customvocab is 'not_installed'" "not_installed"   $CLI module:status customvocab
+assert_success "module:delete customvocab --force"  $CLI module:delete customvocab --force
+assert_fail "module:status customvocab (module must not be found)"    $CLI module:status customvocab
 
-run    "module:delete customvocab"   $CLI module:delete customvocab
-run    "module:delete AdvancedResourceTemplate --force (uninstall first)"   $CLI module:delete AdvancedResourceTemplate --force
-run    "module:delete NdeTermennetwerk --force (uninstall first)"   $CLI module:delete NdeTermennetwerk --force
-run    "module:delete ValueSuggest --force (uninstall first)"   $CLI module:delete ValueSuggest --force
+assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate
+assert_success    "module:enable AdvancedResourceTemplate"   $CLI module:enable AdvancedResourceTemplate
+assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate
 
-# ── modules ──────────────────────────────────────────────────────────────────
+assert_output_is "verify 1 module is inactive" "1"   bash -c "$CLI module:list --not-active --json | jq '. | length'"
+
+assert_success "module:uninstall --not-active"  $CLI module:uninstall --not-active
+
+assert_output_is "verify 1 module is not installed" "1"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
+
+assert_success    "module:uninstall NdeTermennetwerk"   $CLI module:uninstall NdeTermennetwerk
+assert_success    "module:uninstall ValueSuggest"   $CLI module:uninstall ValueSuggest
+
+assert_success "module:delete --not-installed"   $CLI module:delete --not-installed
+assert_output_is "verify 0 modules are not installed" "0"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
+
+exit
+
+# ── themes ──────────────────────────────────────────────────────────────────
 
 section "Themes"
 
