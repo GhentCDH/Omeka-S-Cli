@@ -155,15 +155,17 @@ abstract class AbstractCommand extends Command
                 break;
             case 'table':
                 if(is_array($object)) {
-                    $this->io()->table($object); break;
+                    $data = $this->prepareOutputData($object);
+                    $this->io()->table($data); break;
                 }
             case 'print_r': $this->io()->writer()->raw(print_r($object, true)); break;
             case 'var_export': $this->io()->writer()->raw(var_export($object, true)); break;
             case 'csv':
                 if(is_array($object) && count($object) > 0 && is_array($object[0])) {
+                    $data = $this->prepareOutputData($object);
                     $fp = fopen('php://output', 'w');
-                    fputcsv($fp, array_keys($object[0]));
-                    foreach ($object as $line) {
+                    fputcsv($fp, array_keys($data[0]));
+                    foreach ($data as $line) {
                         fputcsv($fp, $line);
                     }
                     fclose($fp);
@@ -181,6 +183,22 @@ abstract class AbstractCommand extends Command
             return ob_get_clean();
 
         return null;
+    }
+
+    // prepare output data
+    // - convert all booleans to 'yes' or 'no'
+    // - convert all null values to 'unknown
+    private function prepareOutputData($data) {
+        if (is_array($data)) {
+            return array_map([$this, 'prepareOutputData'], $data);
+        }
+        if (is_bool($data)) {
+            return $data ? 'yes' : 'no';
+        }
+        if (is_null($data)) {
+            return 'unknown';
+        }
+        return $data;
     }
 
     protected function getOmekaPath(): string {
