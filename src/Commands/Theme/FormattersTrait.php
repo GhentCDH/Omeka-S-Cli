@@ -3,6 +3,8 @@
 namespace OSC\Commands\Theme;
 
 use Omeka\Site\Theme\Theme;
+use OSC\Manager\Result;
+use OSC\Repository\Theme\ThemeDetails;
 
 
 trait FormattersTrait
@@ -34,5 +36,30 @@ trait FormattersTrait
             unset($status['path']);
         }
         return $status;
+    }
+
+    /**
+     * @param Result<ThemeDetails>[] $themeResults
+     * @param bool|null $extended
+     * @return array
+     */
+    private function formatThemeResults(array $themeResults, ?bool $extended = false): array {
+        $output = [];
+        foreach ($themeResults as $themeResult) {
+            $result = [
+                'id' =>  $themeResult->getItem()->getId(),
+                'latestVersion' => $themeResult->getItem()->getLatestVersionNumber(),
+                'omekaVersionConstrant' => $themeResult->getItem()->getLatestVersion()?->getOmekaVersionConstraint(),
+            ];
+            if ($extended) {
+                $result = array_merge($result, [
+                    'url' => $themeResult->getItem()->getLink(),
+                    'owner' => $themeResult->getItem()->getOwner() ?? '',
+                    'repository' => $themeResult->getRepository()->getDisplayName(),
+                ]);
+            }
+            $output[] = $result;
+        }
+        return $output;
     }
 }
