@@ -13,7 +13,7 @@ class ImportCommand extends AbstractCommand
     use VocabularyImporterTrait;
     public function __construct()
     {
-        parent::__construct('vocabulary:import', 'Import a vocabulary into Omeka S using RDF importer');
+        parent::__construct('vocabulary:import', 'Import a vocabulary using RDF importer');
 
         $this->registerVocabularyImporterOptions($this);
 

@@ -17,6 +17,7 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - Download modules from git repositories
     - Install, update, upgrade, enable, disable and delete modules
     - List all downloaded modules and their status
+    - Batch update, upgrade, delete, uninstall modules
 - Manage themes
     - Search and download themes from the [official Omeka S theme repository](https://omeka.org/s/themes/)
     - Download themes from git repositories
@@ -40,7 +41,7 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - Create database.ini file
 - User
     - List all users
-    - Add, delete, enable or disable a user
+    - Add, delete, update, set password, enable or disable a user
     - Manage API keys for a user
 
 ### Automating Omeka S instance setup
