@@ -251,8 +251,6 @@ assert_success    "module:uninstall ValueSuggest"   $CLI module:uninstall ValueS
 assert_success "module:delete --not-installed"   $CLI module:delete --not-installed
 assert_output_is "verify 0 modules are not installed" "0"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
 
-[[ $HAS_SECTION_FILTER -eq 0 ]] && exit
-
 # ── themes ──────────────────────────────────────────────────────────────────
 
 section "Themes"
