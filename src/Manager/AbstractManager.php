@@ -112,6 +112,70 @@ abstract class AbstractManager
     }
 
     /**
+     * List items from all repositories except $excludeRepositoryId,
+     * keeping only those whose ID is not present in $excludeRepositoryId.
+     *
+     * @return Result<T>[]
+     */
+    public function listExclusive(string $excludeRepositoryId): array
+    {
+        $excludeIds = [];
+        $excludeRepository = $this->repositories[$excludeRepositoryId] ?? null;
+        if ($excludeRepository) {
+            foreach ($excludeRepository->list() as $item) {
+                $excludeIds[strtolower($item->getId())] = true;
+            }
+        }
+
+        $result = [];
+        foreach ($this->repositories as $id => $repository) {
+            if ($id === $excludeRepositoryId) {
+                continue;
+            }
+            foreach ($repository->list() as $item) {
+                $key = strtolower($item->getId());
+                if (!isset($excludeIds[$key]) && !isset($result[$key])) {
+                    $result[$key] = new Result($item, $repository);
+                }
+            }
+        }
+        ksort($result, SORT_NATURAL);
+        return $result ? array_values($result) : [];
+    }
+
+    /**
+     * Search items from all repositories except $excludeRepositoryId,
+     * keeping only those whose ID is not present in $excludeRepositoryId.
+     *
+     * @return Result<T>[]
+     */
+    public function searchExclusive(string $query, string $excludeRepositoryId): array
+    {
+        $excludeIds = [];
+        $excludeRepository = $this->repositories[$excludeRepositoryId] ?? null;
+        if ($excludeRepository) {
+            foreach ($excludeRepository->list() as $item) {
+                $excludeIds[strtolower($item->getId())] = true;
+            }
+        }
+
+        $result = [];
+        foreach ($this->repositories as $id => $repository) {
+            if ($id === $excludeRepositoryId) {
+                continue;
+            }
+            foreach ($repository->search($query) as $item) {
+                $key = strtolower($item->getId());
+                if (!isset($excludeIds[$key]) && !isset($result[$key])) {
+                    $result[$key] = new Result($item, $repository);
+                }
+            }
+        }
+        ksort($result, SORT_NATURAL);
+        return $result ? array_values($result) : [];
+    }
+
+    /**
      * @return Result<T>[]
      */
     public function search(string $query, ?string $repositoryId = null): array
