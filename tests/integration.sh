@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
 # Integration tests for omeka-s-cli
-# Usage: ./tests/integration.sh [-v] [--skip <section>...] [--section <section>...]
+# Usage: ./tests/integration.sh [-v] [--phar] [--skip <section>...] [--section <section>...]
 
 set -euo pipefail
-
-CLI="docker exec omeka-s-cli-app-1 php /app/omeka-s-cli/bin/omeka-s-cli"
-# check if inside the container
-if [[ -f /app/omeka-s-cli/bin/omeka-s-cli ]]; then
-    CLI="php /app/omeka-s-cli/bin/omeka-s-cli"
-fi
 
 VERBOSE=0
 PASS=0
 FAIL=0
 SECTION_SKIP=0
 HAS_SECTION_FILTER=0
+USE_PHAR=0
 declare -a FAILURES
 declare -a SKIP_SECTIONS
 declare -a ONLY_SECTIONS
@@ -24,12 +19,23 @@ declare -a ONLY_SECTIONS
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1 ;;
+        --phar) USE_PHAR=1 ;;
         --skip) SKIP_SECTIONS+=("$2"); shift ;;
         --section) ONLY_SECTIONS+=("$2"); HAS_SECTION_FILTER=1; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
     shift
 done
+
+# ── CLI binary ───────────────────────────────────────────────────────────────
+
+BIN="bin/omeka-s-cli"
+[[ $USE_PHAR -eq 1 ]] && BIN="bin/omeka-s-cli.phar"
+
+CLI="docker exec omeka-s-cli-app-1 php /app/omeka-s-cli/$BIN"
+if [[ -f /app/omeka-s-cli/$BIN ]]; then
+    CLI="php /app/omeka-s-cli/$BIN"
+fi
 
 # ── colors ───────────────────────────────────────────────────────────────────
 
