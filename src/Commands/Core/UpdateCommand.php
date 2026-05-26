@@ -119,5 +119,7 @@ class UpdateCommand extends AbstractModuleCommand
             Path::removeFolder($tmpDownloadPath);
             $this->info("done", true);
         }
+
+        $this->ok("Omeka S core successfully updated to version {$versionNumber}.", true);
     }
 }
