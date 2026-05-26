@@ -30,7 +30,8 @@ class ListCommand extends AbstractCommand
         $resourceTemplates = $response->getContent();
 
         if (empty($resourceTemplates)) {
-            $this->warn('No resource templates found.');
+            $this->warn('No resource templates found.', true);
+            $this->outputFormatted([], $format);
             return;
         }
 

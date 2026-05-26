@@ -30,8 +30,11 @@ class ListApiKeysCommand extends AbstractUserCommand
         /** @var ApiKey[] $apiKeys */
         $apiKeys = $em->getRepository(ApiKey::class)->findBy(['owner' => $userEntity]);
 
+        $format = $this->getOutputFormat('table');
+
         if (empty($apiKeys)) {
-            $this->info("No API keys found for user '{$userRepresentation->email()}'.", true);
+            $this->warn("No API keys found for user '{$userRepresentation->email()}'.", true);
+            $this->outputFormatted([], $format);
             return;
         }
 
@@ -47,7 +50,6 @@ class ListApiKeysCommand extends AbstractUserCommand
 
         $this->info("Found " . count($keyData) . " API key(s) for user '{$userRepresentation->email()}'.", true);
 
-        $format = $this->getOutputFormat('table');
         $this->outputFormatted($keyData, $format);
     }
 }
