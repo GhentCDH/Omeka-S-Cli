@@ -6,7 +6,6 @@ use InvalidArgumentException;
 use Omeka\Api\Representation\UserRepresentation;
 use OSC\Commands\AbstractCommand;
 use Omeka\Entity\User;
-use OSC\Exceptions\WarningException;
 
 class AddCommand extends AbstractCommand
 {
@@ -42,7 +41,8 @@ class AddCommand extends AbstractCommand
         $userExists = $api->search('users', ['email' => $email])->getTotalResults() > 0;
         if ($userExists) {
             if ($ignoreExisting) {
-                throw new WarningException("User with email '{$email}' already exists.");
+                $this->warn("User with email '{$email}' already exists.", true);
+                return;
             }
             throw new InvalidArgumentException("User with email '{$email}' already exists.");
         }
