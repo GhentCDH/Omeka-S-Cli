@@ -16,46 +16,30 @@ class ListCommand extends AbstractUserCommand
     public function execute(): void
     {
         $api = $this->getOmekaInstance()->getApi();
-        
-        // Get all users
+
+        $format = $this->getOutputFormat('table');
+
         /** @var UserRepresentation[] $users */
         $users = $api->search('users', [])->getContent();
-        
+
         if (empty($users)) {
-            $this->info("No users found.", true);
+            $this->warn("No users found.", true);
+            $this->outputFormatted([], $format);
             return;
         }
 
-        // Prepare user data
-        $userDataJson = [];
-        $userDataTable = [];
-
+        $data = [];
         foreach ($users as $user) {
-            $userEntry = [
-                'id' => $user->id(),
+            $data[] = [
+                'id'           => $user->id(),
                 'display_name' => $user->name(),
-                'email' => $user->email(),
-                'is_active' => $user->isActive(),
-                'role' => $user->role()
-            ];
-            $userDataJson[] = $userEntry;
-            $userDataTable[] = [
-                ...$userEntry,
-                'role' => $user->displayRole(),
-                'is_active' => $user->isActive() ? 'Yes' : 'No',
+                'email'        => $user->email(),
+                'is_active'    => $user->isActive(),
+                'role'         => $user->role(),
             ];
         }
 
-        // Output based on format
-        $format = $this->getOutputFormat('table');
-
-        $this->info("Found " . count($userDataJson) . " user(s).", true);
-
-        if ($format === 'json') {
-            $this->outputFormatted($userDataJson, 'json');
-        } else {
-            $this->outputFormatted($userDataTable, 'table');
-        }
-
+        $this->info("Found " . count($data) . " user(s).", true);
+        $this->outputFormatted($data, $format);
     }
 }
