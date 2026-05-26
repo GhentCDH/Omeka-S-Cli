@@ -31,7 +31,7 @@ class SearchCommand extends AbstractModuleCommand
         $manager = ModuleRepositoryManager::getInstance();
 
         if ($this->values()['refresh'] ?? false) {
-            $this->info("Refreshing vocabulary repositories...");
+            $this->info("Refreshing module repositories...", true);
             $manager->refreshRepositories();
         }
 
