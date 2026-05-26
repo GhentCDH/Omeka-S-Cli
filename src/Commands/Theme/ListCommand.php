@@ -12,7 +12,7 @@ class ListCommand extends AbstractThemeCommand
         $this->optionCSV();
         $this->optionExtended();
 
-        $this->option('--outdated',     'Show outdated modules',               null, false);
+        $this->option('--outdated',     'Show outdated themes',               null, false);
     }
 
     public function execute(?bool $json = false, ?bool $extended = false, ?bool $outdated = false): void
@@ -28,7 +28,7 @@ class ListCommand extends AbstractThemeCommand
                 continue;
             }
 
-            $output[] = $this->formatThemeStatus($theme, $extended);
+            $output[] = $themeInfo;
         }
 
         $this->outputFormatted($output, $format);
