@@ -25,6 +25,6 @@ class DeleteCommand extends AbstractThemeCommand
         }
 
         $this->getOmekaInstance()->getThemeApi()->delete($theme);
-        $this->ok("Theme '{$themeId}' successfully deleted.", true);
+        $this->ok("Theme '{$themeId}' deleted.", true);
     }
 }

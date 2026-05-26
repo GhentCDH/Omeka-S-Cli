@@ -28,7 +28,7 @@ class DeleteCommand extends AbstractUserCommand
         $this->getOmekaInstance()->elevatePrivileges();
         $api->delete('users', [ 'id' => $userId ]);
 
-        $this->ok("User '{$userRepresentation->email()}' successfully deleted.", true);
+        $this->ok("User '{$userRepresentation->email()}' deleted.", true);
     }
 }
 

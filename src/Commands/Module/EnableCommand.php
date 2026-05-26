@@ -21,6 +21,6 @@ class EnableCommand extends AbstractModuleCommand
             return;
         }
         $this->getOmekaInstance()->getModuleApi()->enable($module);
-        $this->ok("Module '{$moduleId}' successfully enabled.", true);
+        $this->ok("Module '{$moduleId}' enabled.", true);
     }
 }

@@ -34,6 +34,6 @@ class UpdatePasswordCommand extends AbstractUserCommand
         $userEntity->setPassword($password);
         $em->flush();
 
-        $this->ok("Password for user '{$userRepresentation->email()}' successfully updated.", true);
+        $this->ok("Password for user '{$userRepresentation->email()}' updated.", true);
     }
 }

@@ -43,7 +43,7 @@ class CreateDbIniCommand extends AbstractCommand
             throw new Exception("Could not write 'database.ini' config file.");
         }
 
-        $this->ok("Omeka S database configuration created at {$outputPath}", true);
+        $this->ok("Omeka S database configuration written to {$outputPath}.", true);
         return 0;
     }
 

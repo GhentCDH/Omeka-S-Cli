@@ -189,7 +189,7 @@ class DownloadCommand extends AbstractModuleCommand
             }
         }
 
-        $this->ok("Module '{$moduleDirName}' successfully downloaded.", true);
+        $this->ok("Module '{$moduleDirName}' downloaded.", true);
 
         if ($install) {
             $command = $this->app()->commands()['module:install'] ?? null;

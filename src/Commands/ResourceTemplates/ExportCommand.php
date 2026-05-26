@@ -60,7 +60,7 @@ class ExportCommand extends AbstractResourceTemplateCommand
             if (file_put_contents($filename, $exportContent.PHP_EOL) === false) {
                 throw new Exception("Failed to write resource template to file '{$filename}'.");
             }
-            $this->ok("Successfully exported resource template '{$existingResourceTemplate->label()}' to '{$filename}'.", true);
+            $this->ok("Resource template '{$existingResourceTemplate->label()}' exported to '{$filename}'.", true);
         }
     }
 }

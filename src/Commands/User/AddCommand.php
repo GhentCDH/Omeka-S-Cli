@@ -87,6 +87,6 @@ class AddCommand extends AbstractCommand
             $this->outputFormatted($userEntry, 'json');
         }
 
-        $this->ok("User '{$email}' successfully created with role '{$role}'.", true);
+        $this->ok("User '{$email}' created with role '{$role}'.", true);
     }
 }

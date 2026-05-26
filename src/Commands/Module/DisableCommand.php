@@ -21,6 +21,6 @@ class DisableCommand extends AbstractModuleCommand
             return;
         }
         $this->getOmekaInstance()->getModuleApi()->disable($module);
-        $this->ok("Module '{$moduleId}' successfully disabled.", true);
+        $this->ok("Module '{$moduleId}' disabled.", true);
     }
 }

@@ -72,6 +72,6 @@ class UpdateCommand extends AbstractUserCommand
             ], 'json');
         }
 
-        $this->ok("User '{$updated->email()}' successfully updated.", true);
+        $this->ok("User '{$updated->email()}' updated.", true);
     }
 }

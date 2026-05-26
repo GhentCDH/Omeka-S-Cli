@@ -39,7 +39,7 @@ class UpgradeCommand extends AbstractModuleCommand
                 return;
             }
             $moduleApi->upgrade($module);
-            $this->ok("Module '{$moduleId}' successfully upgraded.", true);
+            $this->ok("Module '{$moduleId}' upgraded.", true);
         }
 
         // Upgrade all modules that need upgrade
@@ -66,7 +66,7 @@ class UpgradeCommand extends AbstractModuleCommand
                     $module = $moduleApi->getModule($moduleId);
                     $moduleApi->upgrade($module);
 
-                    $this->ok("Module '{$moduleId}' successfully upgraded.", true);
+                    $this->ok("Module '{$moduleId}' upgraded.", true);
                 } catch (WarningException $e) {
                     $this->warn($e->getMessage(), true);
                 } catch (Throwable $e) {

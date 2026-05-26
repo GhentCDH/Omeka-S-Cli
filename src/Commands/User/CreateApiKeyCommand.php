@@ -68,6 +68,6 @@ class CreateApiKeyCommand extends AbstractUserCommand
         $format = $this->getOutputFormat('table');
         $this->outputFormatted($format == "table" ? [ $keyData ] : $keyData, $format);
 
-        $this->ok("API key '{$label}' successfully created for user '{$userEntity->getEmail()}'.", true);
+        $this->ok("API key '{$label}' created for user '{$userEntity->getEmail()}'.", true);
     }
 }

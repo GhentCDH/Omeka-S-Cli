@@ -24,6 +24,6 @@ class InstallCommand extends AbstractModuleCommand
 
         // install
         $this->getOmekaInstance()->getModuleApi()->install($module);
-        $this->ok("Module '{$moduleId}' successfully installed.", true);
+        $this->ok("Module '{$moduleId}' installed.", true);
     }
 }

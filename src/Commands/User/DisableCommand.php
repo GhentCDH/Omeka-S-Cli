@@ -36,6 +36,6 @@ class DisableCommand extends AbstractUserCommand
         $em->persist($userEntity);
         $em->flush();
 
-        $this->ok("User '{$userRepresentation->email()}' has been disabled.", true);
+        $this->ok("User '{$userRepresentation->email()}' disabled.", true);
     }
 }

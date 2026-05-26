@@ -39,6 +39,6 @@ class MigrateCommand extends AbstractCommand
             $this->io()->eol();
         }
 
-        $this->ok("Core database successfully migrated.", true);
+        $this->ok("Database migrated.", true);
     }
 }

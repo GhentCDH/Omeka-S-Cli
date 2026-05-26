@@ -36,6 +36,6 @@ class EnableCommand extends AbstractUserCommand
         $em->persist($userEntity);
         $em->flush();
 
-        $this->ok("User '{$userRepresentation->email()}' has been enabled.", true);
+        $this->ok("User '{$userRepresentation->email()}' enabled.", true);
     }
 }

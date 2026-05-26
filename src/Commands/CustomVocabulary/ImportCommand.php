@@ -59,7 +59,7 @@ class ImportCommand extends AbstractCustomVocabularyCommand
             if (!$response) {
                 throw new Exception("An error occurred while updating the custom vocabulary '{$currentLabel}'.");
             }
-            $this->ok("Successfully updated custom vocabulary '{$currentLabel}'.", true);
+            $this->ok("Custom vocabulary '{$currentLabel}' updated.", true);
 //            if ($this->getOutputFormat() === 'json') {
 //                $this->outputFormatted([
 //                    'id' => $existingCustomVocabulary->id(),
@@ -72,7 +72,7 @@ class ImportCommand extends AbstractCustomVocabularyCommand
             if (!$response) {
                 throw new Exception("An error occurred while creating the custom vocabulary '{$label}'.");
             }
-            $this->ok("Successfully created custom vocabulary '{$label}' (ID: {$response->id()}).", true);
+            $this->ok("Custom vocabulary '{$label}' created (ID: {$response->id()}).", true);
 //            if ($this->getOutputFormat() === 'json') {
 //                $this->outputFormatted([
 //                    'id' => $response->id(),

@@ -45,6 +45,6 @@ abstract class AbstractDummyCommand extends AbstractCommand
                 $this->info("Created $i $resourceLabel ...", true);
             }
         }
-        $this->ok("Successfully created {$total} {$resourceLabel}.", true);
+        $this->ok("Created {$total} {$resourceLabel}.", true);
     }
 }

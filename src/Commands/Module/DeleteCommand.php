@@ -40,11 +40,11 @@ class DeleteCommand extends AbstractModuleCommand
                 }
                 // Uninstall the module
                 $moduleApi->uninstall($module);
-                $this->ok("Module '{$moduleId}' successfully uninstalled.", true);
+                $this->ok("Module '{$moduleId}' uninstalled.", true);
             }
 
             $moduleApi->delete($module);
-            $this->ok("Module '{$moduleId}' successfully deleted.", true);
+            $this->ok("Module '{$moduleId}' deleted.", true);
         }
 
         if ($notInstalled) {
@@ -70,7 +70,7 @@ class DeleteCommand extends AbstractModuleCommand
                     $module = $moduleApi->getModule($moduleId);
                     $moduleApi->delete($module);
 
-                    $this->ok("Module '{$moduleId}' successfully deleted.", true);
+                    $this->ok("Module '{$moduleId}' deleted.", true);
                 } catch (WarningException $e) {
                     $this->warn($e->getMessage(), true);
                 } catch (Throwable $e) {

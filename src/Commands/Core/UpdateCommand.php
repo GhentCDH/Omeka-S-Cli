@@ -120,6 +120,6 @@ class UpdateCommand extends AbstractModuleCommand
             $this->info("done", true);
         }
 
-        $this->ok("Omeka S core successfully updated to version {$versionNumber}.", true);
+        $this->ok("Omeka S core updated to version {$versionNumber}.", true);
     }
 }
