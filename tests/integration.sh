@@ -32,6 +32,7 @@ done
 BIN="bin/omeka-s-cli"
 [[ $USE_PHAR -eq 1 ]] && BIN="bin/omeka-s-cli.phar"
 
+# shellcheck disable=SC2089
 CLI="docker exec omeka-s-cli-app-1 php /app/omeka-s-cli/$BIN"
 if [[ -f /app/omeka-s-cli/$BIN ]]; then
     CLI="php /app/omeka-s-cli/$BIN"
@@ -152,7 +153,7 @@ summary() {
     else
         echo -e "  Results: $PASS passed, ${RED}$FAIL failed${NC}"
     fi
-    if [[ ${#FAILURES[@]+"${#FAILURES[@]}"} -gt 0 ]]; then
+    if [[ $FAIL -gt 0 ]]; then
         echo ""
         echo "  Failed tests:"
         for f in "${FAILURES[@]+"${FAILURES[@]}"}"; do
@@ -250,8 +251,6 @@ assert_success    "module:uninstall ValueSuggest"   $CLI module:uninstall ValueS
 
 assert_success "module:delete --not-installed"   $CLI module:delete --not-installed
 assert_output_is "verify 0 modules are not installed" "0"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
-
-[[ $HAS_SECTION_FILTER -eq 0 ]] && exit
 
 # ── themes ──────────────────────────────────────────────────────────────────
 
