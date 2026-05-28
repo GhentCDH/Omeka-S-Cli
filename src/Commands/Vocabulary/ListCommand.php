@@ -29,10 +29,9 @@ class ListCommand extends AbstractCommand
         $vocabularies = $response->getContent();
 
         if (empty($vocabularies)) {
-            if ($format === 'table') {
-                $this->warn('No vocabularies found.');
-                return;
-            }
+            $this->warn('No vocabularies found.', true);
+            $this->outputFormatted([], $format);
+            return;
         }
 
         // Prepare data for output

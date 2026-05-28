@@ -80,7 +80,7 @@ class InstallCommand extends AbstractCommand
         }
 
         // Log install details
-        $this->ok("Omeka S installation completed successfully!", true);
+        $this->ok("Omeka S installed.", true);
         $this->info("Administrator email: {$adminEmail}", true);
         $this->info("Administrator password: {$adminPassword}", true);
         $this->info("Installation title: {$title}", true);

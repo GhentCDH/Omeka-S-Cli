@@ -38,7 +38,7 @@ class SelfUpdateCommand extends AbstractCommand
         }
 
         $versionLabel = $newVersion !== null ? " to v{$newVersion}" : '';
-        $this->ok("omeka-s-cli successfully updated{$versionLabel}.", true);
+        $this->ok("omeka-s-cli updated{$versionLabel}.", true);
     }
 
     private function getPharPath(): string

@@ -110,13 +110,13 @@ class ImportCommand extends AbstractResourceTemplateCommand
             if (!$response) {
                 throw new Exception("An error occurred while updating the resource template '{$currentLabel}'.");
             }
-            $this->ok("Successfully updated resource template '{$currentLabel}'.", true);
+            $this->ok("Resource template '{$currentLabel}' updated.", true);
         } else {
             $response = $api->create('resource_templates', $resourceTemplateData)->getContent();
             if (!$response) {
                 throw new Exception("An error occurred while creating the resource template '{$label}'.");
             }
-            $this->ok("Successfully created resource template '{$label}'.", true);
+            $this->ok("Resource template '{$label}' created.", true);
         }
     }
 

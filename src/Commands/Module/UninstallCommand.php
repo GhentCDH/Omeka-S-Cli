@@ -37,7 +37,7 @@ class UninstallCommand extends AbstractModuleCommand
             }
 
             $moduleApi->uninstall($module);
-            $this->ok("Module '{$moduleId}' successfully uninstalled.", true);
+            $this->ok("Module '{$moduleId}' uninstalled.", true);
         }
 
         if ($notActive) {
@@ -63,7 +63,7 @@ class UninstallCommand extends AbstractModuleCommand
                     $module = $moduleApi->getModule($moduleId);
                     $moduleApi->uninstall($module);
 
-                    $this->ok("Module '{$moduleId}' successfully uninstalled.", true);
+                    $this->ok("Module '{$moduleId}' uninstalled.", true);
                 } catch (WarningException $e) {
                     $this->warn($e->getMessage(), true);
                 } catch (Throwable $e) {

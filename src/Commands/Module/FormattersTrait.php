@@ -45,7 +45,7 @@ trait FormattersTrait
             $result = [
                 'id' =>  $moduleResult->getItem()->getDirname(),
                 'latestVersion' => $moduleResult->getItem()->getLatestVersionNumber(),
-                'omekaVersionConstrant' => $moduleResult->getItem()->getLatestVersion()?->getOmekaVersionConstraint(),
+                'omekaVersionConstraint' => $moduleResult->getItem()->getLatestVersion()?->getOmekaVersionConstraint(),
             ];
             if ($extended) {
                 $result = array_merge($result, [

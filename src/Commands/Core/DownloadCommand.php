@@ -95,6 +95,6 @@ class DownloadCommand extends AbstractModuleCommand
         Path::removeFolder($tmpDownloadPath);
         $this->debug("done", true);
 
-        $this->ok("Omeka S core version $versionNumber successfully downloaded to {$destinationPath}", true);
+        $this->ok("Omeka S core version $versionNumber downloaded to {$destinationPath}.", true);
     }
 }

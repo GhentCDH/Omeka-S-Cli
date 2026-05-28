@@ -25,7 +25,7 @@ class SearchCommand extends AbstractThemeCommand
 
         // refresh repositories?
         if ($this->values()['refresh'] ?? false) {
-            $this->info("Refreshing vocabulary repositories...");
+            $this->info("Refreshing theme repositories...", true);
             $manager->refreshRepositories();
         }
 

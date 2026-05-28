@@ -63,7 +63,7 @@ class ImportCommand extends AbstractCommand
         $namespaceUri = $importerOptions['vocabulary']['o:namespace_uri'];
         $existingVocabulary = $this->findExistingVocabulary($namespaceUri);
         if ($existingVocabulary) {
-            $this->io()->info("Found existing vocabulary with namespace URI '{$existingVocabulary->namespaceUri()}'.", true);
+            $this->info("Found existing vocabulary with namespace URI '{$existingVocabulary->namespaceUri()}'.", true);
         }
         if ($existingVocabulary && !$update) {
             throw new WarningException(
@@ -85,20 +85,20 @@ class ImportCommand extends AbstractCommand
 
             // Get diff between existing and new vocabulary
             try {
-                $this->io()->info("Updating existing vocabulary ... ");
+                $this->info("Updating existing vocabulary ... ");
                 $diff = $rdfImporter->getDiff($strategy, $namespaceUri, $importerOptions['options']);
                 $rdfImporter->update($existingVocabulary->id(), $diff);
-                $this->io()->info('done', true);
+                $this->info('done', true);
             } catch (\Omeka\Api\Exception\ValidationException $e) {
                 $this->io()->eol();
                 throw new Exception("Could not update vocabulary (" . $e->getMessage() . ")");
             }
 
-            $this->io()->ok("Successfully updated vocabulary '{$label}'.", true);
+            $this->ok("Vocabulary '{$label}' updated.", true);
         } else {
             // Import new vocabulary
             try {
-                $this->io()->info("Importing vocabulary from {$source} ... ");
+                $this->info("Importing vocabulary from {$source} ... ");
                 $response = $rdfImporter->import(
                     $importerOptions['strategy'],
                     $importerOptions['vocabulary'],
@@ -111,7 +111,7 @@ class ImportCommand extends AbstractCommand
                 throw new Exception("Could not import vocabulary ({$e->getMessage()})");
             }
 
-            $this->io()->ok("Successfully created vocabulary '{$label}'.", true);
+            $this->ok("Vocabulary '{$label}' created.", true);
         }
     }
 

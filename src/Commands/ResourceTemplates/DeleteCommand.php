@@ -35,7 +35,7 @@ class DeleteCommand extends AbstractResourceTemplateCommand
         $this->getOmekaInstance()->elevatePrivileges();
         $api->delete('resource_templates', [ 'id' => $existingResourceTemplate->id() ]);
 
-        $this->ok("Resource template '{$existingResourceTemplate->label()}' successfully deleted.", true);
+        $this->ok("Resource template '{$existingResourceTemplate->label()}' deleted.", true);
     }
 }
 

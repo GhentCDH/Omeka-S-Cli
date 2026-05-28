@@ -49,7 +49,7 @@ trait FormattersTrait
             $result = [
                 'id' =>  $themeResult->getItem()->getId(),
                 'latestVersion' => $themeResult->getItem()->getLatestVersionNumber(),
-                'omekaVersionConstrant' => $themeResult->getItem()->getLatestVersion()?->getOmekaVersionConstraint(),
+                'omekaVersionConstraint' => $themeResult->getItem()->getLatestVersion()?->getOmekaVersionConstraint(),
             ];
             if ($extended) {
                 $result = array_merge($result, [

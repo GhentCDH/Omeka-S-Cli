@@ -33,7 +33,7 @@ class DeleteCommand extends AbstractCommand
         $this->getOmekaInstance()->elevatePrivileges();
         $api->delete('vocabularies', [ 'id' => $vocabularyRepresentation->id() ]);
 
-        $this->ok("Successfully deleted vocabulary '{$vocabularyRepresentation->label()}'.", true);
+        $this->ok("Vocabulary '{$vocabularyRepresentation->label()}' deleted.", true);
     }
 
     protected function findVocabulary(string $identifier, $api): ?VocabularyRepresentation

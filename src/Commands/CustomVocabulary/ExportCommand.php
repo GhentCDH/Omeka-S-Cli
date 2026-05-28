@@ -38,7 +38,7 @@ class ExportCommand extends AbstractCustomVocabularyCommand
             if (file_put_contents($filename, $exportContent.PHP_EOL) === false) {
                 throw new Exception("Failed to write custom vocabulary to file '{$filename}'.");
             }
-            $this->ok("Successfully exported custom vocabulary '{$existingVocabulary->label()}' to '{$filename}'.", true);
+            $this->ok("Custom vocabulary '{$existingVocabulary->label()}' exported to '{$filename}'.", true);
         }
     }
 }

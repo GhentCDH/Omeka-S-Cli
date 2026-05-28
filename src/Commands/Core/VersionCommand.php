@@ -35,8 +35,7 @@ class VersionCommand extends AbstractModuleCommand
         if ($this->values()['json'] ?? false) {
             $this->outputFormatted(['version' => $version], 'json');
         } else {
-            echo $version;
-            $this->io()->eol();
+            $this->echo($version, true);
         }
     }
 }

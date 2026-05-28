@@ -22,6 +22,6 @@ class DeleteCommand extends AbstractCustomVocabularyCommand
         $this->getOmekaInstance()->elevatePrivileges();
         $api->delete('custom_vocabs', [ 'id' => $existingCustomVocabulary->id() ]);
 
-        $this->ok("Custom vocabulary '{$existingCustomVocabulary->label()}' successfully deleted.", true);
+        $this->ok("Custom vocabulary '{$existingCustomVocabulary->label()}' deleted.", true);
     }
 }

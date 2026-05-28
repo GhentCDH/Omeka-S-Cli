@@ -29,6 +29,7 @@ class SetCommand extends AbstractCommand
 
         $value = $this->convertStringToType($value);
         $settings->set($id, $value);
+        $this->ok("Setting '{$id}' updated.", true);
     }
 
     protected function convertStringToType(string $input)

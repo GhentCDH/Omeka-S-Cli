@@ -11,7 +11,7 @@ services:
     depends_on:
       - db
     ports:
-      - "8080:80"
+      - "${APP_PORT:-8080}:80"
 
   db:
     image: mariadb:11.4
@@ -24,7 +24,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     ports:
-      - "3306:3306"
+      - "${DB_PORT:-3306}:3306"
 
 volumes:
   mysql-data:

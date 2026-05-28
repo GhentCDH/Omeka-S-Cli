@@ -32,6 +32,7 @@ done
 BIN="bin/omeka-s-cli"
 [[ $USE_PHAR -eq 1 ]] && BIN="bin/omeka-s-cli.phar"
 
+# shellcheck disable=SC2089
 CLI="docker exec omeka-s-cli-app-1 php /app/omeka-s-cli/$BIN"
 if [[ -f /app/omeka-s-cli/$BIN ]]; then
     CLI="php /app/omeka-s-cli/$BIN"
@@ -152,7 +153,7 @@ summary() {
     else
         echo -e "  Results: $PASS passed, ${RED}$FAIL failed${NC}"
     fi
-    if [[ ${#FAILURES[@]+"${#FAILURES[@]}"} -gt 0 ]]; then
+    if [[ $FAIL -gt 0 ]]; then
         echo ""
         echo "  Failed tests:"
         for f in "${FAILURES[@]+"${FAILURES[@]}"}"; do

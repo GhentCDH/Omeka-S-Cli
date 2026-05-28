@@ -77,10 +77,10 @@ class UpdateCommand extends AbstractModuleCommand
                     $command = $this->app()->commands()['module:download'] ?? null;
                     $command && $command->execute($moduleId, force: true);
                 } catch (WarningException $e) {
-                    $this->io()->warn($e->getMessage(), true);
+                    $this->warn($e->getMessage(), true);
                 } catch (Throwable $e) {
                     $hasErrors = true;
-                    $this->io()->error($e->getMessage(), true);
+                    $this->error($e->getMessage(), true);
                 }
             }
 
@@ -94,10 +94,10 @@ class UpdateCommand extends AbstractModuleCommand
                     $command = $this->app()->commands()['module:upgrade'] ?? null;
                     $command && $command->execute(moduleId: null, all: true);
                 } catch (WarningException $e) {
-                    $this->io()->warn($e->getMessage(), true);
+                    $this->warn($e->getMessage(), true);
                 } catch (Throwable $e) {
                     $hasErrors = true;
-                    $this->io()->error($e->getMessage(), true);
+                    $this->error($e->getMessage(), true);
                 }
             }
 
@@ -105,7 +105,7 @@ class UpdateCommand extends AbstractModuleCommand
                 throw new \Exception("Some modules could not be updated. Please check the error messages above.");
             }
 
-            $this->info("All modules updated successfully.", true);
+            $this->info("All modules updated.", true);
         }
     }
 }

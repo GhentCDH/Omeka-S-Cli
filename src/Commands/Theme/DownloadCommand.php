@@ -167,7 +167,7 @@ class DownloadCommand extends AbstractThemeCommand
             }
         }
 
-        $this->ok("Theme '{$themeDirName}' successfully downloaded.", true);
+        $this->ok("Theme '{$themeDirName}' downloaded.", true);
     }
 
     private function removeTheme(string $path): void
