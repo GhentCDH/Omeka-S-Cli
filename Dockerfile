@@ -39,6 +39,7 @@ RUN apt-get -qq update && \
         libvips-tools \
         libxml2 libxml2-dev libcurl4-openssl-dev libmagickwand-dev \
         git \
+        jq \
         default-mysql-client && \
     apt-get clean && \
     apt-get autoclean
