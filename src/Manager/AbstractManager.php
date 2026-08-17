@@ -3,6 +3,7 @@ namespace OSC\Manager;
 
 use OSC\Exceptions\NotFoundException;
 use OSC\Repository\RepositoryInterface;
+use Throwable;
 
 /**
  * @template T
@@ -13,6 +14,13 @@ abstract class AbstractManager
     private array $repositories = [];
 
     private static array $instances = [];
+
+    /**
+     * Warnings collected while querying repositories, shared by all managers.
+     *
+     * @var string[]
+     */
+    private static array $warnings = [];
 
     public static function getInstance(): static
     {
@@ -55,6 +63,52 @@ abstract class AbstractManager
     }
 
     /**
+     * Query a repository, tolerating repository level failures.
+     *
+     * A repository that can not be reached (network error, rate limiting, ...) should not
+     * break commands that aggregate several repositories: the failure is collected as a
+     * warning and the other repositories are still used.
+     *
+     * @template R
+     * @param RepositoryInterface<T> $repository
+     * @param callable(RepositoryInterface<T>): R $query
+     * @param R $default Value to return when the repository fails
+     * @return R
+     */
+    private function query(RepositoryInterface $repository, callable $query, mixed $default): mixed
+    {
+        try {
+            return $query($repository);
+        } catch (Throwable $e) {
+            self::addWarning(sprintf(
+                "Repository '%s' is unavailable: %s",
+                $repository->getDisplayName(),
+                $e->getMessage()
+            ));
+            return $default;
+        }
+    }
+
+    private static function addWarning(string $warning): void
+    {
+        if (!in_array($warning, self::$warnings, true)) {
+            self::$warnings[] = $warning;
+        }
+    }
+
+    /**
+     * Return the warnings collected so far and clear them.
+     *
+     * @return string[]
+     */
+    public static function takeWarnings(): array
+    {
+        $warnings = self::$warnings;
+        self::$warnings = [];
+        return $warnings;
+    }
+
+    /**
      * Refresh all repositories.
      */
     public function refreshRepositories(): void
@@ -75,7 +129,10 @@ abstract class AbstractManager
             if ($repositoryId && $repository->getId() !== $repositoryId) {
                 continue;
             }
-            $item = $repository->find($id, $type);
+            // an explicitly requested repository must fail loudly
+            $item = $repositoryId
+                ? $repository->find($id, $type)
+                : $this->query($repository, fn($r) => $r->find($id, $type), null);
             if ($item) {
                 return new Result($item, $repository);
             }
@@ -99,7 +156,10 @@ abstract class AbstractManager
 
         $result = [];
         foreach ($repositories as $repository) {
-            $items = $repository->list();
+            // an explicitly requested repository must fail loudly
+            $items = $repositoryId
+                ? $repository->list()
+                : $this->query($repository, fn($r) => $r->list(), []);
             foreach ($items as $item) {
                 $key = strtolower($item->getId());
                 if (!isset($result[$key])) {
@@ -122,7 +182,7 @@ abstract class AbstractManager
         $excludeIds = [];
         $excludeRepository = $this->repositories[$excludeRepositoryId] ?? null;
         if ($excludeRepository) {
-            foreach ($excludeRepository->list() as $item) {
+            foreach ($this->query($excludeRepository, fn($r) => $r->list(), []) as $item) {
                 $excludeIds[strtolower($item->getId())] = true;
             }
         }
@@ -132,7 +192,7 @@ abstract class AbstractManager
             if ($id === $excludeRepositoryId) {
                 continue;
             }
-            foreach ($repository->list() as $item) {
+            foreach ($this->query($repository, fn($r) => $r->list(), []) as $item) {
                 $key = strtolower($item->getId());
                 if (!isset($excludeIds[$key]) && !isset($result[$key])) {
                     $result[$key] = new Result($item, $repository);
@@ -154,7 +214,7 @@ abstract class AbstractManager
         $excludeIds = [];
         $excludeRepository = $this->repositories[$excludeRepositoryId] ?? null;
         if ($excludeRepository) {
-            foreach ($excludeRepository->list() as $item) {
+            foreach ($this->query($excludeRepository, fn($r) => $r->list(), []) as $item) {
                 $excludeIds[strtolower($item->getId())] = true;
             }
         }
@@ -164,7 +224,7 @@ abstract class AbstractManager
             if ($id === $excludeRepositoryId) {
                 continue;
             }
-            foreach ($repository->search($query) as $item) {
+            foreach ($this->query($repository, fn($r) => $r->search($query), []) as $item) {
                 $key = strtolower($item->getId());
                 if (!isset($excludeIds[$key]) && !isset($result[$key])) {
                     $result[$key] = new Result($item, $repository);
@@ -191,7 +251,10 @@ abstract class AbstractManager
 
         $ret = [];
         foreach ($repositories as $repository) {
-            $items = $repository->search($query);
+            // an explicitly requested repository must fail loudly
+            $items = $repositoryId
+                ? $repository->search($query)
+                : $this->query($repository, fn($r) => $r->search($query), []);
             foreach ($items as $item) {
                 $key = strtolower($item->getId());
                 if (!isset($ret[$key])) {
