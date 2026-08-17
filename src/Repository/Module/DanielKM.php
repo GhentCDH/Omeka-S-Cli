@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Repository\Module;
 
+use OSC\Helper\ResourceFetcher;
 use OSC\Repository\AbstractRepository;
 
 /**
@@ -29,9 +30,9 @@ class DanielKM extends AbstractRepository
         $modules = [];
 
         // Get the CSV data from the Daniel-KM module list
-        $csv = file_get_contents(self::API_ENDPOINT);
+        $csv = ResourceFetcher::fetch(self::API_ENDPOINT);
         if (!$csv) {
-            throw new \HttpRequestException("Failed to fetch data from " . self::API_ENDPOINT);
+            throw new \UnexpectedValueException("No data returned from " . self::API_ENDPOINT);
         }
         $csv = array_map('str_getcsv', explode(PHP_EOL, $csv));
 

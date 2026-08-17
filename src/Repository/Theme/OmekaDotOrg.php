@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Repository\Theme;
 
+use OSC\Helper\ResourceFetcher;
 use OSC\Repository\AbstractRepository;
 
 
@@ -29,12 +30,8 @@ class OmekaDotOrg extends AbstractRepository
     {
         $output = [];
 
-        // Get the JSON data from the Omeka.org module list
-        $json = file_get_contents(self::API_ENDPOINT);
-        if (!$json) {
-            throw new \Exception("Failed to fetch data from " . self::API_ENDPOINT);
-        }
-        $data = json_decode($json, true) ?? [];
+        // Get the JSON data from the Omeka.org theme list
+        $data = ResourceFetcher::fetchJson(self::API_ENDPOINT) ?? [];
 
         // Create the modules array
         foreach ($data as $item) {
