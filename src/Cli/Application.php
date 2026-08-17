@@ -2,6 +2,8 @@
 namespace OSC\Cli;
 
 use Ahc\Cli\Input\Command;
+use OSC\Commands\AbstractCommand;
+use OSC\Manager\AbstractManager;
 use Throwable;
 
 class Application extends \Ahc\Cli\Application
@@ -39,7 +41,26 @@ class Application extends \Ahc\Cli\Application
 
         $command->init();
 
-        return parent::doAction($command);
+        try {
+            return parent::doAction($command);
+        } finally {
+            $this->reportRepositoryWarnings($command);
+        }
+    }
+
+    /**
+     * Report repositories that could not be reached while running the command.
+     */
+    protected function reportRepositoryWarnings(Command $command): void
+    {
+        $warnings = AbstractManager::takeWarnings();
+        if (!$warnings || !$command instanceof AbstractCommand) {
+            return;
+        }
+
+        foreach ($warnings as $warning) {
+            $command->warn($warning, true);
+        }
     }
 
     protected function onError(Throwable $e, int $exitCode): void {

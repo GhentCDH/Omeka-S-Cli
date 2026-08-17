@@ -130,31 +130,16 @@ class ResourceFetcher
             throw new InvalidArgumentException("Invalid URL: {$url}");
         }
 
-        // Check if allow_url_fopen is enabled
+        // cURL is the preferred transport: it reports the HTTP status code explicitly
+        if (function_exists('curl_init')) {
+            return self::fetchWithCurl($url);
+        }
+
         if (!ini_get('allow_url_fopen')) {
-            // Try with cURL if available
-            if (function_exists('curl_init')) {
-                return self::fetchWithCurl($url);
-            }
-            throw new Exception("Cannot fetch URL: allow_url_fopen is disabled and cURL is not available");
+            throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
         }
 
-        // Create stream context with timeout
-        $context = stream_context_create([
-            'http' => [
-                'timeout' => 30,
-                'user_agent' => 'Omeka-S-CLI/1.0',
-                'follow_location' => true,
-            ],
-        ]);
-
-        $content = @file_get_contents($url, false, $context);
-
-        if ($content === false) {
-            throw new Exception("Failed to fetch URL: {$url}");
-        }
-
-        return $content;
+        return self::fetchWithStreamWrapper($url);
     }
 
     /**
@@ -188,6 +173,35 @@ class ResourceFetcher
 
         if ($httpCode >= 400) {
             throw new Exception("HTTP error {$httpCode} when fetching URL: {$url}");
+        }
+
+        return $content;
+    }
+
+    /**
+     * Fetch content using the http stream wrapper
+     *
+     * Fallback for hosts without ext-curl. The wrapper does not expose the HTTP status
+     * code as a return value, so failures are reported without it.
+     *
+     * @param string $url
+     * @return string
+     * @throws Exception If the request fails
+     */
+    protected static function fetchWithStreamWrapper(string $url): string
+    {
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 30,
+                'user_agent' => 'Omeka-S-CLI/1.0',
+                'follow_location' => true,
+            ],
+        ]);
+
+        $content = @file_get_contents($url, false, $context);
+
+        if ($content === false) {
+            throw new Exception("Failed to fetch URL: {$url}");
         }
 
         return $content;
