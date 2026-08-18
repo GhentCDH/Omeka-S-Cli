@@ -5,7 +5,6 @@ use InvalidArgumentException;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUriType;
-use OSC\Omeka\OmekaInstanceFactory;
 use Throwable;
 
 class UpdateCommand extends AbstractModuleCommand
@@ -43,12 +42,11 @@ class UpdateCommand extends AbstractModuleCommand
 
             // upgrade the module if requested
             if ($upgrade) {
-                // re-bootstrap so new module files are visible to the service container
-                OmekaInstanceFactory::reset();
-
-                /** @var UpgradeCommand $command */
-                $command = $this->app()->commands()['module:upgrade'] ?? null;
-                $command && $command->execute($module->getId());
+                // the module files on disc have just been replaced, but this process still holds
+                // the Module class of the previous version, so the upgrade needs a new process
+                if ($this->runInNewProcess(['module:upgrade', $module->getId()]) !== 0) {
+                    throw new \Exception("Module '{$module->getId()}' was updated but could not be upgraded.");
+                }
             }
         }
 
@@ -87,13 +85,12 @@ class UpdateCommand extends AbstractModuleCommand
 
             // upgrade modules if requested
             if ($upgrade) {
-                // re-bootstrap so new module files are visible to the service container
-                OmekaInstanceFactory::reset();
-
+                // the module files on disc have just been replaced, but this process still holds
+                // the Module classes of the previous versions, so the upgrade needs a new process
                 try {
-                    /** @var UpgradeCommand $command */
-                    $command = $this->app()->commands()['module:upgrade'] ?? null;
-                    $command && $command->execute(moduleId: null, all: true);
+                    if ($this->runInNewProcess(['module:upgrade', '--all']) !== 0) {
+                        $hasErrors = true;
+                    }
                 } catch (WarningException $e) {
                     $this->warn($e->getMessage(), true);
                 } catch (Throwable $e) {
