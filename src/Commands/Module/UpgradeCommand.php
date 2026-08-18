@@ -58,6 +58,11 @@ class UpgradeCommand extends AbstractModuleCommand
                 return;
             }
 
+            // Schedule known modules for upgrade based on priority
+            $upgradePriority = ['Common' => 1, 'Log' => 10, 'IiifServer' => 20];
+            $getPriority = fn($id) => $upgradePriority[$id] ?? 1000;
+            usort($modulesToUpgrade, fn($a, $b) => $getPriority($a) <=> $getPriority($b));
+
             $errors = false;
             foreach ($modulesToUpgrade as $moduleId) {
                 try {
@@ -65,6 +70,9 @@ class UpgradeCommand extends AbstractModuleCommand
 
                     $module = $moduleApi->getModule($moduleId);
                     $moduleApi->upgrade($module);
+
+                    // reload module manager
+                    $moduleApi->reload();
 
                     $this->ok("Module '{$moduleId}' upgraded.", true);
                 } catch (WarningException $e) {
