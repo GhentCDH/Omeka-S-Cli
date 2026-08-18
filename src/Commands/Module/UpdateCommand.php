@@ -5,6 +5,7 @@ use InvalidArgumentException;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUriType;
+use OSC\Omeka\OmekaInstanceFactory;
 use Throwable;
 
 class UpdateCommand extends AbstractModuleCommand
@@ -42,8 +43,8 @@ class UpdateCommand extends AbstractModuleCommand
 
             // upgrade the module if requested
             if ($upgrade) {
-                // flush the module manager to update the module state after download
-                $this->getOmekaInstance()->getModuleApi()->reload();
+                // re-bootstrap so new module files are visible to the service container
+                OmekaInstanceFactory::reset();
 
                 /** @var UpgradeCommand $command */
                 $command = $this->app()->commands()['module:upgrade'] ?? null;
@@ -86,8 +87,8 @@ class UpdateCommand extends AbstractModuleCommand
 
             // upgrade modules if requested
             if ($upgrade) {
-                // flush the module manager to update the module state after download
-                $this->getOmekaInstance()->getModuleApi()->reload();
+                // re-bootstrap so new module files are visible to the service container
+                OmekaInstanceFactory::reset();
 
                 try {
                     /** @var UpgradeCommand $command */
