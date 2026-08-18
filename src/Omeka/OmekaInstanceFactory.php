@@ -15,4 +15,9 @@ class OmekaInstanceFactory
         static::$instance->init();
         return static::$instance;
     }
+
+    public static function reset(): void
+    {
+        static::$instance = null;
+    }
 }
