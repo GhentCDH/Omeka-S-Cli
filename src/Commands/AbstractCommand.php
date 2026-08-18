@@ -240,6 +240,55 @@ abstract class AbstractCommand extends Command
         return $instance;
     }
 
+    /**
+     * Run another omeka-s-cli command in a new process.
+     *
+     * PHP loads a class only once per process, so the Module class of every active module stays
+     * in memory exactly as it was when Omeka S was bootstrapped. Once module files have been
+     * replaced on disc, that stale class can no longer be refreshed: re-bootstrapping does not
+     * help, because 'require_once' on an already included path is a no-op and redeclaring the
+     * class would be a fatal error. Work that has to see the new files must therefore run in a
+     * new process.
+     *
+     * The current base path and verbosity are passed on, so the child works on the same
+     * Omeka S instance and produces consistent output.
+     *
+     * @param string[] $arguments Command name and its arguments, e.g. ['module:upgrade', 'Common']
+     * @return int The exit code of the child process
+     * @throws Exception If the omeka-s-cli entry point can not be determined
+     */
+    protected function runInNewProcess(array $arguments): int
+    {
+        // running from a phar: Phar::running() is the only reliable path to the entry point
+        $entryPoint = \Phar::running(false);
+        if ($entryPoint === '') {
+            $entryPoint = realpath($_SERVER['argv'][0] ?? '') ?: '';
+        }
+        if ($entryPoint === '') {
+            throw new Exception("Could not determine the omeka-s-cli entry point to run '{$arguments[0]}'.");
+        }
+
+        $arguments = [...$arguments, '--base-path', $this->getOmekaPath()];
+        if ($this->values()['verbosity'] < 1) {
+            $arguments[] = '--quiet';
+        }
+        if (in_array('--debug', $_SERVER['argv'] ?? [], true)) {
+            $arguments[] = '--debug';
+        }
+
+        $command = implode(' ', array_map(
+            'escapeshellarg',
+            [PHP_BINARY, $entryPoint, ...$arguments]
+        ));
+
+        $this->debug("Running in a new process: {$command}", true);
+
+        $exitCode = 0;
+        passthru($command, $exitCode);
+
+        return $exitCode;
+    }
+
     protected function getOmekaVersion(): string {
         static $version = null;
 
