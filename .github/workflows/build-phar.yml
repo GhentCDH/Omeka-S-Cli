@@ -55,8 +55,14 @@ jobs:
           name: omeka-s-cli.phar
 
       # Upload the .phar file to the GitHub release
+      #
+      # A hyphen in the tag marks a prerelease (v1.0.0-beta.0); stable tags never contain one.
+      # Prereleases must stay out of 'releases/latest', which is what 'self-update' and the
+      # download link in the README resolve to.
       - name: Upload .phar to release
         uses: ncipollo/release-action@v1
         with:
           artifacts: omeka-s-cli.phar
           token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          makeLatest: ${{ !contains(github.ref_name, '-') }}
