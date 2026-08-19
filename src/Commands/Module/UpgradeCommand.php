@@ -2,21 +2,19 @@
 namespace OSC\Commands\Module;
 
 use InvalidArgumentException;
-use OSC\Exceptions\WarningException;
-use Throwable;
 use Omeka\Module\Manager as ModuleManager;
+use OSC\Helper\ModuleDependencyOrder;
 
 class UpgradeCommand extends AbstractModuleCommand
 {
     use FormattersTrait;
 
-    protected bool $argumentModuleId = true;
-
     public function __construct()
     {
         parent::__construct('module:upgrade', 'Upgrade module');
-        $this->argument('[module-id]', 'Module name or ID to upgrade', null);
+        $this->argumentModuleId(true);
         $this->option('-a --all', 'Upgrade all modules', null, false);
+        $this->optionDryRun();
     }
 
     public function execute(?string $moduleId, bool $all = false): void
@@ -38,54 +36,48 @@ class UpgradeCommand extends AbstractModuleCommand
                 $this->warn("Module '{$moduleId}' does not need upgrade.", true);
                 return;
             }
+            if ($this->isDryRun()) {
+                $this->reportDryRun("Module '{$moduleId}' would be upgraded.");
+                return;
+            }
+
             $moduleApi->upgrade($module);
             $this->ok("Module '{$moduleId}' upgraded.", true);
         }
 
         // Upgrade all modules that need upgrade
         if ($all) {
-            $modulesToUpgrade = [];
-            $modules = $moduleApi->getModules();
-            foreach ($modules as $module) {
-                if ($module->getState() !== ModuleManager::STATE_NEEDS_UPGRADE) {
-                    continue;
-                }
-                $modulesToUpgrade[] = $module->getId();
-            }
+            $modulesToUpgrade = $this->collectModulesToUpgrade();
 
             if (!count($modulesToUpgrade)) {
                 $this->info("No modules to upgrade.", true);
                 return;
             }
 
-            // Schedule known modules for upgrade based on priority
-            $upgradePriority = ['Common' => 1, 'Log' => 10, 'IiifServer' => 20];
-            $getPriority = fn($id) => $upgradePriority[$id] ?? 1000;
-            usort($modulesToUpgrade, fn($a, $b) => $getPriority($a) <=> $getPriority($b));
+            $upgrade = function ($moduleId) use ($moduleApi) {
+                $moduleApi->upgrade($moduleApi->getModule($moduleId));
+                // reload module manager
+                $moduleApi->reload();
+            };
 
-            $errors = false;
-            foreach ($modulesToUpgrade as $moduleId) {
-                try {
-                    $this->info("Upgrading module: $moduleId", true);
+            $success = $this->runBulkOperation($modulesToUpgrade, $upgrade, 'Upgrading', 'upgraded');
 
-                    $module = $moduleApi->getModule($moduleId);
-                    $moduleApi->upgrade($module);
-
-                    // reload module manager
-                    $moduleApi->reload();
-
-                    $this->ok("Module '{$moduleId}' upgraded.", true);
-                } catch (WarningException $e) {
-                    $this->warn($e->getMessage(), true);
-                } catch (Throwable $e) {
-                    $this->error($e->getMessage(), true);
-                    $errors = true;
-                }
-            }
-
-            if ($errors) {
+            if (!$success) {
                 $this->error("Some modules could not be upgraded due to errors.", true);
             }
         }
+    }
+
+    /**
+     * Collect the modules a bulk upgrade would affect.
+     *
+     * @return string[] Module ids awaiting an upgrade, dependencies first
+     */
+    protected function collectModulesToUpgrade(): array
+    {
+        // dependencies are upgraded before the modules that rely on them
+        return ModuleDependencyOrder::sort(
+            $this->collectModuleIdsByState([ModuleManager::STATE_NEEDS_UPGRADE])
+        );
     }
 }

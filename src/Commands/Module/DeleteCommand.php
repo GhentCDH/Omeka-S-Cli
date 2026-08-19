@@ -4,8 +4,6 @@ namespace OSC\Commands\Module;
 use Exception;
 use InvalidArgumentException;
 use Omeka\Module\Manager as ModuleManager;
-use OSC\Exceptions\WarningException;
-use Throwable;
 
 class DeleteCommand extends AbstractModuleCommand
 {
@@ -17,9 +15,10 @@ class DeleteCommand extends AbstractModuleCommand
         $this->argumentModuleId(true);
         $this->option('-f --force', 'Force module uninstall', 'boolval', false);
         $this->option('--not-installed', 'Delete all uninstalled modules', 'boolval', false);
+        $this->optionDryRun();
     }
 
-    public function execute(?string $moduleId, ?bool $force, ?bool $notInstalled): void
+    public function execute(?string $moduleId, ?bool $force = false, ?bool $notInstalled = false): void
     {
         if(!$moduleId && !$notInstalled) {
             throw new InvalidArgumentException("You must specify a module ID or the --not-installed option.");
@@ -34,10 +33,25 @@ class DeleteCommand extends AbstractModuleCommand
         if ($moduleId) {
             $module = $moduleApi->getModule($moduleId);
 
-            if($module->getState() === ModuleManager::STATE_ACTIVE || $module->getState() === ModuleManager::STATE_NOT_ACTIVE) {
-                if (!$force) {
-                    throw new Exception("The module is currently installed. Use the --force flag to uninstall the module.");
-                }
+            $installed = in_array(
+                $module->getState(),
+                [ModuleManager::STATE_ACTIVE, ModuleManager::STATE_NOT_ACTIVE],
+                true
+            );
+
+            if ($installed && !$force) {
+                throw new Exception("The module is currently installed. Use the --force flag to uninstall the module.");
+            }
+
+            if ($this->isDryRun()) {
+                $planned = $installed
+                    ? "Module '{$moduleId}' would be uninstalled and deleted."
+                    : "Module '{$moduleId}' would be deleted.";
+                $this->reportDryRun($planned);
+                return;
+            }
+
+            if ($installed) {
                 // Uninstall the module
                 $moduleApi->uninstall($module);
                 $this->ok("Module '{$moduleId}' uninstalled.", true);
@@ -48,40 +62,34 @@ class DeleteCommand extends AbstractModuleCommand
         }
 
         if ($notInstalled) {
-            $modulesToDelete = [];
-            $modules = $moduleApi->getModules();
-            foreach ($modules as $module) {
-                if ($module->getState() !== ModuleManager::STATE_NOT_INSTALLED) {
-                    continue;
-                }
-                $modulesToDelete[] = $module->getId();
-            }
+            $modulesToDelete = $this->collectModulesToDelete();
 
             if (!count($modulesToDelete)) {
                 $this->info("No modules to delete.", true);
                 return;
             }
 
-            $errors = false;
-            foreach ($modulesToDelete as $moduleId) {
-                try {
-                    $this->info("Delete module: $moduleId", true);
+            $delete = fn($moduleId) => $moduleApi->delete($moduleApi->getModule($moduleId));
 
-                    $module = $moduleApi->getModule($moduleId);
-                    $moduleApi->delete($module);
+            $success = $this->runBulkOperation($modulesToDelete, $delete, 'Deleting', 'deleted');
 
-                    $this->ok("Module '{$moduleId}' deleted.", true);
-                } catch (WarningException $e) {
-                    $this->warn($e->getMessage(), true);
-                } catch (Throwable $e) {
-                    $this->error($e->getMessage(), true);
-                    $errors = true;
-                }
-            }
-
-            if ($errors) {
+            if (!$success) {
                 $this->error("Some modules could not be deleted due to errors.", true);
             }
         }
+    }
+
+    /**
+     * Collect the modules a bulk delete would affect.
+     *
+     * Order does not matter here: the files removed belong to modules that are not installed,
+     * so nothing depends on them at this point.
+     *
+     * @return string[] Module ids that are not installed
+     */
+    protected function collectModulesToDelete(): array
+    {
+        // only a module that is not installed can have its files removed
+        return $this->collectModuleIdsByState([ModuleManager::STATE_NOT_INSTALLED]);
     }
 }
