@@ -188,15 +188,15 @@ section "Core"
 assert_output_is "core:version shows version" "4.1.1"  $CLI core:version
 assert_output_contains "core:status is 'installed'" "installed"   $CLI core:status
 assert_fail "core:upgrade to nonexistent version fails" $CLI core:upgrade 9.9.9
-assert_success "core:update to 4.2.0" $CLI core:update 4.2.0
+assert_success "core:update to 4.2.1" $CLI core:update 4.2.1
 assert_output_contains "core:status is 'needs_migration'" "needs_migration"   $CLI core:status
 assert_success "core:migrate" $CLI core:migrate
 
 cd /var/www || exit
-assert_output_is "core:version from cwd /var/www with relative base path ./omeka-s" "4.2.0"  $CLI core:version --base-path ./omeka-s
+assert_output_is "core:version from cwd /var/www with relative base path ./omeka-s" "4.2.1"  $CLI core:version --base-path ./omeka-s
 
 cd /var/www/omeka-s/application/src || exit
-assert_output_is "core:version from cwd /var/www/omeka-s/application/src" "4.2.0" $CLI core:version
+assert_output_is "core:version from cwd /var/www/omeka-s/application/src" "4.2.1" $CLI core:version
 
 cd /var/www/omeka-s
 
@@ -206,6 +206,15 @@ section "Modules"
 
 # get module:list output in json and test it has zero modules
 assert_output_is "module:list lists zero modules" "0"   bash -c "$CLI module:list --json | jq '. | length'"
+
+# repositories and search (read-only, no state involved)
+assert_output_contains "module:repositories lists omeka.org" "omeka.org"   $CLI module:repositories
+assert_output_is "module:repositories --json lists two repositories" "2"   bash -c "$CLI module:repositories --json | jq '. | length'"
+assert_success "module:search common"   $CLI module:search common
+assert_success "module:search common --json returns results"   bash -c "$CLI module:search common --json | jq -e '. | length > 0'"
+assert_success "module:search --repository omeka.org"   $CLI module:search advanced --repository omeka.org
+assert_success "module:search --unregistered (modules not on omeka.org)"   bash -c "$CLI module:search --unregistered --json | jq -e '. | length > 0'"
+assert_success "module:search --refresh (re-fetch repository data)"   $CLI module:search common --refresh
 assert_success "module:download common (using repository)"    $CLI module:download common
 assert_success "module:download common version 3.4.82 (force download)"    $CLI module:download common:3.4.82 --force
 assert_output_contains "module:status common is 'not_installed'" "not_installed"   $CLI module:status common
@@ -251,6 +260,90 @@ assert_success    "module:uninstall ValueSuggest"   $CLI module:uninstall ValueS
 
 assert_success "module:delete --not-installed"   $CLI module:delete --not-installed
 assert_output_is "verify 0 modules are not installed" "0"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
+
+# ── module option guards ─────────────────────────────────────────────────────
+# every bulk command needs exactly one selector: a module id, or a bulk flag
+
+assert_fail "module:enable without module id or --all fails"                  $CLI module:enable
+assert_fail "module:install without module id or --all fails"                 $CLI module:install
+assert_fail "module:disable with both module id and --all fails"              $CLI module:disable common --all
+assert_fail "module:upgrade with both module id and --all fails"              $CLI module:upgrade common --all
+assert_fail "module:delete with both module id and --not-installed fails"     $CLI module:delete common --not-installed
+assert_fail "module:uninstall with both --all and --not-active fails"         $CLI module:uninstall --all --not-active
+
+# ── dry runs ─────────────────────────────────────────────────────────────────
+# a dry run must report the work and change nothing at all
+# state at this point: common and log, both active
+
+assert_output_contains "module:disable --all --dry-run reports two modules" "2 module(s) would be disabled"   $CLI module:disable --all --dry-run
+assert_output_is "dry run disabled nothing" "0"   bash -c "$CLI module:list --not-active --json | jq '. | length'"
+
+assert_output_contains "module:uninstall --all --dry-run reports two modules" "2 module(s) would be uninstalled"   $CLI module:uninstall --all --dry-run
+assert_output_is "dry run uninstalled nothing" "0"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
+
+assert_output_contains "module:disable common --dry-run reports one module" "would be disabled"   $CLI module:disable common --dry-run
+assert_output_is "dry run left common active" "active"   bash -c "$CLI module:status common --json | jq -r '.[0].state'"
+
+assert_output_contains "module:enable --all --dry-run with nothing to do" "No modules to enable."   $CLI module:enable --all --dry-run
+
+# ── bulk enable and disable ──────────────────────────────────────────────────
+
+assert_success "module:disable --all"   $CLI module:disable --all
+assert_output_is "all modules are inactive" "2"   bash -c "$CLI module:list --not-active --json | jq '. | length'"
+assert_success "module:enable --all"   $CLI module:enable --all
+assert_output_is "no modules are inactive" "0"   bash -c "$CLI module:list --not-active --json | jq '. | length'"
+assert_output_is "both modules are active" "2"   bash -c "$CLI module:list --active --json | jq '. | length'"
+
+# ── bulk install ─────────────────────────────────────────────────────────────
+
+assert_success "module:download customvocab (without installing)"   $CLI module:download customvocab
+assert_success "module:download numericdatatypes (without installing)"   $CLI module:download numericdatatypes
+assert_output_is "two modules are downloaded but not installed" "2"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
+
+assert_output_contains "module:install --all --dry-run reports two modules" "2 module(s) would be installed"   $CLI module:install --all --dry-run
+assert_output_is "dry run installed nothing" "2"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
+
+assert_success "module:install --all"   $CLI module:install --all
+assert_output_is "no modules are left uninstalled" "0"   bash -c "$CLI module:list --not-installed --json | jq '. | length'"
+
+# ── bulk update and upgrade ──────────────────────────────────────────────────
+
+assert_success "module:download AdvancedResourceTemplate:3.4.51 --install (outdated fixture)"   $CLI module:download advancedresourcetemplate:3.4.51 --install --force
+assert_output_is "one module is outdated" "1"   bash -c "$CLI module:list --outdated --json | jq '. | length'"
+
+assert_output_contains "module:update --all --dry-run reports one module" "1 module(s) would be updated"   $CLI module:update --all --dry-run
+assert_output_is "dry run updated nothing" "1"   bash -c "$CLI module:list --outdated --json | jq '. | length'"
+
+assert_success "module:update --all (without --upgrade)"   $CLI module:update --all
+assert_output_is "the updated module needs an upgrade" "1"   bash -c "$CLI module:list --needs-upgrade --json | jq '. | length'"
+
+assert_output_contains "module:upgrade --all --dry-run reports one module" "1 module(s) would be upgraded"   $CLI module:upgrade --all --dry-run
+assert_output_is "dry run upgraded nothing" "1"   bash -c "$CLI module:list --needs-upgrade --json | jq '. | length'"
+
+assert_success "module:upgrade --all"   $CLI module:upgrade --all
+assert_output_is "no modules need an upgrade" "0"   bash -c "$CLI module:list --needs-upgrade --json | jq '. | length'"
+
+# ── output modes ─────────────────────────────────────────────────────────────
+
+assert_output_contains "module:list --csv has a csv header" "id,name,state"   $CLI module:list --csv
+assert_output_contains "module:list --extended shows the module path" "Path"   $CLI module:list --extended
+assert_output_is "module:download --quiet prints nothing" ""   $CLI module:download common --force --quiet
+# the backup is written to $HOME/.omeka-s-cli/backups/modules on the machine running the CLI
+assert_success "module:download --backup keeps the previous version"   $CLI module:download common --force --backup
+
+# ── bulk uninstall and delete, restoring the fixture for later sections ──────
+
+assert_success "module:uninstall --all"   $CLI module:uninstall --all
+assert_output_is "no modules are installed" "0"   bash -c "$CLI module:list --active --json | jq '. | length'"
+
+assert_output_contains "module:delete --not-installed --dry-run reports the modules" "module(s) would be deleted"   $CLI module:delete --not-installed --dry-run
+assert_success "module:delete --not-installed"   $CLI module:delete --not-installed
+assert_output_is "no modules remain" "0"   bash -c "$CLI module:list --json | jq '. | length'"
+
+# later sections need common and log installed and active
+assert_success "reinstall common"   $CLI module:download common --install
+assert_success "reinstall log"   $CLI module:download log --install
+assert_output_is "common and log are active again" "2"   bash -c "$CLI module:list --active --json | jq '. | length'"
 
 # ── themes ──────────────────────────────────────────────────────────────────
 
