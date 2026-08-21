@@ -33,6 +33,10 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - Create JSON import configuration files 
     - List all vocabularies
     - Delete vocabularies
+- Database
+    - Export the database to a SQL dump, plain or gzipped
+    - Import a dump back, dropping the existing tables or recreating the database
+    - Works with or without the mysqldump/mysql client binaries
 - Dummy data
     - Generate dummy items and item sets with configurable generators
 - Config
@@ -66,6 +70,9 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
     - `resource-template:import <file>` to import resource templates
 - Set config options
     - `config:set <id> <value>` to set global settings
+- Back up before a risky operation
+    - `db:export /path/outside/the/docroot/dump.sql.gz` to dump the database
+    - `db:import --drop-tables dump.sql.gz` to restore it
 
 ## Usage
 
@@ -207,9 +214,42 @@ Update an existing template by label:
 omeka-s-cli resource-template:import "/path/to/template.json" "My Custom Template"
 ```
 
+### Example: Export and import the database
+
+```bash
+# write a timestamped, gzipped dump in the current directory
+omeka-s-cli db:export
+
+# write it where you want it, compressed or not
+omeka-s-cli db:export /backup/omeka.sql.gz
+omeka-s-cli db:export --no-data /backup/schema.sql
+```
+
+By default the rows of `session`, `fulltext_search`, `job`, `log` and `triplestore_*` are left out:
+their structure is dumped, so they come back empty. Use `--all-data` to dump them as well, or
+`--skip-data-tables <tables>` to skip more.
+
+The dump is written by `mysqldump` when that binary is available and by PHP alone when it is not;
+`--engine php` or `--engine mysqldump` forces one of them. A dump written by either can be read by
+both.
+
+```bash
+# restore, dropping the existing tables first (needs table level privileges only)
+omeka-s-cli db:import --drop-tables /backup/omeka.sql.gz
+
+# restore into a freshly created database (needs a privileged database user)
+omeka-s-cli db:import --recreate-database /backup/omeka.sql
+```
+
+`db:import` asks for confirmation before it overwrites the database; use `--yes` in scripts.
+
+> A database dump is not a complete backup: the `files/` directory, the modules and the themes are
+> not part of it. `db:export` refuses to write inside the Omeka S directory, since a dump contains
+> password hashes, API keys and the database credentials.
+
 ## Requirements
 
-- PHP (>= 8.1) with PDO_MySQL and Zip enabled
+- PHP (>= 8.1) with PDO_MySQL, Zlib and Zip enabled
 - Omeka S (>= 4)
 
 ## Installation
