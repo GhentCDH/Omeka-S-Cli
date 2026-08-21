@@ -39,13 +39,21 @@ class OmekaDotOrg extends AbstractRepository
             return $output;
         }
 
+        // Check data structure
         $firstItem = current($data);
-        if (!isset($firstItem['dirname'], $firstItem['latest_version'], $firstItem['versions'], $firstItem['owner'])) {
-            throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+        foreach (['dirname', 'latest_version', 'versions', 'owner'] as $key) {
+            if (!array_key_exists($key, $firstItem)) {
+                throw new \UnexpectedValueException("Invalid data structure from " . self::API_ENDPOINT);
+            }
         }
 
         // Create the modules array
         foreach ($data as $module) {
+            // an add-on without a published release can not be used
+            if (empty($module['latest_version']) || !isset($module['versions'][$module['latest_version']])) {
+                continue;
+            }
+
             $versions = [];
             foreach (($module['versions'] ?? []) as $version => $versionData) {
                 $versions[$version] = new ModuleVersion(

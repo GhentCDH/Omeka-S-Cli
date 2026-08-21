@@ -82,6 +82,34 @@ abstract class AbstractCommand extends Command
         return $this;
     }
 
+    public function optionDryRun(): static {
+        $this->option('--dry-run', 'Report what would be done, without doing it', 'boolval', false);
+        return $this;
+    }
+
+    /**
+     * Whether the command was asked to report its work instead of carrying it out.
+     *
+     * @return bool
+     */
+    public function isDryRun(): bool
+    {
+        return (bool) ($this->values()['dryRun'] ?? false);
+    }
+
+    /**
+     * Report the work a dry run would have carried out.
+     *
+     * @param string $message What the command would have done
+     *
+     * @return void
+     */
+    public function reportDryRun(string $message): void
+    {
+        $this->warn('Dry run, no changes are made.', true);
+        $this->info($message, true);
+    }
+
     public function getOutputFormat($defaultFormat = null) {
         $values = $this->values();
         $supportedFormats = ['json', 'table', 'env', 'csv'];

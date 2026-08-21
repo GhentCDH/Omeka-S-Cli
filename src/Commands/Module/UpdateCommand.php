@@ -14,12 +14,13 @@ class UpdateCommand extends AbstractModuleCommand
     public function __construct()
     {
         parent::__construct('module:update', 'Update module');
-        $this->argument('[module-id]', 'Module name or ID to update', null);
+        $this->argumentModuleId(true);
         $this->option('-a --all', 'Update all modules', null, false);
         $this->option('-u --upgrade', 'Upgrade module after download', 'boolval', false);
+        $this->optionDryRun();
     }
 
-    public function execute(?string $moduleId, ?bool $upgrade, ?bool $all): void
+    public function execute(?string $moduleId, ?bool $upgrade = false, ?bool $all = false): void
     {
         if ($moduleId && $all) {
             throw new InvalidArgumentException("You cannot specify both a module ID and the --all option.");
@@ -34,6 +35,14 @@ class UpdateCommand extends AbstractModuleCommand
 
             // check if module exists (result is not used)
             $module = $this->getOmekaInstance()->getModuleApi()->getModule($moduleUri->getId());
+
+            if ($this->isDryRun()) {
+                $planned = $upgrade
+                    ? "Module '{$module->getId()}' would be updated and upgraded."
+                    : "Module '{$module->getId()}' would be updated.";
+                $this->reportDryRun($planned);
+                return;
+            }
 
             // download the module
             /** @var DownloadCommand $command */
@@ -51,36 +60,28 @@ class UpdateCommand extends AbstractModuleCommand
         }
 
         if ($all) {
-            $modulesToInstall = [];
-            $modules = $this->getOmekaInstance()->getModuleApi()->getModules();
-            foreach ($modules as $module) {
-                $moduleInfo = $this->formatModuleStatus($module);
-                if (!$moduleInfo['updateAvailable']) {
-                    continue;
-                }
-                $modulesToInstall[] = $moduleInfo['id'];
-            }
+            $modulesToUpdate = $this->collectModulesToUpdate();
 
-            if (!count($modulesToInstall)) {
+            if (!count($modulesToUpdate)) {
                 $this->info("No modules to update.", true);
                 return;
             }
 
             // download modules
-            $hasErrors = false;
-            foreach ($modulesToInstall as $moduleId) {
-                try {
-                    $this->info("Updating module: $moduleId", true);
+            $download = function ($moduleId) {
+                /** @var DownloadCommand $command */
+                $command = $this->app()->commands()['module:download'] ?? null;
+                $command && $command->execute($moduleId, force: true);
+            };
 
-                    /** @var DownloadCommand $command */
-                    $command = $this->app()->commands()['module:download'] ?? null;
-                    $command && $command->execute($moduleId, force: true);
-                } catch (WarningException $e) {
-                    $this->warn($e->getMessage(), true);
-                } catch (Throwable $e) {
-                    $hasErrors = true;
-                    $this->error($e->getMessage(), true);
+            $hasErrors = !$this->runBulkOperation($modulesToUpdate, $download, 'Updating', 'updated');
+
+            if ($this->isDryRun()) {
+                // runBulkOperation reported the modules; the upgrade would follow in a new process
+                if ($upgrade) {
+                    $this->info('They would then be upgraded.', true);
                 }
+                return;
             }
 
             // upgrade modules if requested
@@ -105,5 +106,29 @@ class UpdateCommand extends AbstractModuleCommand
 
             $this->info("All modules updated.", true);
         }
+    }
+
+    /**
+     * Collect the modules a bulk update would affect.
+     *
+     * Unlike the other bulk commands this does not select on a module state: a module can only be
+     * updated when the repository offers a newer version, which formatModuleStatus() resolves per
+     * module through the repository manager. That is a network lookup, which is why the other
+     * commands filter on state instead.
+     *
+     * @return string[] Module ids with a newer version available
+     */
+    protected function collectModulesToUpdate(): array
+    {
+        $moduleIds = [];
+        foreach ($this->getOmekaInstance()->getModuleApi()->getModules() as $module) {
+            $moduleInfo = $this->formatModuleStatus($module);
+            if (!$moduleInfo['updateAvailable']) {
+                continue;
+            }
+            $moduleIds[] = $moduleInfo['id'];
+        }
+
+        return $moduleIds;
     }
 }
