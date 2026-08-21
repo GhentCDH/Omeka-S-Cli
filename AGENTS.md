@@ -10,11 +10,18 @@
 - Omeka bridge is `src/Omeka/*`: `OmekaInstance` bootstraps Omeka runtime, then `ModuleApi` / `ThemeApi` wrap Omeka services.
 - Remote metadata layer is `src/Manager/*/Manager.php` + `src/Repository/**` (official `omeka.org` + Daniel-KM CSV for modules).
 - Download layer is `src/Downloader/GitDownloader.php` and `src/Downloader/ZipDownloader.php`.
+- Database dump layer is `src/Database/*`: `src/Database/Engine/EngineFactory.php` picks
+  `BinaryEngine` (mysqldump/mysql, run through `src/Helper/ProcessRunner.php`) or `PdoEngine` (pure
+  PHP), both implementing `EngineInterface`; `DumpOptions` decides what is dumped, `DumpWriter`
+  normalizes the output and `SqlStatementReader` splits a dump on import. Credentials come from
+  `src/Helper/DatabaseConfig.php`, which reads `config/database.ini` directly instead of
+  bootstrapping Omeka.
 - Repository results are cached via `src/Cache.php` into `$HOME/.cache/omeka-s-cli` using `src/Cache/FileCache.php`.
 
 ## Important Data Flows
 - Module download/update (`src/Commands/Module/DownloadCommand.php`): parse user input with `src/Helper/ResourceUriParser.php` -> resolve candidate versions via manager/repositories -> filter by Omeka compatibility (`src/Helper/VersionCompatibility.php`) -> download/unpack -> install into Omeka `modules/`.
 - Omeka-bound commands: locate Omeka base path automatically (or `--base-path`) and call `OmekaInstanceFactory::createInstance(...)`.
+- Database commands (`src/Commands/Db/*`): locate the Omeka base path the same way, but never boot Omeka, so they keep working on an instance that is broken or half migrated.
 
 ## Project Conventions To Follow
 - New commands should extend `src/Commands/AbstractCommand.php` (or a domain abstract such as `src/Commands/Module/AbstractModuleCommand.php`).
