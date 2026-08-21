@@ -4,6 +4,7 @@ namespace OSC\Commands\Config;
 use Exception;
 use InvalidArgumentException;
 use OSC\Commands\AbstractCommand;
+use OSC\Helper\DatabaseConfig;
 
 class CreateDbIniCommand extends AbstractCommand
 {
@@ -38,32 +39,10 @@ class CreateDbIniCommand extends AbstractCommand
         }
 
         // create config
-        $config = $this->generateDatabaseConfig($host, $port, $username, $password, $dbname);
-        if (file_put_contents($outputPath, $config) === false) {
-            throw new Exception("Could not write 'database.ini' config file.");
-        }
+        $config = DatabaseConfig::fromValues($dbname, $username, $password, $host, $port);
+        $config->writeIniFile($outputPath);
 
         $this->ok("Omeka S database configuration written to {$outputPath}.", true);
         return 0;
-    }
-
-    private function generateDatabaseConfig(string $host, int $port, string $username, string $password, string $dbname): string
-    {
-        $host = addcslashes($host, '"');
-        $username = addcslashes($username, '"');
-        $password = addcslashes($password, '"');
-        $dbname = addcslashes($dbname, '"');
-
-        return <<<INI
-user = "{$username}"
-password = "{$password}"
-dbname = "{$dbname}"
-host = "{$host}"
-port = {$port}
-; Uncomment and configure if using a Unix socket
-; unix_socket = "/path/to/mysql.sock"
-; Additional options
-; log_path = ""
-INI;
     }
 }
