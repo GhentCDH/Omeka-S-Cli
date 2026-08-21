@@ -370,6 +370,48 @@ assert_success "dummy:create-items creates 5 items from local config"           
 assert_success "dummy:create-item-sets creates 5 items from remote config"             $CLI dummy:create-item-sets -n 5 --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/refs/heads/main/examples/dummy/item-set.json
 assert_fail    "dummy:create-items with invalid config must fail"   $CLI dummy:create-items --config /tmp/nonexistent.json
 
+# ── database ─────────────────────────────────────────────────────────────────
+
+section "Database"
+
+DUMP_DIR=/tmp/osc-db-tests
+ITEMS_BEFORE=0
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf "$DUMP_DIR"; mkdir -p "$DUMP_DIR"
+    ITEMS_BEFORE=$(mysql -N -u omeka -pomeka -h db omeka -e 'select count(*) from item' 2>/dev/null || echo 0)
+fi
+
+assert_success "db:export writes a dump"                  $CLI db:export "$DUMP_DIR/dump.sql"
+assert_success "db:export writes a gzipped dump"          $CLI db:export "$DUMP_DIR/dump.sql.gz"
+assert_success "the gzipped dump is valid gzip"           gzip -t "$DUMP_DIR/dump.sql.gz"
+assert_success "db:export --engine php writes a dump"     $CLI db:export --engine php "$DUMP_DIR/php.sql"
+assert_success "db:export --no-data writes a schema"      $CLI db:export --no-data "$DUMP_DIR/schema.sql"
+assert_output_is "the schema holds no row" "0"            bash -c "grep -c '^INSERT INTO' $DUMP_DIR/schema.sql || true"
+assert_success "db:export --all-data writes a dump"       $CLI db:export --all-data "$DUMP_DIR/full.sql"
+assert_success "db:export --tables writes a dump"         $CLI db:export --tables item,value "$DUMP_DIR/two.sql"
+assert_output_is "only the two tables are dumped" "2"     bash -c "grep -c 'CREATE TABLE' $DUMP_DIR/two.sql"
+
+assert_fail "db:export refuses to overwrite a file"                 $CLI db:export "$DUMP_DIR/dump.sql"
+assert_success "db:export --force overwrites a file"                $CLI db:export --force "$DUMP_DIR/dump.sql"
+assert_fail "db:export refuses to write inside the Omeka directory" $CLI db:export
+assert_fail "db:export rejects --tables with --exclude-tables"      $CLI db:export --tables item --exclude-tables value "$DUMP_DIR/x.sql"
+assert_fail "db:export rejects an unknown table"                    $CLI db:export --tables nope "$DUMP_DIR/x.sql"
+assert_fail "db:import without --yes needs a terminal"              $CLI db:import "$DUMP_DIR/dump.sql"
+assert_fail "db:import rejects a missing file"                      $CLI db:import --yes "$DUMP_DIR/nope.sql"
+assert_fail "db:import rejects both drop options"                   $CLI db:import --yes --drop-tables --recreate-database "$DUMP_DIR/dump.sql"
+
+# Cross engine: a dump written by one engine must be readable by the other.
+assert_success "db:import mysqldump dump with the php engine"  $CLI db:import --drop-tables --yes --engine php "$DUMP_DIR/dump.sql"
+assert_output_is "the items survived the import" "$ITEMS_BEFORE" bash -c "mysql -N -u omeka -pomeka -h db omeka -e 'select count(*) from item'"
+assert_success "db:import php dump with the mysql client"      $CLI db:import --drop-tables --yes --engine mysqldump "$DUMP_DIR/php.sql"
+assert_output_is "the items survived the second import" "$ITEMS_BEFORE" bash -c "mysql -N -u omeka -pomeka -h db omeka -e 'select count(*) from item'"
+assert_success "db:import reads a gzipped dump"                $CLI db:import --drop-tables --yes "$DUMP_DIR/dump.sql.gz"
+assert_output_is "job data was skipped by the export" "0"      bash -c "mysql -N -u omeka -pomeka -h db omeka -e 'select count(*) from job'"
+assert_success "db:import --recreate-database"                 $CLI db:import --recreate-database --yes "$DUMP_DIR/dump.sql"
+assert_output_contains "the instance is still installed" "installed"  $CLI core:status
+
+if [[ $SECTION_SKIP -eq 0 ]]; then rm -rf "$DUMP_DIR"; fi
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 summary
