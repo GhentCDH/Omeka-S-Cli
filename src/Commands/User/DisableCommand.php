@@ -1,7 +1,6 @@
 <?php
 namespace OSC\Commands\User;
 
-use InvalidArgumentException;
 
 class DisableCommand extends AbstractUserCommand
 {
@@ -9,17 +8,17 @@ class DisableCommand extends AbstractUserCommand
     {
         parent::__construct('user:disable', 'Disable (deactivate) a user');
         $this->argument('<user>', 'User ID or email address');
+        $this->optionIgnoreNotFound();
     }
 
-    public function execute(string $user): void
+    public function execute(string $user, ?bool $ignoreNotFound = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
-        // Find user by ID or email
-        $userRepresentation = $this->findUser($user, $api, $em);
+        $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
         if (!$userRepresentation) {
-            throw new InvalidArgumentException("User not found: {$user}");
+            return;
         }
 
         // Check if user is already inactive

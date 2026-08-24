@@ -15,6 +15,7 @@ class UpdateCommand extends AbstractUserCommand
         $this->option('--role', 'New role (global_admin, site_admin, editor, reviewer, author, researcher)');
         $this->option('--activate', 'Activate the user', 'boolval', false);
         $this->option('--deactivate', 'Deactivate the user', 'boolval', false);
+        $this->optionIgnoreNotFound();
         $this->optionJson();
     }
 
@@ -25,15 +26,9 @@ class UpdateCommand extends AbstractUserCommand
         ?string $role = null,
         ?bool $activate = false,
         ?bool $deactivate = false,
-        ?bool $json = false
+        ?bool $json = false,
+        ?bool $ignoreNotFound = false
     ): void {
-        $api = $this->getOmekaInstance()->getApi();
-
-        $userRepresentation = $this->findUser($user, $api);
-        if (!$userRepresentation) {
-            throw new InvalidArgumentException("User not found: {$user}");
-        }
-
         if ($activate && $deactivate) {
             throw new InvalidArgumentException("Cannot use --activate and --deactivate together.");
         }
@@ -47,6 +42,13 @@ class UpdateCommand extends AbstractUserCommand
             if (!in_array($role, $validRoles, true)) {
                 throw new InvalidArgumentException("Invalid role: {$role}. Valid roles are: " . implode(', ', $validRoles));
             }
+        }
+
+        $api = $this->getOmekaInstance()->getApi();
+
+        $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
+        if (!$userRepresentation) {
+            return;
         }
 
         $updateData = [

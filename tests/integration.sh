@@ -391,6 +391,33 @@ assert_fail    "nonexistent user must not exist"                                
 assert_success "delete test user"                                                             $CLI user:delete test@example.com
 assert_fail    "delete nonexistent user fails"                                                 $CLI user:delete nonexistent@example.com
 
+# --ignore-not-found: a migration script should skip a user that is absent, but never skip a
+# mistake in the command itself
+
+assert_fail    "user:update on a missing user fails without the flag"          $CLI user:update ghost@example.com --name "Ghost"
+assert_success "user:update --ignore-not-found skips a missing user"           $CLI user:update ghost@example.com --name "Ghost" --ignore-not-found
+assert_success "user:delete --ignore-not-found skips a missing user"           $CLI user:delete ghost@example.com --ignore-not-found
+assert_success "user:enable --ignore-not-found skips a missing user"           $CLI user:enable ghost@example.com --ignore-not-found
+assert_success "user:disable --ignore-not-found skips a missing user"          $CLI user:disable ghost@example.com --ignore-not-found
+assert_success "user:update-password --ignore-not-found skips a missing user"  $CLI user:update-password ghost@example.com secret123 --ignore-not-found
+assert_output_is "the skip prints nothing with --json"  ""                     bash -c "$CLI user:update ghost@example.com --name 'Ghost' --ignore-not-found --json"
+
+assert_fail "--ignore-not-found still rejects --activate with --deactivate"    $CLI user:update ghost@example.com --activate --deactivate --ignore-not-found
+assert_fail "--ignore-not-found still rejects an invalid role"                 $CLI user:update ghost@example.com --role bogus --ignore-not-found
+assert_fail "--ignore-not-found still rejects an invalid email"                $CLI user:update ghost@example.com --email not-an-email --ignore-not-found
+
+# the flag must not stop the commands working on a user that does exist
+assert_success "create a user for the --ignore-not-found checks"               $CLI user:add ignore@example.com "Ignore Test" reviewer secret123
+assert_success "user:update --ignore-not-found updates an existing user"       $CLI user:update ignore@example.com --role editor --ignore-not-found
+assert_output_is "the role was really changed" "editor"                        bash -c "$CLI user:update ignore@example.com --ignore-not-found --json | jq -r .role"
+assert_success "user:disable --ignore-not-found disables an existing user"     $CLI user:disable ignore@example.com --ignore-not-found
+assert_output_is "the user is really inactive" "false"                         bash -c "$CLI user:update ignore@example.com --ignore-not-found --json | jq -r .is_active"
+assert_success "user:enable --ignore-not-found enables an existing user"       $CLI user:enable ignore@example.com --ignore-not-found
+assert_output_is "the user is really active" "true"                            bash -c "$CLI user:update ignore@example.com --ignore-not-found --json | jq -r .is_active"
+assert_success "user:update-password --ignore-not-found on an existing user"   $CLI user:update-password ignore@example.com newsecret123 --ignore-not-found
+assert_success "user:delete --ignore-not-found deletes an existing user"       $CLI user:delete ignore@example.com --ignore-not-found
+assert_fail    "the user is really gone"                                       $CLI user:exists ignore@example.com
+
 # ── vocabularies ─────────────────────────────────────────────────────────────
 
 section "Vocabularies"
