@@ -1,7 +1,6 @@
 <?php
 namespace OSC\Commands\User;
 
-use InvalidArgumentException;
 use OSC\Commands\AbstractCommand;
 
 class DeleteCommand extends AbstractUserCommand
@@ -10,16 +9,16 @@ class DeleteCommand extends AbstractUserCommand
     {
         parent::__construct('user:delete', 'Delete a user from Omeka S');
         $this->argument('<user>', 'User ID or email address');
+        $this->optionIgnoreNotFound();
     }
 
-    public function execute(string $user): void
+    public function execute(string $user, ?bool $ignoreNotFound = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
 
-        // Try to find user by ID or email
-        $userRepresentation = $this->findUser($user, $api);
+        $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
         if (!$userRepresentation) {
-            throw new InvalidArgumentException("User not found: {$user}");
+            return;
         }
 
         $userId = $userRepresentation->id();

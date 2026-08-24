@@ -11,16 +11,17 @@ class UpdatePasswordCommand extends AbstractUserCommand
         parent::__construct('user:update-password', 'Update the password of a user');
         $this->argument('<user>', 'User ID or email address');
         $this->argument('<password>', 'New password for the user');
+        $this->optionIgnoreNotFound();
     }
 
-    public function execute(string $user, string $password): void
+    public function execute(string $user, string $password, ?bool $ignoreNotFound = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
-        $userRepresentation = $this->findUser($user, $api);
+        $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
         if (!$userRepresentation) {
-            throw new InvalidArgumentException("User not found: {$user}");
+            return;
         }
 
         if (empty(trim($password))) {
