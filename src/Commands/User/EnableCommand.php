@@ -8,7 +8,7 @@ class EnableCommand extends AbstractUserCommand
     {
         parent::__construct('user:enable', 'Enable (activate) a user');
         $this->argument('<user>', 'User ID or email address');
-        $this->optionIgnoreNotFound();
+        $this->optionIgnoreNotFound('user');
     }
 
     public function execute(string $user, ?bool $ignoreNotFound = false): void

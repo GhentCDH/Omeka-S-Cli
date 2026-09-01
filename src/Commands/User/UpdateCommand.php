@@ -15,7 +15,7 @@ class UpdateCommand extends AbstractUserCommand
         $this->option('--role', 'New role (global_admin, site_admin, editor, reviewer, author, researcher)');
         $this->option('--activate', 'Activate the user', 'boolval', false);
         $this->option('--deactivate', 'Deactivate the user', 'boolval', false);
-        $this->optionIgnoreNotFound();
+        $this->optionIgnoreNotFound('user');
         $this->optionJson();
     }
 

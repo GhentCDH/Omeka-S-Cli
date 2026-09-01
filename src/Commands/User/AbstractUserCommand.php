@@ -7,18 +7,6 @@ use OSC\Commands\AbstractCommand;
 
 abstract class AbstractUserCommand extends AbstractCommand
 {
-    public function optionIgnoreNotFound(): static
-    {
-        $this->option(
-            '--ignore-not-found',
-            'Do nothing if the user does not exist (default: throw an error)',
-            'boolval',
-            false
-        );
-
-        return $this;
-    }
-
     /**
      * Resolve the user a command was asked to act on.
      *
@@ -37,12 +25,8 @@ abstract class AbstractUserCommand extends AbstractCommand
             return $userRepresentation;
         }
 
-        if ($ignoreNotFound) {
-            $this->warn("User not found: {$user}. Nothing to do.", true);
-            return null;
-        }
-
-        throw new InvalidArgumentException("User not found: {$user}");
+        $this->skipMissing(new InvalidArgumentException("User not found: {$user}"), $ignoreNotFound);
+        return null;
     }
 
     protected function findUser(string $userIdentifier, $api): ?UserRepresentation

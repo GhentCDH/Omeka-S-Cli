@@ -11,7 +11,7 @@ class UpdatePasswordCommand extends AbstractUserCommand
         parent::__construct('user:update-password', 'Update the password of a user');
         $this->argument('<user>', 'User ID or email address');
         $this->argument('<password>', 'New password for the user');
-        $this->optionIgnoreNotFound();
+        $this->optionIgnoreNotFound('user');
     }
 
     public function execute(string $user, string $password, ?bool $ignoreNotFound = false): void
