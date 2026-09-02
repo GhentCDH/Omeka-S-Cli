@@ -2,6 +2,7 @@
 namespace OSC\Commands\User;
 
 use InvalidArgumentException;
+use Omeka\Api\Manager as ApiManager;
 use Omeka\Api\Representation\UserRepresentation;
 use OSC\Commands\AbstractCommand;
 
@@ -10,15 +11,15 @@ abstract class AbstractUserCommand extends AbstractCommand
     /**
      * Resolve the user a command was asked to act on.
      *
-     * @param string $api             Omeka API manager
-     * @param string $user            User ID or email address
-     * @param bool   $ignoreNotFound  Report a missing user instead of failing on it
+     * @param string     $user           User ID or email address
+     * @param ApiManager $api            Omeka API instance
+     * @param bool       $ignoreNotFound Report a missing user instead of failing on it
      *
      * @return UserRepresentation The resolved user (always; absence throws or is reported and aborts)
      *
      * @throws InvalidArgumentException If the user does not exist
      */
-    protected function requireUser(string $user, $api, bool $ignoreNotFound = false): UserRepresentation
+    protected function requireUser(string $user, ApiManager $api, bool $ignoreNotFound = false): UserRepresentation
     {
         $userRepresentation = $this->findUser($user, $api);
         if ($userRepresentation) {
@@ -28,7 +29,7 @@ abstract class AbstractUserCommand extends AbstractCommand
         $this->skipMissing(new InvalidArgumentException("User not found: {$user}"), $ignoreNotFound);
     }
 
-    protected function findUser(string $userIdentifier, $api): ?UserRepresentation
+    protected function findUser(string $userIdentifier, ApiManager $api): ?UserRepresentation
     {
         // Try to find user by ID or email
         if (is_numeric($userIdentifier)) {
