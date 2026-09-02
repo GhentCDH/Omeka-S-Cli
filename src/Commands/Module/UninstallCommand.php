@@ -39,9 +39,6 @@ class UninstallCommand extends AbstractModuleCommand
 
         if ($moduleId) {
             $module = $this->requireModule($moduleId, $ignoreNotFound);
-            if (!$module) {
-                return;
-            }
 
             if ($module->getState() === ModuleManager::STATE_NOT_INSTALLED) {
                 $this->warn("Module '{$moduleId}' is already uninstalled.", true);

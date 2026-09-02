@@ -20,9 +20,6 @@ class DeleteCommand extends AbstractResourceTemplateCommand
 
         // Find resource template by ID or label
         $existingResourceTemplate = $this->requireResourceTemplate($identifier, $api, $ignoreNotFound);
-        if (!$existingResourceTemplate) {
-            return;
-        }
 
         // Check if resource template is in use
         $itemCount = $existingResourceTemplate->itemCount();

@@ -24,9 +24,6 @@ class ExportCommand extends AbstractResourceTemplateCommand
 
         // Find resource template by ID or label
         $existingResourceTemplate = $this->requireResourceTemplate($identifier, $api);
-        if (!$existingResourceTemplate) {
-            return;
-        }
 
         // Get the actual ID for the controller
         $id = $existingResourceTemplate->id();

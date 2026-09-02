@@ -33,17 +33,16 @@ abstract class AbstractModuleCommand extends AbstractCommand
      * @param string $moduleId       Module id
      * @param bool   $ignoreNotFound Report a missing module instead of failing on it
      *
-     * @return Module|null Null only when the module is absent and may be ignored
+     * @return Module The resolved module (always; absence throws or is reported and aborts)
      *
      * @throws NotFoundException If the module does not exist
      */
-    protected function requireModule(string $moduleId, bool $ignoreNotFound = false): ?Module
+    protected function requireModule(string $moduleId, bool $ignoreNotFound = false): Module
     {
         try {
             return $this->getOmekaInstance()->getModuleApi()->getModule($moduleId);
         } catch (NotFoundException $e) {
             $this->skipMissing($e, $ignoreNotFound);
-            return null;
         }
     }
 

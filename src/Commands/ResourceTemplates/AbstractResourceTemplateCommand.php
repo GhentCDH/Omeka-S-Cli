@@ -61,7 +61,7 @@ abstract class AbstractResourceTemplateCommand extends AbstractCommand
      * @param ApiManager $api            Omeka API instance
      * @param bool       $ignoreNotFound Report a missing template instead of failing on it
      *
-     * @return ResourceTemplateRepresentation|null Null only when absent and ignorable
+     * @return ResourceTemplateRepresentation The resolved template (always; absence throws or aborts)
      *
      * @throws InvalidArgumentException If the resource template does not exist
      */
@@ -69,7 +69,7 @@ abstract class AbstractResourceTemplateCommand extends AbstractCommand
         string $identifier,
         ApiManager $api,
         bool $ignoreNotFound = false
-    ): ?ResourceTemplateRepresentation {
+    ): ResourceTemplateRepresentation {
         $template = $this->findResourceTemplate($identifier, $api);
         if ($template) {
             return $template;
@@ -79,7 +79,5 @@ abstract class AbstractResourceTemplateCommand extends AbstractCommand
             new InvalidArgumentException("Resource template '{$identifier}' not found by ID or label."),
             $ignoreNotFound
         );
-
-        return null;
     }
 }

@@ -17,9 +17,6 @@ class DisableCommand extends AbstractUserCommand
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
         $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
-        if (!$userRepresentation) {
-            return;
-        }
 
         // Check if user is already inactive
         if (!$userRepresentation->isActive()) {

@@ -69,7 +69,7 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
      * @param string     $searchBy       Search strategy: 'id', 'label', or 'both' (default: 'both')
      * @param bool       $ignoreNotFound Report a missing vocabulary instead of failing on it
      *
-     * @return CustomVocabRepresentation|null Null only when absent and ignorable
+     * @return CustomVocabRepresentation The resolved vocabulary (always; absence throws or aborts)
      *
      * @throws InvalidArgumentException If the custom vocabulary does not exist
      */
@@ -78,7 +78,7 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
         ApiManager $api,
         string $searchBy = self::SEARCH_BY_BOTH,
         bool $ignoreNotFound = false
-    ): ?CustomVocabRepresentation {
+    ): CustomVocabRepresentation {
         $customVocab = $this->findCustomVocabulary($identifier, $api, $searchBy);
         if ($customVocab) {
             return $customVocab;
@@ -94,7 +94,5 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
             new InvalidArgumentException("Custom vocabulary not found by {$byLabel}: '{$identifier}'."),
             $ignoreNotFound
         );
-
-        return null;
     }
 }

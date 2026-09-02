@@ -32,9 +32,6 @@ class DisableCommand extends AbstractModuleCommand
 
         if ($moduleId) {
             $module = $this->requireModule($moduleId, $ignoreNotFound);
-            if (!$module) {
-                return;
-            }
 
             if ($module->getState() === ModuleManager::STATE_NOT_ACTIVE) {
                 $this->warn("Module '{$moduleId}' is already disabled.", true);

@@ -19,9 +19,6 @@ class DeleteCommand extends AbstractThemeCommand
     public function execute(?string $themeId, ?bool $force, ?bool $ignoreNotFound = false): void
     {
         $theme = $this->requireTheme($themeId, $ignoreNotFound);
-        if (!$theme) {
-            return;
-        }
 
         if($this->getOmekaInstance()->getThemeApi()->isActiveOnSite($theme)) {
             if (!$force) {

@@ -20,9 +20,6 @@ class UpdatePasswordCommand extends AbstractUserCommand
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
         $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
-        if (!$userRepresentation) {
-            return;
-        }
 
         if (empty(trim($password))) {
             throw new InvalidArgumentException("Password cannot be empty.");

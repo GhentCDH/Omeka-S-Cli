@@ -47,9 +47,6 @@ class UpdateCommand extends AbstractUserCommand
         $api = $this->getOmekaInstance()->getApi();
 
         $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
-        if (!$userRepresentation) {
-            return;
-        }
 
         $updateData = [
             'o:name' => $name ?? $userRepresentation->name(),

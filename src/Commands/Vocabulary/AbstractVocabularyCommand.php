@@ -37,7 +37,7 @@ abstract class AbstractVocabularyCommand extends AbstractCommand
      * @param mixed  $api            Omeka API instance
      * @param bool   $ignoreNotFound Report a missing vocabulary instead of failing on it
      *
-     * @return VocabularyRepresentation|null Null only when absent and ignorable
+     * @return VocabularyRepresentation The resolved vocabulary (always; absence throws or aborts)
      *
      * @throws InvalidArgumentException If the vocabulary does not exist
      */
@@ -45,7 +45,7 @@ abstract class AbstractVocabularyCommand extends AbstractCommand
         string $identifier,
         $api,
         bool $ignoreNotFound = false
-    ): ?VocabularyRepresentation {
+    ): VocabularyRepresentation {
         $vocabulary = $this->findVocabulary($identifier, $api);
         if ($vocabulary) {
             return $vocabulary;
@@ -55,7 +55,5 @@ abstract class AbstractVocabularyCommand extends AbstractCommand
             new InvalidArgumentException("Could not find vocabulary by ID or prefix: '{$identifier}'."),
             $ignoreNotFound
         );
-
-        return null;
     }
 }

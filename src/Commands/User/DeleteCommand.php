@@ -17,9 +17,6 @@ class DeleteCommand extends AbstractUserCommand
         $api = $this->getOmekaInstance()->getApi();
 
         $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
-        if (!$userRepresentation) {
-            return;
-        }
 
         $userId = $userRepresentation->id();
 

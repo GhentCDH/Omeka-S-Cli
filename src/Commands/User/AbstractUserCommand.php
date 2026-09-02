@@ -14,11 +14,11 @@ abstract class AbstractUserCommand extends AbstractCommand
      * @param string $user            User ID or email address
      * @param bool   $ignoreNotFound  Report a missing user instead of failing on it
      *
-     * @return UserRepresentation|null Null only when the user is absent and may be ignored
+     * @return UserRepresentation The resolved user (always; absence throws or is reported and aborts)
      *
      * @throws InvalidArgumentException If the user does not exist
      */
-    protected function requireUser(string $user, $api, bool $ignoreNotFound = false): ?UserRepresentation
+    protected function requireUser(string $user, $api, bool $ignoreNotFound = false): UserRepresentation
     {
         $userRepresentation = $this->findUser($user, $api);
         if ($userRepresentation) {
@@ -26,7 +26,6 @@ abstract class AbstractUserCommand extends AbstractCommand
         }
 
         $this->skipMissing(new InvalidArgumentException("User not found: {$user}"), $ignoreNotFound);
-        return null;
     }
 
     protected function findUser(string $userIdentifier, $api): ?UserRepresentation

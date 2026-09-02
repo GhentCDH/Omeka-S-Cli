@@ -18,9 +18,6 @@ class DeleteCommand extends AbstractVocabularyCommand
 
         // Try to find vocabulary by ID or prefix
         $vocabularyRepresentation = $this->requireVocabulary($identifier, $api, $ignoreNotFound);
-        if (!$vocabularyRepresentation) {
-            return;
-        }
 
         // Check if vocabulary is protected
         if ($vocabularyRepresentation->isPermanent()) {

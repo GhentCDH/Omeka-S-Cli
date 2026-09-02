@@ -17,9 +17,6 @@ class EnableCommand extends AbstractUserCommand
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
         $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
-        if (!$userRepresentation) {
-            return;
-        }
 
         // Check if user is already active
         if ($userRepresentation->isActive()) {

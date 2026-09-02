@@ -19,9 +19,6 @@ class DeleteCommand extends AbstractCustomVocabularyCommand
 
         // Get vocabulary
         $existingCustomVocabulary = $this->requireCustomVocabulary($identifier, $api, self::SEARCH_BY_BOTH, $ignoreNotFound);
-        if (!$existingCustomVocabulary) {
-            return;
-        }
 
         // Delete resource template
         $this->getOmekaInstance()->elevatePrivileges();

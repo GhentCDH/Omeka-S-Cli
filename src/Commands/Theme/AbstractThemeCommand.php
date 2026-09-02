@@ -27,17 +27,16 @@ abstract class AbstractThemeCommand extends AbstractCommand
      * @param string $themeId        Theme id
      * @param bool   $ignoreNotFound Report a missing theme instead of failing on it
      *
-     * @return Theme|null Null only when the theme is absent and may be ignored
+     * @return Theme The resolved theme (always; absence throws or is reported and aborts)
      *
      * @throws NotFoundException If the theme does not exist
      */
-    protected function requireTheme(string $themeId, bool $ignoreNotFound = false): ?Theme
+    protected function requireTheme(string $themeId, bool $ignoreNotFound = false): Theme
     {
         try {
             return $this->getOmekaInstance()->getThemeApi()->getTheme($themeId);
         } catch (NotFoundException $e) {
             $this->skipMissing($e, $ignoreNotFound);
-            return null;
         }
     }
 }

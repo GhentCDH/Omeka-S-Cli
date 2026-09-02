@@ -20,10 +20,7 @@ class DeleteApiKeyCommand extends AbstractUserCommand
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
         // Find user by ID or email
-        $userEntity = $this->requireUser($user, $api, $ignoreNotFound)?->getEntity();
-        if (!$userEntity) {
-            return;
-        }
+        $userEntity = $this->requireUser($user, $api, $ignoreNotFound)->getEntity();
 
         // Find API key by label
         $apiKey = $em->getRepository(ApiKey::class)->findOneBy([
@@ -38,7 +35,6 @@ class DeleteApiKeyCommand extends AbstractUserCommand
                 ),
                 $ignoreNotFound
             );
-            return;
         }
 
         // Delete API key

@@ -5,6 +5,7 @@ namespace OSC\Commands;
 use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Command;
 use Exception;
+use OSC\Exceptions\IgnoredNotFoundException;
 use OSC\Helper\Path;
 use OSC\Helper\OmekaVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
@@ -53,7 +54,7 @@ abstract class AbstractCommand extends Command
 
         // add omeka base-path option
         $this->option('-b --base-path', 'Base path to Omeka S installation', 'strval');
-        $this->option('-q --quiet', 'Suppress info messages', 'strval')->on([$this, 'beQuiet']);
+        $this->option('-q --quiet', 'Suppress info and warning messages', 'strval')->on([$this, 'beQuiet']);
 
         return $this;
     }
@@ -96,13 +97,17 @@ abstract class AbstractCommand extends Command
      *
      * @throws Throwable The original error, when the absence must not be ignored
      */
-    protected function skipMissing(Throwable $notFound, bool $ignoreNotFound): void
+    protected function skipMissing(Throwable $notFound, bool $ignoreNotFound): never
     {
         if (!$ignoreNotFound) {
             throw $notFound;
         }
 
+        // verbosity-aware, so --quiet/--json silence the note
         $this->warn(rtrim($notFound->getMessage(), '.') . '. Nothing to do.', true);
+
+        // stop the command cleanly; Application::onError() maps this to exit 0 without output
+        throw new IgnoredNotFoundException();
     }
 
     public function optionIgnoreNotFound(string $resource = 'resource'): static {

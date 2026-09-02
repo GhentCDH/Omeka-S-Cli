@@ -37,9 +37,6 @@ class DeleteCommand extends AbstractModuleCommand
 
         if ($moduleId) {
             $module = $this->requireModule($moduleId, $ignoreNotFound);
-            if (!$module) {
-                return;
-            }
 
 
             $installed = in_array(
