@@ -2,9 +2,8 @@
 namespace OSC\Commands\Vocabulary;
 
 use Exception;
-use OSC\Commands\AbstractCommand;
 
-class CreateImportConfigCommand extends AbstractCommand
+class CreateImportConfigCommand extends AbstractVocabularyCommand
 {
     use VocabularyImporterTrait;
     public function __construct()

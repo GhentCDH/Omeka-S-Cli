@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Commands\Theme;
 
+
 use Exception;
 
 class DeleteCommand extends AbstractThemeCommand
@@ -11,12 +12,13 @@ class DeleteCommand extends AbstractThemeCommand
     {
         parent::__construct('theme:delete', 'Delete theme');
         $this->option('-f --force', 'Force theme delete', 'boolval', false);
+        $this->optionIgnoreNotFound('theme');
         $this->argumentThemeId();
     }
 
-    public function execute(?string $themeId, ?bool $force): void
+    public function execute(?string $themeId, ?bool $force, ?bool $ignoreNotFound = false): void
     {
-        $theme = $this->getOmekaInstance()->getThemeApi()->getTheme($themeId);
+        $theme = $this->requireTheme($themeId, $ignoreNotFound);
 
         if($this->getOmekaInstance()->getThemeApi()->isActiveOnSite($theme)) {
             if (!$force) {

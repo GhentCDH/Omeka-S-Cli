@@ -345,6 +345,17 @@ assert_success "reinstall common"   $CLI module:download common --install
 assert_success "reinstall log"   $CLI module:download log --install
 assert_output_is "common and log are active again" "2"   bash -c "$CLI module:list --active --json | jq '. | length'"
 
+# --ignore-not-found: a script that wants a module gone should not stop because it never was there
+
+assert_fail    "module:uninstall on an unknown module fails"                  $CLI module:uninstall ghostmod
+assert_success "module:uninstall --ignore-not-found skips an unknown module"  $CLI module:uninstall ghostmod --ignore-not-found
+assert_fail    "module:delete on an unknown module fails"                     $CLI module:delete ghostmod
+assert_success "module:delete --ignore-not-found skips an unknown module"     $CLI module:delete ghostmod --ignore-not-found
+assert_fail    "module:disable on an unknown module fails"                    $CLI module:disable ghostmod
+assert_success "module:disable --ignore-not-found skips an unknown module"    $CLI module:disable ghostmod --ignore-not-found
+assert_fail    "--ignore-not-found does not replace --force on module:delete" $CLI module:delete common --ignore-not-found
+assert_output_is "the modules are untouched by the skips" "2"   bash -c "$CLI module:list --active --json | jq '. | length'"
+
 # ── themes ──────────────────────────────────────────────────────────────────
 
 section "Themes"
@@ -356,6 +367,10 @@ assert_output_is "theme:list with two themes" "2"   bash -c "$CLI theme:list --j
 assert_success "delete freedom theme"    $CLI theme:delete freedom
 assert_success "download and install freedom theme again"    $CLI theme:download freedom
 assert_fail    "install unknown theme fails"   $CLI theme:download nonexistent-theme-xyz --install
+
+assert_fail    "theme:delete on an unknown theme fails"                      $CLI theme:delete ghosttheme
+assert_success "theme:delete --ignore-not-found skips an unknown theme"      $CLI theme:delete ghosttheme --ignore-not-found
+assert_output_is "the themes are untouched by the skip" "2"   bash -c "$CLI theme:list --json | jq '. | length'"
 
 # todo: check outdated themes
 
@@ -383,6 +398,9 @@ assert_output_contains "user:list-api-keys --json shows key label"        "test-
 assert_output_is "user:list-api-keys --json returns 1 key"                "1"                 bash -c "$CLI user:list-api-keys test@example.com --json | jq '. | length'"
 assert_success "delete API key for test user"                                                 $CLI user:delete-api-key test@example.com "test-key"
 assert_fail    "list API keys for nonexistent user fails"                                      $CLI user:list-api-keys nonexistent@example.com
+assert_success "user:delete-api-key --ignore-not-found skips a missing user"                  $CLI user:delete-api-key nonexistent@example.com some-key --ignore-not-found
+assert_success "user:delete-api-key --ignore-not-found skips a missing key"                   $CLI user:delete-api-key test@example.com no-such-key --ignore-not-found
+assert_fail    "user:delete-api-key on a missing key still fails without the flag"            $CLI user:delete-api-key test@example.com no-such-key
 
 assert_success "disable test user"                                                            $CLI user:disable test@example.com
 assert_success "enable test user"                                                             $CLI user:enable test@example.com
@@ -430,6 +448,9 @@ assert_success "add vocabulary person-name-vocabulary from remote config" $CLI v
 
 run "delete vocabulary person-name-vocabulary" $CLI vocabulary:delete pvn
 
+assert_fail    "vocabulary:delete on an unknown prefix fails"                 $CLI vocabulary:delete ghostvocab
+assert_success "vocabulary:delete --ignore-not-found skips an unknown prefix" $CLI vocabulary:delete ghostvocab --ignore-not-found
+
 # ── custom vocabularies ──────────────────────────────────────────────────────
 
 section "Custom vocabularies"
@@ -446,12 +467,16 @@ assert_success "custom-vocabulary:list custom_vocab_terms"         $CLI custom-v
 assert_success "custom-vocabulary:list custom_vocab_uris"         $CLI custom-vocabulary:delete custom-vocab-uris
 assert_success "custom-vocabulary:list returns 0 results after deletion"         $CLI custom-vocabulary:list
 
+assert_fail    "custom-vocabulary:delete on an unknown vocabulary fails"                 $CLI custom-vocabulary:delete ghostcv
+assert_success "custom-vocabulary:delete --ignore-not-found skips an unknown vocabulary" $CLI custom-vocabulary:delete ghostcv --ignore-not-found
+
 # ── resource templates ───────────────────────────────────────────────────────
 
 section "Resource templates"
 assert_success "resource-template:list returns results"         $CLI resource-template:list
 assert_success "delete base resource template"                  $CLI resource-template:delete "base resource"
 assert_fail 'delete nonexistent resource template fails'        $CLI resource-template:delete "nonexistent resource template"
+assert_success 'resource-template:delete --ignore-not-found skips a missing template'  $CLI resource-template:delete "nonexistent resource template" --ignore-not-found
 assert_fail    "import nonexistent file fails"                  $CLI resource-template:import /tmp/nonexistent.json
 
 run "ensure dependencies for template with dependencies are not installed" $CLI module:disable log

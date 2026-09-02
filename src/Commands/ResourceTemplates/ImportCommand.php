@@ -1,7 +1,6 @@
 <?php
 namespace OSC\Commands\ResourceTemplates;
 
-use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
 use Omeka\DataType\Manager as DataTypeManager;
 use OSC\Exceptions\WarningException;
@@ -74,12 +73,10 @@ class ImportCommand extends AbstractResourceTemplateCommand
         if ($identifier) {
             $update = true;
             // Find existing resource template by identifier (ID or label)
-            $existingResourceTemplate = $this->findResourceTemplate($identifier, $api);
-            if (!$existingResourceTemplate) {
-                throw new InvalidArgumentException("Resource template not found by ID or label: '{$identifier}'.");
-            }
+            $existingResourceTemplate = $this->requireResourceTemplate($identifier, $api);
         } else {
-            // Check if a template with the same label already exists
+            // Existence probe: null is the normal case, meaning no template with this label yet.
+            // Keep findResourceTemplate() here, not requireResourceTemplate(), which would throw.
             $existingResourceTemplate = $this->findResourceTemplate($label, $api);
             if ($existingResourceTemplate) {
                 if (!$update) {

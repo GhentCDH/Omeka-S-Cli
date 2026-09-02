@@ -31,7 +31,7 @@ class UpgradeCommand extends AbstractModuleCommand
 
         // Upgrade a specific module
         if ($moduleId) {
-            $module = $moduleApi->getModule($moduleId);
+            $module = $this->requireModule($moduleId);
             if ($module->getState() !== ModuleManager::STATE_NEEDS_UPGRADE) {
                 $this->warn("Module '{$moduleId}' does not need upgrade.", true);
                 return;

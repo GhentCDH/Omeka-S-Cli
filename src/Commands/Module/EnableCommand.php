@@ -30,7 +30,7 @@ class EnableCommand extends AbstractModuleCommand
         $moduleApi = $this->getOmekaInstance()->getModuleApi();
 
         if ($moduleId) {
-            $module = $moduleApi->getModule($moduleId);
+            $module = $this->requireModule($moduleId);
             if ($module->getState() === ModuleManager::STATE_ACTIVE) {
                 $this->warn("Module '{$moduleId}' is already enabled.", true);
                 return;

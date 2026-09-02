@@ -16,10 +16,15 @@ class DeleteCommand extends AbstractModuleCommand
         $this->option('-f --force', 'Force module uninstall', 'boolval', false);
         $this->option('--not-installed', 'Delete all uninstalled modules', 'boolval', false);
         $this->optionDryRun();
+        $this->optionIgnoreNotFound('module');
     }
 
-    public function execute(?string $moduleId, ?bool $force = false, ?bool $notInstalled = false): void
-    {
+    public function execute(
+        ?string $moduleId,
+        ?bool $force = false,
+        ?bool $notInstalled = false,
+        ?bool $ignoreNotFound = false
+    ): void {
         if(!$moduleId && !$notInstalled) {
             throw new InvalidArgumentException("You must specify a module ID or the --not-installed option.");
         }
@@ -31,7 +36,8 @@ class DeleteCommand extends AbstractModuleCommand
         $moduleApi = $this->getOmekaInstance()->getModuleApi();
 
         if ($moduleId) {
-            $module = $moduleApi->getModule($moduleId);
+            $module = $this->requireModule($moduleId, $ignoreNotFound);
+
 
             $installed = in_array(
                 $module->getState(),

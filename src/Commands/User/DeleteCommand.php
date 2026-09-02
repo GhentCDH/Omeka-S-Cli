@@ -9,7 +9,7 @@ class DeleteCommand extends AbstractUserCommand
     {
         parent::__construct('user:delete', 'Delete a user from Omeka S');
         $this->argument('<user>', 'User ID or email address');
-        $this->optionIgnoreNotFound();
+        $this->optionIgnoreNotFound('user');
     }
 
     public function execute(string $user, ?bool $ignoreNotFound = false): void
@@ -17,9 +17,6 @@ class DeleteCommand extends AbstractUserCommand
         $api = $this->getOmekaInstance()->getApi();
 
         $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
-        if (!$userRepresentation) {
-            return;
-        }
 
         $userId = $userRepresentation->id();
 

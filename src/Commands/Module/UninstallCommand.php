@@ -15,11 +15,16 @@ class UninstallCommand extends AbstractModuleCommand
         $this->option('-a --all', 'Uninstall all installed modules', 'boolval', false);
         $this->option('--not-active', 'Uninstall all inactive modules', 'boolval', false);
         $this->optionDryRun();
+        $this->optionIgnoreNotFound('module');
         $this->argumentModuleId(true);
     }
 
-    public function execute(?string $moduleId, ?bool $all = false, ?bool $notActive = false): void
-    {
+    public function execute(
+        ?string $moduleId,
+        ?bool $all = false,
+        ?bool $notActive = false,
+        ?bool $ignoreNotFound = false
+    ): void {
         $selectors = count(array_filter([$moduleId, $all, $notActive]));
 
         if ($selectors === 0) {
@@ -33,7 +38,8 @@ class UninstallCommand extends AbstractModuleCommand
         $moduleApi = $this->getOmekaInstance()->getModuleApi();
 
         if ($moduleId) {
-            $module = $moduleApi->getModule($moduleId);
+            $module = $this->requireModule($moduleId, $ignoreNotFound);
+
             if ($module->getState() === ModuleManager::STATE_NOT_INSTALLED) {
                 $this->warn("Module '{$moduleId}' is already uninstalled.", true);
                 return;

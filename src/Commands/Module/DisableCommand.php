@@ -15,9 +15,10 @@ class DisableCommand extends AbstractModuleCommand
         $this->argumentModuleId(true);
         $this->option('-a --all', 'Disable all active modules', 'boolval', false);
         $this->optionDryRun();
+        $this->optionIgnoreNotFound('module');
     }
 
-    public function execute(?string $moduleId, ?bool $all = false): void
+    public function execute(?string $moduleId, ?bool $all = false, ?bool $ignoreNotFound = false): void
     {
         if (!$moduleId && !$all) {
             throw new InvalidArgumentException("You must specify a module ID or the --all option.");
@@ -30,7 +31,8 @@ class DisableCommand extends AbstractModuleCommand
         $moduleApi = $this->getOmekaInstance()->getModuleApi();
 
         if ($moduleId) {
-            $module = $moduleApi->getModule($moduleId);
+            $module = $this->requireModule($moduleId, $ignoreNotFound);
+
             if ($module->getState() === ModuleManager::STATE_NOT_ACTIVE) {
                 $this->warn("Module '{$moduleId}' is already disabled.", true);
                 return;

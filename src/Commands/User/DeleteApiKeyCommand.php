@@ -10,19 +10,17 @@ class DeleteApiKeyCommand extends AbstractUserCommand
     {
         parent::__construct('user:delete-api-key', 'Delete an API key for a user');
         $this->argument('<user>', 'User ID or email address');
+        $this->optionIgnoreNotFound('user or API key');
         $this->argument('<label>', 'Label for the API key');
     }
 
-    public function execute(string $user, string $label): void
+    public function execute(string $user, string $label, ?bool $ignoreNotFound = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
 
         // Find user by ID or email
-        $userEntity = $this->findUser($user, $api)?->getEntity();
-        if (!$userEntity) {
-            throw new InvalidArgumentException("User not found: {$user}");
-        }
+        $userEntity = $this->requireUser($user, $api, $ignoreNotFound)->getEntity();
 
         // Find API key by label
         $apiKey = $em->getRepository(ApiKey::class)->findOneBy([
@@ -31,7 +29,12 @@ class DeleteApiKeyCommand extends AbstractUserCommand
         ]);
 
         if (!$apiKey) {
-            throw new InvalidArgumentException("API key with label '{$label}' not found for user '{$userEntity->getEmail()}'.");
+            $this->skipMissing(
+                new InvalidArgumentException(
+                    "API key with label '{$label}' not found for user '{$userEntity->getEmail()}'."
+                ),
+                $ignoreNotFound
+            );
         }
 
         // Delete API key

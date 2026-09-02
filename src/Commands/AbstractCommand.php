@@ -5,6 +5,7 @@ namespace OSC\Commands;
 use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Command;
 use Exception;
+use OSC\Exceptions\IgnoredNotFoundException;
 use OSC\Helper\Path;
 use OSC\Helper\OmekaVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
@@ -12,6 +13,7 @@ use OSC\Manager\Theme\Manager as ThemeRepositoryManager;
 use OSC\Omeka\OmekaDotOrgApi;
 use OSC\Omeka\OmekaInstance;
 use OSC\Omeka\OmekaInstanceFactory;
+use Throwable;
 
 abstract class AbstractCommand extends Command
 {
@@ -52,7 +54,7 @@ abstract class AbstractCommand extends Command
 
         // add omeka base-path option
         $this->option('-b --base-path', 'Base path to Omeka S installation', 'strval');
-        $this->option('-q --quiet', 'Suppress info messages', 'strval')->on([$this, 'beQuiet']);
+        $this->option('-q --quiet', 'Suppress info and warning messages', 'strval')->on([$this, 'beQuiet']);
 
         return $this;
     }
@@ -79,6 +81,42 @@ abstract class AbstractCommand extends Command
 
     public function optionExtended(): static {
         $this->option('-x --extended', 'Extended output', 'boolval', false);
+        return $this;
+    }
+
+    /**
+     * Report a resource the command could not find, when it was told to tolerate that.
+     *
+     * Rethrows the original error unless --ignore-not-found was given, so the caller only has to
+     * decide what to do next, not how to word it.
+     *
+     * @param Throwable $notFound       The error the lookup produced
+     * @param bool      $ignoreNotFound Whether the absence may be ignored
+     *
+     * @return void
+     *
+     * @throws Throwable The original error, when the absence must not be ignored
+     */
+    protected function skipMissing(Throwable $notFound, bool $ignoreNotFound): never
+    {
+        if (!$ignoreNotFound) {
+            throw $notFound;
+        }
+
+        // verbosity-aware, so --quiet/--json silence the note
+        $this->warn(rtrim($notFound->getMessage(), '.') . '. Nothing to do.', true);
+
+        // stop the command cleanly; Application::onError() maps this to exit 0 without output
+        throw new IgnoredNotFoundException();
+    }
+
+    public function optionIgnoreNotFound(string $resource = 'resource'): static {
+        $this->option(
+            '--ignore-not-found',
+            "Do nothing if the {$resource} does not exist (default: throw an error)",
+            'boolval',
+            false
+        );
         return $this;
     }
 

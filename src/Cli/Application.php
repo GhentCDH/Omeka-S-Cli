@@ -9,6 +9,7 @@ use Throwable;
 class Application extends \Ahc\Cli\Application
 {
     private bool $debug = false;
+    private bool $quiet = false;
 
     public function __construct(protected string $name, protected string $version = '0.0.1', ?callable $onExit = null)    {
         parent::__construct($name, $version);
@@ -41,6 +42,9 @@ class Application extends \Ahc\Cli\Application
 
         $command->init();
 
+        // onError() has no verbosity of its own; capture the command's so it can honour --quiet
+        $this->quiet = (int) ($command->values()['verbosity'] ?? 1) < 1;
+
         try {
             return parent::doAction($command);
         } finally {
@@ -64,10 +68,20 @@ class Application extends \Ahc\Cli\Application
     }
 
     protected function onError(Throwable $e, int $exitCode): void {
-        if ( $e instanceof \OSC\Exceptions\WarningException) {
-            $this->io()->warn($e->getMessage(), true);
+        // a resource was missing and the command was told to ignore it: the note (if any) was
+        // already printed, verbosity-aware, by the command itself. Nothing more to say.
+        if ($e instanceof \OSC\Exceptions\IgnoredNotFoundException) {
+            exit(0);
+        }
+
+        if ($e instanceof \OSC\Exceptions\WarningException) {
+            // output warnings if not quiet
+            if (!$this->quiet) {
+                $this->io()->warn($e->getMessage(), true);
+            }
             $exitCode = 0;
         } else {
+            // output errors
             $this->io()->error($e->getMessage(), true);
         }
         // output debug trace?

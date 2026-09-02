@@ -21,7 +21,7 @@ class ExportCommand extends AbstractCustomVocabularyCommand
         $api = $omekaInstance->getApi();
 
         // Get vocabulary
-        $existingVocabulary = $this->getCustomVocabulary($identifier, $api);
+        $existingVocabulary = $this->requireCustomVocabulary($identifier, $api);
 
         // Get the actual ID of the vocabulary
         $vocabularyId = $existingVocabulary->id();

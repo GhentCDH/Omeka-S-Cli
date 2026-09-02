@@ -5,7 +5,9 @@ namespace OSC\Commands\Module;
 use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Argument;
 use OSC\Commands\AbstractCommand;
+use OSC\Exceptions\NotFoundException;
 use OSC\Exceptions\WarningException;
+use Omeka\Module\Module;
 use Throwable;
 
 abstract class AbstractModuleCommand extends AbstractCommand
@@ -20,6 +22,28 @@ abstract class AbstractModuleCommand extends AbstractCommand
         $argument = new Argument($optional ? '[module-id]' : '<module-id>', 'Module id', null, fn($raw) => trim($raw));
         $this->register($argument);
         return $this;
+    }
+
+    /**
+     * Resolve a single module by id, honouring --ignore-not-found.
+     *
+     * The API already throws for an unknown module; this adds the option to treat that absence as
+     * "nothing to do" instead, the same door requireUser() offers for users.
+     *
+     * @param string $moduleId       Module id
+     * @param bool   $ignoreNotFound Report a missing module instead of failing on it
+     *
+     * @return Module The resolved module (always; absence throws or is reported and aborts)
+     *
+     * @throws NotFoundException If the module does not exist
+     */
+    protected function requireModule(string $moduleId, bool $ignoreNotFound = false): Module
+    {
+        try {
+            return $this->getOmekaInstance()->getModuleApi()->getModule($moduleId);
+        } catch (NotFoundException $e) {
+            $this->skipMissing($e, $ignoreNotFound);
+        }
     }
 
     /**

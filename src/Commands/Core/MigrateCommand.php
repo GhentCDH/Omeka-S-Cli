@@ -22,7 +22,7 @@ class MigrateCommand extends AbstractCommand
         /** @var Status $status */
         $status = $serviceLocator->get('Omeka\Status');
         if (!$status->isInstalled()) {
-            throw new WarningException('Omeka S is not installed.', true);
+            throw new WarningException('Omeka S is not installed.');
         }
 
         if (!$status->needsMigration()) {

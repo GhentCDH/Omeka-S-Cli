@@ -2,7 +2,6 @@
 namespace OSC\Commands\ResourceTemplates;
 
 use Exception;
-use InvalidArgumentException;
 use Omeka\Controller\Admin\ResourceTemplateController;
 use Laminas\Http\Request;
 
@@ -24,10 +23,7 @@ class ExportCommand extends AbstractResourceTemplateCommand
         $serviceManager = $omekaInstance->getServiceManager();
 
         // Find resource template by ID or label
-        $existingResourceTemplate = $this->findResourceTemplate($identifier, $api);
-        if (!$existingResourceTemplate) {
-            throw new InvalidArgumentException("Resource template '{$identifier}' not found by ID or label.");
-        }
+        $existingResourceTemplate = $this->requireResourceTemplate($identifier, $api);
 
         // Get the actual ID for the controller
         $id = $existingResourceTemplate->id();

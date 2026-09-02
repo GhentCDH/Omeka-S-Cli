@@ -15,7 +15,7 @@ class UpdateCommand extends AbstractUserCommand
         $this->option('--role', 'New role (global_admin, site_admin, editor, reviewer, author, researcher)');
         $this->option('--activate', 'Activate the user', 'boolval', false);
         $this->option('--deactivate', 'Deactivate the user', 'boolval', false);
-        $this->optionIgnoreNotFound();
+        $this->optionIgnoreNotFound('user');
         $this->optionJson();
     }
 
@@ -47,9 +47,6 @@ class UpdateCommand extends AbstractUserCommand
         $api = $this->getOmekaInstance()->getApi();
 
         $userRepresentation = $this->requireUser($user, $api, $ignoreNotFound);
-        if (!$userRepresentation) {
-            return;
-        }
 
         $updateData = [
             'o:name' => $name ?? $userRepresentation->name(),
