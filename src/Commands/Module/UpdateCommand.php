@@ -34,7 +34,7 @@ class UpdateCommand extends AbstractModuleCommand
             }
 
             // check if module exists (result is not used)
-            $module = $this->getOmekaInstance()->getModuleApi()->getModule($moduleUri->getId());
+            $module = $this->requireModule($moduleUri->getId());
 
             if ($this->isDryRun()) {
                 $planned = $upgrade

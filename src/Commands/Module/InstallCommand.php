@@ -30,7 +30,7 @@ class InstallCommand extends AbstractModuleCommand
         $moduleApi = $this->getOmekaInstance()->getModuleApi();
 
         if ($moduleId) {
-            $module = $moduleApi->getModule($moduleId);
+            $module = $this->requireModule($moduleId);
             if (in_array($module->getState(), [ModuleManager::STATE_ACTIVE, ModuleManager::STATE_NOT_ACTIVE], true)) {
                 $this->warn("Module '{$moduleId}' is already installed.", true);
                 return;

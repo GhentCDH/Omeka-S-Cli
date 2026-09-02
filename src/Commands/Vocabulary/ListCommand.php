@@ -2,9 +2,8 @@
 namespace OSC\Commands\Vocabulary;
 
 use Omeka\Api\Representation\VocabularyRepresentation;
-use OSC\Commands\AbstractCommand;
 
-class ListCommand extends AbstractCommand
+class ListCommand extends AbstractVocabularyCommand
 {
     public function __construct()
     {

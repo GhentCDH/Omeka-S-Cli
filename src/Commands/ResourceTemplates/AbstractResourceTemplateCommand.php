@@ -3,6 +3,7 @@ namespace OSC\Commands\ResourceTemplates;
 
 use Omeka\Api\Manager as ApiManager;
 use Omeka\Api\Representation\ResourceTemplateRepresentation;
+use InvalidArgumentException;
 use OSC\Commands\AbstractCommand;
 
 abstract class AbstractResourceTemplateCommand extends AbstractCommand
@@ -49,6 +50,35 @@ abstract class AbstractResourceTemplateCommand extends AbstractCommand
             $search = $api->search('resource_templates', ['label' => $identifier]);
             return $search->getTotalResults() > 0 ? $search->getContent()[0] : null;
         }
+
+        return null;
+    }
+
+    /**
+     * Resolve a resource template by ID or label, honouring --ignore-not-found.
+     *
+     * @param string     $identifier     Resource template ID or label
+     * @param ApiManager $api            Omeka API instance
+     * @param bool       $ignoreNotFound Report a missing template instead of failing on it
+     *
+     * @return ResourceTemplateRepresentation|null Null only when absent and ignorable
+     *
+     * @throws InvalidArgumentException If the resource template does not exist
+     */
+    protected function requireResourceTemplate(
+        string $identifier,
+        ApiManager $api,
+        bool $ignoreNotFound = false
+    ): ?ResourceTemplateRepresentation {
+        $template = $this->findResourceTemplate($identifier, $api);
+        if ($template) {
+            return $template;
+        }
+
+        $this->skipMissing(
+            new InvalidArgumentException("Resource template '{$identifier}' not found by ID or label."),
+            $ignoreNotFound
+        );
 
         return null;
     }

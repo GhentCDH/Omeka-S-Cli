@@ -61,12 +61,28 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
         return null;
     }
 
-    protected function getCustomVocabulary(
+    /**
+     * Resolve a custom vocabulary by ID or label, honouring --ignore-not-found.
+     *
+     * @param string     $identifier     Custom vocabulary ID or label
+     * @param ApiManager $api            Omeka API instance
+     * @param string     $searchBy       Search strategy: 'id', 'label', or 'both' (default: 'both')
+     * @param bool       $ignoreNotFound Report a missing vocabulary instead of failing on it
+     *
+     * @return CustomVocabRepresentation|null Null only when absent and ignorable
+     *
+     * @throws InvalidArgumentException If the custom vocabulary does not exist
+     */
+    protected function requireCustomVocabulary(
         string $identifier,
         ApiManager $api,
-        string $searchBy = self::SEARCH_BY_BOTH
-    ): CustomVocabRepresentation {
+        string $searchBy = self::SEARCH_BY_BOTH,
+        bool $ignoreNotFound = false
+    ): ?CustomVocabRepresentation {
         $customVocab = $this->findCustomVocabulary($identifier, $api, $searchBy);
+        if ($customVocab) {
+            return $customVocab;
+        }
 
         $byLabel = match($searchBy) {
             static::SEARCH_BY_LABEL => 'label',
@@ -74,9 +90,11 @@ abstract class AbstractCustomVocabularyCommand extends AbstractCommand
             static::SEARCH_BY_BOTH => 'ID or label'
         };
 
-        if (!$customVocab) {
-            throw new InvalidArgumentException("Custom vocabulary not found by {$byLabel}: '{$identifier}'.");
-        }
-        return $customVocab;
+        $this->skipMissing(
+            new InvalidArgumentException("Custom vocabulary not found by {$byLabel}: '{$identifier}'."),
+            $ignoreNotFound
+        );
+
+        return null;
     }
 }

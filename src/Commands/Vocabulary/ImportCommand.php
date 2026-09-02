@@ -4,11 +4,10 @@ namespace OSC\Commands\Vocabulary;
 use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
 use Omeka\Stdlib\RdfImporter;
-use OSC\Commands\AbstractCommand;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceFetcher;
 
-class ImportCommand extends AbstractCommand
+class ImportCommand extends AbstractVocabularyCommand
 {
     use VocabularyImporterTrait;
     public function __construct()

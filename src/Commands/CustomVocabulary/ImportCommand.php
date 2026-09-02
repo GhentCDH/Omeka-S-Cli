@@ -42,7 +42,7 @@ class ImportCommand extends AbstractCustomVocabularyCommand
         $existingCustomVocabulary = null;
         if ($identifier) {
             $update = true;
-            $existingCustomVocabulary = $this->getCustomVocabulary($identifier, $api);
+            $existingCustomVocabulary = $this->requireCustomVocabulary($identifier, $api);
         } else {
             // Check if a custom vocabulary with the same label already exists
             $existingCustomVocabulary = $this->findCustomVocabulary($label, $api, static::SEARCH_BY_LABEL);

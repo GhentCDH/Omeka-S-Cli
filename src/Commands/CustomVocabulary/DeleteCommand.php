@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Commands\CustomVocabulary;
 
+
 class DeleteCommand extends AbstractCustomVocabularyCommand
 {
 
@@ -9,14 +10,18 @@ class DeleteCommand extends AbstractCustomVocabularyCommand
         parent::__construct('custom-vocabulary:delete', 'Delete a custom vocabulary');
         $this->argument('<identifier>', 'Custom vocabulary ID or label');
         $this->option('-f --force', 'Force delete');
+        $this->optionIgnoreNotFound('custom vocabulary');
     }
 
-    public function execute(string $identifier, ?bool $force): void
+    public function execute(string $identifier, ?bool $force, ?bool $ignoreNotFound = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
 
         // Get vocabulary
-        $existingCustomVocabulary = $this->getCustomVocabulary($identifier, $api);
+        $existingCustomVocabulary = $this->requireCustomVocabulary($identifier, $api, self::SEARCH_BY_BOTH, $ignoreNotFound);
+        if (!$existingCustomVocabulary) {
+            return;
+        }
 
         // Delete resource template
         $this->getOmekaInstance()->elevatePrivileges();

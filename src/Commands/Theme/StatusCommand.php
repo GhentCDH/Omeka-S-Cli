@@ -18,7 +18,7 @@ class StatusCommand extends AbstractThemeCommand
     {
         $format = $this->getOutputFormat('table');
 
-        $theme = $this->getOmekaInstance()->getThemeApi()->getTheme($themeId);
+        $theme = $this->requireTheme($themeId);
 
         $this->outputFormatted([$this->formatThemeStatus($theme, $extended)], $format);
     }

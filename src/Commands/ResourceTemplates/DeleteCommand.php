@@ -11,16 +11,17 @@ class DeleteCommand extends AbstractResourceTemplateCommand
         parent::__construct('resource-template:delete', 'Delete a resource template');
         $this->argument('<identifier>', 'Resource template ID or label');
         $this->option('-f --force', 'Force delete');
+        $this->optionIgnoreNotFound('resource template');
     }
 
-    public function execute(string $identifier, ?bool $force): void
+    public function execute(string $identifier, ?bool $force, ?bool $ignoreNotFound = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
 
         // Find resource template by ID or label
-        $existingResourceTemplate = $this->findResourceTemplate($identifier, $api);
+        $existingResourceTemplate = $this->requireResourceTemplate($identifier, $api, $ignoreNotFound);
         if (!$existingResourceTemplate) {
-            throw new InvalidArgumentException("Resource template '{$identifier}' not found by ID or label.");
+            return;
         }
 
         // Check if resource template is in use
