@@ -21,6 +21,7 @@
 - Always register new commands in the domain `Index.php`; unregistered commands are invisible to the CLI.
 - Prefer built-in output options (`optionJson`, `optionTable`, `optionCSV`, `optionEnv`) plus `outputFormatted()`.
 - Non-fatal situations should use `WarningException` (handled in `src/Cli/Application.php` as warning + exit code 0).
+- Output rule: errors always print (even under `--quiet`); `--quiet`/`--json` silence info and warnings, including benign `WarningException` notices. Exit code is the contract. A command that must skip a missing resource under `--ignore-not-found` throws `IgnoredNotFoundException` (a silent marker; the note is emitted verbosity-aware beforehand) so the call site needs no null check.
 - Reuse existing commands for orchestration (example: `module:update` invokes `module:download` and `module:upgrade`).
 
 ## External Integrations
