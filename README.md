@@ -60,8 +60,8 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
     - `module:install <module>` to install a module
     - `theme:download <theme>` to download a theme
 - Import vocabularies
-    - `vocabulary:import --config <file>` to import vocabulary from a JSON config file
-    - `vocabulary:import --url <url> --namespace-uri="<uri>" --prefix="<prefix>" --label="<label>"` to import vocabulary from a URL
+    - `vocabulary:import --url <url> --namespace-uri="<uri>" --prefix="<prefix>" --label="<label>"` to import a vocabulary from a URL (or `--file <path>`)
+    - `vocabulary:import --config <file>` to import a vocabulary from a JSON config file
 - Import resource templates
     - `resource-template:import <file>` to import resource templates
 - Set config options
@@ -148,13 +148,13 @@ Or using the GitHub repository:
 omeka-s-cli gh:omeka-s-themes/freedom#v1.0.6
 ```
 
-### Example: Download and import a vocabulary
-Download directly from a URL:
+### Example: Import a vocabulary
+Directly from a URL (or a local file with `--file`):
 ```bash
 omeka-s-cli vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
 ```
 
-Or using a JSON config file. First create a JSON file with content like below:
+Or from a JSON config file with the same fields. First create a JSON file:
 ```json
 {
     "url": "https://schema.org/version/latest/schemaorg-current-https.rdf",
@@ -163,10 +163,15 @@ Or using a JSON config file. First create a JSON file with content like below:
     "prefix": "schema"
 }
 ```
-
-Then import the vocabulary with:
+Then import it:
 ```bash
 omeka-s-cli vocabulary:import --config ./schema-dot-org.json
+```
+
+Or from a repository such as [LOV](https://lov.linkeddata.es/) — search, then import by `<repository>:<prefix>`:
+```bash
+omeka-s-cli vocabulary:search event
+omeka-s-cli vocabulary:import-from-repo lov:event
 ```
 
 ### Example: Create dummy items
