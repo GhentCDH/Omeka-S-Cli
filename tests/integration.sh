@@ -448,6 +448,13 @@ assert_success "add vocabulary person-name-vocabulary from remote config" $CLI v
 
 run "delete vocabulary person-name-vocabulary" $CLI vocabulary:delete pvn
 
+# import a vocabulary from a repository (LOV)
+assert_success "vocabulary:search returns results"                            bash -c "$CLI vocabulary:search event --repository lov --json | jq -e '. | length > 0'"
+assert_output_contains "vocabulary:search finds a known vocabulary" "lov:foaf"   $CLI vocabulary:search foaf --repository lov
+assert_fail    "vocabulary:import-from-repo with an unknown identifier fails"   $CLI vocabulary:import-from-repo lov:nonexistent-vocab-xyz
+assert_success "vocabulary:import-from-repo lov:event"                         $CLI vocabulary:import-from-repo lov:event
+assert_success "the repository-imported vocabulary can be deleted"             $CLI vocabulary:delete event
+
 assert_fail    "vocabulary:delete on an unknown prefix fails"                 $CLI vocabulary:delete ghostvocab
 assert_success "vocabulary:delete --ignore-not-found skips an unknown prefix" $CLI vocabulary:delete ghostvocab --ignore-not-found
 
