@@ -7,4 +7,6 @@ return [
     new ListCommand(),
     new DeleteCommand(),
     new CreateImportConfigCommand(),
+    new SearchCommand(),
+    new ImportFromRepoCommand(),
 ];
