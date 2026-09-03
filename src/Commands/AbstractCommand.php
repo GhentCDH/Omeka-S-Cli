@@ -306,6 +306,10 @@ abstract class AbstractCommand extends Command
         return $instance;
     }
 
+    protected function ensureOmekaInstance(): void {
+        $this->getOmekaInstance();
+    }
+
     /**
      * Run another omeka-s-cli command in a new process.
      *
