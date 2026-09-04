@@ -18,9 +18,10 @@ class DownloadCommand extends AbstractModuleCommand
         $this->argument('<destination-path>', 'Destination path');
         $this->argument('[version-number]', 'Core version number (latest if not specified)');
         $this->option('-c --create-destination', 'Create destination directory', 'boolval', false);
+        $this->option('-f --force', 'Download even if the destination is not empty (and not an Omeka S installation)', 'boolval', false);
     }
 
-    public function execute(?string $versionNumber, string $destinationPath, ?bool $createDestination): void
+    public function execute(?string $versionNumber, string $destinationPath, ?bool $createDestination, ?bool $force = false): void
     {
         // convert destinatino path to absolute path
         $destinationPath = realpath($destinationPath) ?: $destinationPath;
@@ -37,6 +38,15 @@ class DownloadCommand extends AbstractModuleCommand
         // check if destination path is an omeka path
         if ($this->isOmekaDir(($destinationPath))) {
             throw new Exception("The destination directory '{$destinationPath}' contains an Omeka S installation. Please use the 'core:update' command instead.");
+        }
+
+        // refuse to extract on top of an unrelated, non-empty directory (e.g. the wrong folder):
+        // Omeka's files would overwrite whatever is there. --force overrides.
+        if (!$force && !Path::isEmptyDir($destinationPath)) {
+            throw new Exception(
+                "The destination directory '{$destinationPath}' is not empty and is not an Omeka S installation. "
+                . 'Choose an empty directory, or use --force to download here anyway.'
+            );
         }
 
         // Get the latest version if no version number is provided
