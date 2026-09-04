@@ -11,7 +11,7 @@ class ListCommand extends AbstractVocabularyCommand
         $this->optionJson();
     }
 
-    public function execute(?bool $json = false): void
+    public function execute(): void
     {
         $format = $this->getOutputFormat('table');
 

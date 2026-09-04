@@ -59,6 +59,13 @@ class ResourceFetcherTest extends TestCase
         $this->assertEquals('Test content', $content);
     }
 
+    public function testFetchAcceptsAHeadersArgument(): void
+    {
+        // headers apply to URL sources only; a file source must accept and ignore them
+        $content = ResourceFetcher::fetch($this->testFile, ['Accept: text/csv']);
+        $this->assertEquals('Test content', $content);
+    }
+
     public function testFetchFromNonExistentFile(): void
     {
         $this->expectException(InvalidArgumentException::class);

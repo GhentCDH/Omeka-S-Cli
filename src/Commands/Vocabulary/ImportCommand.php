@@ -2,127 +2,54 @@
 namespace OSC\Commands\Vocabulary;
 
 use Ahc\Cli\Exception\InvalidArgumentException;
-use Exception;
-use Omeka\Stdlib\RdfImporter;
-use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceFetcher;
 
 class ImportCommand extends AbstractVocabularyCommand
 {
     use VocabularyImporterTrait;
+
     public function __construct()
     {
-        parent::__construct('vocabulary:import', 'Import a vocabulary using RDF importer');
+        parent::__construct('vocabulary:import', 'Import a vocabulary');
 
         $this->registerVocabularyImporterOptions($this);
 
         $this
-            ->option('--config', 'Path or URL to Vocabulary importer config file')
+            ->option('--config', 'Path or URL to a JSON import configuration file (instead of the options above)')
             ->option('-u --update', 'Update existing vocabulary (if it exists)', 'boolval', false)
             ->usage(
-                '<eol/>* Import from url:<eol/>'
-                . 'vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"<eol/>'
-                . '<eol/>* Import from config file:<eol/>'
-                . 'vocabulary:import --config ./schema-dot-org.json<eol/>'
-                . '<eol/>Example config file (schema-dot-org.json):'
-                . '<eol/>{'
-                . '<eol/>    "url": "https://schema.org/version/latest/schemaorg-current-https.rdf",'
-                . '<eol/>    "label": "schema.org",'
-                . '<eol/>    "namespaceUri": "https://schema.org/",'
-                . '<eol/>    "prefix": "schema",'
-                . '<eol/>}'
+                '<bold>  $0 vocabulary:import</end> <comment>--url "http://www.w3.org/TR/skos-reference/skos.rdf" --namespace-uri "http://www.w3.org/2004/02/skos/core#" --prefix skos --label SKOS --format rdfxml</end><eol/>'
+                . '<bold>  $0 vocabulary:import</end> <comment>--file ./vocab.ttl --namespace-uri "http://example.com/" --prefix ex --label "Example" --format turtle</end><eol/>'
+                . '<bold>  $0 vocabulary:import</end> <comment>--config ./vocab.json</end><eol/>'
+                . '<eol/><bold>Note:</end> To import from a repository, use <comment>vocabulary:import-from-repo</end><eol/>'
             );
     }
 
-    public function execute(
-        ?bool $update = false
-    ): void {
-        $args = array_filter($this->values(), function($value) {
-            return $value !== null;
-        });
+    public function execute(?string $config = null, ?bool $update = false): void
+    {
+        $this->ensureOmekaInstance();
 
-        // check source: file/url/config
-        if (count(array_intersect_key($args, array_flip(['file', 'url', 'config']))) !== 1) {
-            throw new InvalidArgumentException('You must specify either a file, a url or a importer config file for the vocabulary.');
-        }
+        if ($config !== null) {
+            // Import parameters come from a JSON config file (path or URL)
+            try {
+                $this->io()->info("Load configuration from '{$config}' ... ");
+                $importerConfig = ResourceFetcher::fetchJson($config);
+                $this->info("done");
+            } finally {
+                $this->info("", true);
+            }
 
-        $configFile = $args['config'] ?? null;
-        if ($configFile) {
-            $importerConfig = ResourceFetcher::fetchJson($configFile);
+            if (!is_array($importerConfig)) {
+                throw new InvalidArgumentException("Invalid configuration file: {$config}");
+            }
+
             $importerOptions = $this->prepareImporterOptions($importerConfig);
         } else {
+            // Import parameters come from the command options
+            $args = array_filter($this->values(), fn($value) => $value !== null);
             $importerOptions = $this->prepareImporterOptions($args);
         }
 
-        // validate options and set is_checked to true
-        $this->validateImporterOptions($importerOptions);
-        // $importerOptions['is_checked'] = true;
-
-        // Check if vocabulary already exists
-        $namespaceUri = $importerOptions['vocabulary']['o:namespace_uri'];
-        $existingVocabulary = $this->findExistingVocabulary($namespaceUri);
-        if ($existingVocabulary) {
-            $this->info("Found existing vocabulary with namespace URI '{$existingVocabulary->namespaceUri()}'.", true);
-        }
-        if ($existingVocabulary && !$update) {
-            throw new WarningException(
-                "Use --update to update the existing vocabulary."
-            );
-        }
-
-        $label = $importerOptions['vocabulary']['o:label'];
-        $strategy = $importerOptions['strategy'];
-        $source = $importerOptions['options'][$strategy];
-
-        // Get RDF importer from service manager
-        $serviceManager = $this->getOmekaInstance()->getServiceManager();
-        /** @var RdfImporter $rdfImporter */
-        $rdfImporter = $serviceManager->get('Omeka\RdfImporter');
-
-        // Update existing vocabulary?
-        if ($existingVocabulary && $update) {
-
-            // Get diff between existing and new vocabulary
-            try {
-                $this->info("Updating existing vocabulary ... ");
-                $diff = $rdfImporter->getDiff($strategy, $namespaceUri, $importerOptions['options']);
-                $rdfImporter->update($existingVocabulary->id(), $diff);
-                $this->info('done', true);
-            } catch (\Omeka\Api\Exception\ValidationException $e) {
-                $this->io()->eol();
-                throw new Exception("Could not update vocabulary (" . $e->getMessage() . ")");
-            }
-
-            $this->ok("Vocabulary '{$label}' updated.", true);
-        } else {
-            // Import new vocabulary
-            try {
-                $this->info("Importing vocabulary from {$source} ... ");
-                $response = $rdfImporter->import(
-                    $importerOptions['strategy'],
-                    $importerOptions['vocabulary'],
-                    $importerOptions['options']
-                );
-                $vocabulary = $response->getContent();
-                $this->info('done', true);
-            } catch (Exception $e) {
-                $this->io()->eol();
-                throw new Exception("Could not import vocabulary ({$e->getMessage()})");
-            }
-
-            $this->ok("Vocabulary '{$label}' created.", true);
-        }
-    }
-
-    /**
-     * Find existing vocabulary by namespace URI
-     */
-    protected function findExistingVocabulary(string $namespaceUri): ?object
-    {
-        $result = $this->getOmekaInstance()->getApi()->search('vocabularies', [
-            'namespace_uri' => $namespaceUri
-        ])->getContent();
-
-        return count($result) > 0 ? $result[0] : null;
+        $this->importVocabulary($importerOptions, $update);
     }
 }

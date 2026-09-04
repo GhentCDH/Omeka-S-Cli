@@ -38,19 +38,20 @@ class ResourceFetcher
     /**
      * Fetch content from a file or URL
      *
-     * @param string $source Path to file or URL
+     * @param string   $source  Path to file or URL
+     * @param string[] $headers Request headers as "Name: value" strings, applied to URL sources only
      * @return string The content
      * @throws InvalidArgumentException If the source is invalid or inaccessible
      * @throws Exception If fetching fails
      */
-    public static function fetch(string $source): string
+    public static function fetch(string $source, array $headers = []): string
     {
         $type = self::detectType($source);
 
         if ($type === self::FILE) {
             return self::fetchFromFile($source);
         } else {
-            return self::fetchFromUrl($source);
+            return self::fetchFromUrl($source, $headers);
         }
     }
 
@@ -119,12 +120,13 @@ class ResourceFetcher
     /**
      * Fetch content from a URL
      *
-     * @param string $url
+     * @param string   $url
+     * @param string[] $headers Request headers as "Name: value" strings
      * @return string
      * @throws InvalidArgumentException If URL is invalid
      * @throws Exception If fetching fails
      */
-    protected static function fetchFromUrl(string $url): string
+    protected static function fetchFromUrl(string $url, array $headers = []): string
     {
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
             throw new InvalidArgumentException("Invalid URL: {$url}");
@@ -132,24 +134,25 @@ class ResourceFetcher
 
         // cURL is the preferred transport: it reports the HTTP status code explicitly
         if (function_exists('curl_init')) {
-            return self::fetchWithCurl($url);
+            return self::fetchWithCurl($url, $headers);
         }
 
         if (!ini_get('allow_url_fopen')) {
             throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
         }
 
-        return self::fetchWithStreamWrapper($url);
+        return self::fetchWithStreamWrapper($url, $headers);
     }
 
     /**
      * Fetch content using cURL
      *
-     * @param string $url
+     * @param string   $url
+     * @param string[] $headers Request headers as "Name: value" strings
      * @return string
      * @throws Exception If cURL request fails
      */
-    protected static function fetchWithCurl(string $url): string
+    protected static function fetchWithCurl(string $url, array $headers = []): string
     {
         $ch = curl_init($url);
 
@@ -159,6 +162,7 @@ class ResourceFetcher
             CURLOPT_TIMEOUT => 30,
             CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
             CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_HTTPHEADER => $headers,
         ]);
 
         $content = curl_exec($ch);
@@ -184,19 +188,22 @@ class ResourceFetcher
      * Fallback for hosts without ext-curl. The wrapper does not expose the HTTP status
      * code as a return value, so failures are reported without it.
      *
-     * @param string $url
+     * @param string   $url
+     * @param string[] $headers Request headers as "Name: value" strings
      * @return string
      * @throws Exception If the request fails
      */
-    protected static function fetchWithStreamWrapper(string $url): string
+    protected static function fetchWithStreamWrapper(string $url, array $headers = []): string
     {
-        $context = stream_context_create([
-            'http' => [
-                'timeout' => 30,
-                'user_agent' => 'Omeka-S-CLI/1.0',
-                'follow_location' => true,
-            ],
-        ]);
+        $http = [
+            'timeout' => 30,
+            'user_agent' => 'Omeka-S-CLI/1.0',
+            'follow_location' => true,
+        ];
+        if ($headers) {
+            $http['header'] = $headers;
+        }
+        $context = stream_context_create(['http' => $http]);
 
         $content = @file_get_contents($url, false, $context);
 
