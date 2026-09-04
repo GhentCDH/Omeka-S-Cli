@@ -43,6 +43,8 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - List all users
     - Add, delete, update, set password, enable or disable a user
     - Manage API keys for a user
+- Blueprints
+    - Deploy an environment from a single declarative blueprint file (modules, themes, vocabularies, resource templates, users, settings)
 
 ### Automating Omeka S instance setup
 
@@ -66,6 +68,61 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
     - `resource-template:import <file>` to import resource templates
 - Set config options
     - `config:set <id> <value>` to set global settings
+
+### Deploy from a blueprint
+
+Instead of scripting the steps above, you can describe the desired environment in a single
+declarative **blueprint** file and deploy it in one command. The format is a backward-compatible
+superset of the [Omeka S Playground](https://github.com/ateeducacion/omeka-s-playground) blueprint.
+
+```bash
+# validate first (also validates a standalone list with --as)
+omeka-s-cli blueprint:validate ./site.blueprint.jsonc
+
+# preview the ordered actions without changing anything
+omeka-s-cli blueprint:deploy ./site.blueprint.jsonc --dry-run
+
+# deploy onto an existing Omeka S instance
+omeka-s-cli blueprint:deploy ./site.blueprint.jsonc --skip core
+```
+
+A small blueprint (jsonc — comments and trailing commas allowed):
+
+```jsonc
+{
+    "modules": [
+        { "name": "Common", "state": "activate" },
+        { "name": "Log", "state": "download" },        // downloaded, not installed
+        { "$import": "./modules.extra.jsonc" }          // reuse a shared module list
+    ],
+    "vocabularies": [
+        { "prefix": "schema", "namespaceUri": "https://schema.org/", "label": "schema.org",
+          "url": "https://schema.org/version/latest/schemaorg-current-https.rdf" }
+    ],
+    "resourceTemplates": [ { "source": "../resource-template/base_resource.json" } ],
+    "settings": { "installation_title": "Blueprint Demo" }
+}
+```
+
+`blueprint:deploy` runs the phases in order (core → modules → themes → vocabularies → resource
+templates → users → settings), reusing the same commands documented above, and is idempotent —
+re-running it skips resources that already exist (pass `--update` to refresh them).
+
+It can also **build a site from scratch**: the core phase downloads and installs Omeka S, so one
+command goes from an empty server to a running site (database and admin details are passed as flags,
+never stored in the blueprint):
+
+```bash
+omeka-s-cli blueprint:deploy ./site.blueprint.jsonc --base-path /var/www/omeka-s \
+    --db-host localhost --db-name omeka --db-user omeka --db-password secret \
+    --admin-email admin@example.com --admin-password secret
+```
+
+The database must already exist. Deploying onto an already-installed instance requires `--force`
+(with the core phase this **resets** it — wiping the database and reinstalling; use `--skip core
+--force` to sync config without wiping). See [docs/blueprint.md](docs/blueprint.md) for the full
+reference, [docs/blueprint-guide.md](docs/blueprint-guide.md) for a plain-language guide, and
+[examples/blueprint/](examples/blueprint/) for a working example.
 
 ## Usage
 
