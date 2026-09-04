@@ -1,0 +1,31 @@
+{
+    "$schema": "../../assets/blueprints/omeka-s-cli.blueprint-schema.json",
+    "meta": {
+        "title": "Demo site",
+        "description": "Example omeka-s-cli blueprint deploying a small environment."
+    },
+    "modules": [
+        // Common is a dependency of the resource template imported below.
+        { "name": "Common", "state": "activate" },
+        // Pull in additional modules from a shared, reusable list.
+        { "$import": "./modules.extra.jsonc" }
+    ],
+    "themes": [
+        // The default theme ships with the core, so there is nothing to download.
+        { "name": "default", "source": { "type": "bundled" } }
+    ],
+    "vocabularies": [
+        {
+            "prefix": "schema",
+            "namespaceUri": "https://schema.org/",
+            "label": "schema.org",
+            "url": "https://schema.org/version/latest/schemaorg-current-https.rdf"
+        }
+    ],
+    "resourceTemplates": [
+        { "source": "../resource-template/base_resource.json" }
+    ],
+    "settings": {
+        "installation_title": "Blueprint Demo"
+    }
+}

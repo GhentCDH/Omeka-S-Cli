@@ -1,0 +1,6 @@
+// A shared module list, referenced from a blueprint via { "$import": "./modules.extra.jsonc" }.
+// A standalone list like this validates on its own:  blueprint:validate modules.extra.jsonc --as modules
+[
+    // Downloaded but not installed (state: download).
+    { "name": "Log", "state": "download" }
+]
