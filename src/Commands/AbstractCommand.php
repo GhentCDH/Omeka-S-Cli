@@ -211,6 +211,31 @@ abstract class AbstractCommand extends Command
         $this->set('verbosity', 0);
     }
 
+    /**
+     * Set a parsed option/argument value from outside the command.
+     *
+     * The underlying set() is protected; this exposes it so an orchestrator (e.g. the blueprint
+     * applier) can prime another command's inputs before invoking its execute() directly.
+     *
+     * @param string $name  The value key (camel-cased long option/argument name)
+     * @param mixed  $value The value to set
+     * @return static
+     */
+    public function primeValue(string $name, mixed $value): static {
+        $this->set($name, $value);
+        return $this;
+    }
+
+    /**
+     * Resolve the Omeka S installation path (public wrapper around the protected resolver), so an
+     * orchestrator such as the blueprint applier can read on-disk files (e.g. a module's version).
+     *
+     * @return string
+     */
+    public function resolveOmekaPath(): string {
+        return $this->getOmekaPath();
+    }
+
     public function outputFormatted($object, $format='json', $return_value = false): ?string
     {
         if($return_value)
@@ -382,7 +407,7 @@ abstract class AbstractCommand extends Command
     # - /config/database.ini
     # - /bootstrap.php
     # - /application/config/application.config.php
-    protected function isOmekaDir($dir): bool
+    public function isOmekaDir($dir): bool
     {
         $dir = rtrim($dir, DIRECTORY_SEPARATOR);
         if (
