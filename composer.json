@@ -24,7 +24,9 @@
         "ext-zip": "*",
         "adhocore/cli": "^1.9.0",
         "composer/semver": "^3.4",
-        "fakerphp/faker": "^1.23"
+        "fakerphp/faker": "^1.23",
+        "opis/json-schema": "^2.4",
+        "otar/jsonc": "^2.0"
     },
     "suggest": {
         "ext-curl": "Preferred transport for fetching module/theme repositories; reports HTTP status codes on failure. Without it the http stream wrapper is used, which requires allow_url_fopen."
