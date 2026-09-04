@@ -543,6 +543,11 @@ assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI
 assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
 assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force
 
+# export the live instance and check the result round-trips through validate
+assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
+assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
+assert_output_contains "the export captures an installed module" "Common"   $CLI blueprint:export
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 summary

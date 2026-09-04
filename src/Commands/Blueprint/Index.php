@@ -4,4 +4,5 @@ namespace OSC\Commands\Blueprint;
 return [
     new DeployCommand(),
     new ValidateCommand(),
+    new ExportCommand(),
 ];
