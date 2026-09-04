@@ -23,6 +23,7 @@ blueprint:deploy   <source> [--dry-run] [--update] [--force] [--skip <phases>]
                             [--base-path <path>]
                             [--db-host <h>] [--db-port <p>] [--db-name <n>] [--db-user <u>] [--db-password <pw>]
                             [--admin-name <n>] [--admin-email <e>] [--admin-password <pw>]
+blueprint:export   [output]
 ```
 
 - **`blueprint:validate`** checks a blueprint against the schema and runs referential checks (an item
@@ -37,8 +38,33 @@ blueprint:deploy   <source> [--dry-run] [--update] [--force] [--skip <phases>]
   `--admin-*` flags feed the core phase; secrets are only ever passed as flags, never stored in the
   blueprint.
 
+- **`blueprint:export`** reads the live instance and writes a blueprint capturing it. With an
+  `[output]` path it writes a file, otherwise it prints to stdout. See [Export](#export).
+
 Deploy is **idempotent**: a resource that already exists is skipped (with a note) unless `--update`
-is given. Both commands accept a local path or a URL as `<source>`.
+is given. Both `validate` and `deploy` accept a local path or a URL as `<source>`.
+
+## Export
+
+`blueprint:export` is the inverse of deploy — capture a running instance so it can be reproduced
+elsewhere.
+
+```bash
+blueprint:export ./snapshot.blueprint.jsonc   # write a file
+blueprint:export                              # or print to stdout
+```
+
+The first cut exports **modules** (name + version + state), **themes** (name + version; `default` is
+marked `bundled`) and **vocabularies**, as jsonc with a header comment.
+
+- Omeka's built-in vocabularies (`dcterms`, `dctype`) are skipped.
+- Omeka does not store where a vocabulary's RDF was imported from, so the source is resolved
+  **best-effort** against the GhentCDH vocabulary index. A vocabulary that can't be resolved is
+  written with an empty `"url": ""` and listed in the header comment — fill in a `url` or `file`
+  before deploying it.
+
+Not yet exported: settings, users, resource templates (and the `--split`/`--output-dir`/
+`--resolve-urls` output options). See [blueprint-roadmap.md](blueprint-roadmap.md).
 
 ## Phases (deploy order)
 
