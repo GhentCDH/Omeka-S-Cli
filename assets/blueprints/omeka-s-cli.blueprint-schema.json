@@ -1,0 +1,328 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/main/assets/blueprints/omeka-s-cli.blueprint-schema.json",
+    "title": "Omeka S CLI blueprint",
+    "description": "Declarative description of an Omeka S environment, deployable with `omeka-s-cli blueprint:apply`. A backward-compatible superset of the Omeka S Playground blueprint format.",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "$schema": { "type": "string" },
+        "meta": {
+            "type": "object",
+            "description": "Human-readable metadata.",
+            "additionalProperties": true,
+            "properties": {
+                "title": { "type": "string" },
+                "author": { "type": "string" },
+                "description": { "type": "string" }
+            }
+        },
+        "preferredVersions": {
+            "type": "object",
+            "description": "Informational runtime targets. Only `omeka` is used by the CLI (as the core version to download when bootstrapping).",
+            "additionalProperties": true,
+            "properties": {
+                "php": { "type": "string" },
+                "omeka": { "type": "string" }
+            }
+        },
+        "siteOptions": {
+            "type": "object",
+            "description": "Install-wide defaults, applied at core install time.",
+            "additionalProperties": true,
+            "properties": {
+                "title": { "type": "string" },
+                "locale": { "type": "string" },
+                "timezone": { "type": "string" }
+            }
+        },
+        "modules": { "$ref": "#/$defs/moduleList" },
+        "themes": { "$ref": "#/$defs/themeList" },
+        "vocabularies": { "$ref": "#/$defs/vocabularyList" },
+        "resourceTemplates": { "$ref": "#/$defs/resourceTemplateList" },
+        "settings": { "$ref": "#/$defs/settings" },
+        "users": { "$ref": "#/$defs/userList" },
+        "itemSets": { "$ref": "#/$defs/itemSetList" },
+        "items": { "$ref": "#/$defs/itemList" },
+        "site": { "$ref": "#/$defs/site" },
+        "sites": { "type": "array", "items": { "$ref": "#/$defs/site" } },
+
+        "debug": { "type": "object" },
+        "phpConstants": { "type": "object" },
+        "login": { "type": "object" },
+        "landingPage": { "type": "string" }
+    },
+
+    "$defs": {
+        "reference": {
+            "type": "object",
+            "description": "A pointer to an external file or URL whose contents are spliced into the enclosing list. The referenced document is itself a valid list (or single item) for that key.",
+            "additionalProperties": false,
+            "required": ["$import"],
+            "properties": {
+                "$import": { "type": "string", "minLength": 1 }
+            }
+        },
+
+        "moduleSource": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["type"],
+                    "properties": { "type": { "const": "bundled" } }
+                },
+                {
+                    "type": "object",
+                    "required": ["type", "url"],
+                    "properties": {
+                        "type": { "const": "url" },
+                        "url": { "type": "string", "format": "uri-reference" }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": ["type"],
+                    "properties": {
+                        "type": { "const": "omeka.org" },
+                        "slug": { "type": "string" },
+                        "version": { "type": "string" }
+                    }
+                }
+            ]
+        },
+        "module": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["name"],
+            "properties": {
+                "name": { "type": "string", "pattern": "^[^/\\\\]+$" },
+                "state": {
+                    "type": "string",
+                    "description": "download = place files only; install = install; activate = install and enable.",
+                    "enum": ["download", "install", "activate"]
+                },
+                "version": { "type": "string" },
+                "source": { "$ref": "#/$defs/moduleSource" }
+            }
+        },
+        "moduleList": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "type": "string", "minLength": 1 },
+                    { "$ref": "#/$defs/module" },
+                    { "$ref": "#/$defs/reference" }
+                ]
+            }
+        },
+
+        "themeSource": { "$ref": "#/$defs/moduleSource" },
+        "theme": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["name"],
+            "properties": {
+                "name": { "type": "string" },
+                "version": { "type": "string" },
+                "source": { "$ref": "#/$defs/themeSource" }
+            }
+        },
+        "themeList": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "type": "string", "minLength": 1 },
+                    { "$ref": "#/$defs/theme" },
+                    { "$ref": "#/$defs/reference" }
+                ]
+            }
+        },
+
+        "vocabulary": {
+            "type": "object",
+            "description": "A vocabulary to import via the RDF importer. Provide exactly one RDF source (url or file) plus the identifying fields.",
+            "additionalProperties": true,
+            "required": ["namespaceUri", "prefix", "label"],
+            "oneOf": [
+                { "required": ["url"] },
+                { "required": ["file"] }
+            ],
+            "properties": {
+                "url": { "type": "string", "format": "uri-reference" },
+                "file": { "type": "string" },
+                "namespaceUri": { "type": "string" },
+                "prefix": { "type": "string" },
+                "label": { "type": "string" },
+                "comment": { "type": "string" },
+                "format": { "type": "string" },
+                "lang": { "type": "string" }
+            }
+        },
+        "vocabularyList": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "$ref": "#/$defs/vocabulary" },
+                    { "$ref": "#/$defs/reference" }
+                ]
+            }
+        },
+
+        "resourceTemplate": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["source"],
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Path or URL to a resource-template JSON export."
+                },
+                "label": { "type": "string" },
+                "ignoreDeps": { "type": "boolean" }
+            }
+        },
+        "resourceTemplateList": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "$ref": "#/$defs/resourceTemplate" },
+                    { "$ref": "#/$defs/reference" }
+                ]
+            }
+        },
+
+        "settingsMap": {
+            "type": "object",
+            "description": "A map of global setting id => value.",
+            "additionalProperties": true
+        },
+        "settings": {
+            "description": "Global settings. Either an inline map, or a list of maps/references merged in order.",
+            "oneOf": [
+                {
+                    "allOf": [
+                        { "$ref": "#/$defs/settingsMap" },
+                        { "not": { "required": ["$import"] } }
+                    ]
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            {
+                                "allOf": [
+                                    { "$ref": "#/$defs/settingsMap" },
+                                    { "not": { "required": ["$import"] } }
+                                ]
+                            },
+                            { "$ref": "#/$defs/reference" }
+                        ]
+                    }
+                }
+            ]
+        },
+
+        "user": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["email"],
+            "properties": {
+                "email": { "type": "string", "format": "email" },
+                "username": { "type": "string" },
+                "password": { "type": "string" },
+                "role": { "type": "string" },
+                "isActive": { "type": "boolean" },
+                "settings": { "type": "object" }
+            }
+        },
+        "userList": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "$ref": "#/$defs/user" },
+                    { "$ref": "#/$defs/reference" }
+                ]
+            }
+        },
+
+        "itemSet": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["title"],
+            "properties": {
+                "title": { "type": "string" },
+                "description": { "type": "string" }
+            }
+        },
+        "itemSetList": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "$ref": "#/$defs/itemSet" },
+                    { "$ref": "#/$defs/reference" }
+                ]
+            }
+        },
+
+        "media": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["url"],
+            "properties": {
+                "type": { "type": "string", "enum": ["url"] },
+                "url": { "type": "string", "format": "uri-reference" },
+                "title": { "type": "string" },
+                "altText": { "type": "string" }
+            }
+        },
+        "item": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["title"],
+            "properties": {
+                "title": { "type": "string" },
+                "description": { "type": "string" },
+                "creator": { "type": "string" },
+                "itemSets": { "type": "array", "items": { "type": "string" } },
+                "sites": { "type": "array", "items": { "type": "string" } },
+                "media": { "type": "array", "items": { "$ref": "#/$defs/media" } }
+            }
+        },
+        "itemList": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    { "$ref": "#/$defs/item" },
+                    { "$ref": "#/$defs/reference" }
+                ]
+            }
+        },
+
+        "sitePermission": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["user"],
+            "properties": {
+                "user": { "type": "string", "description": "Email of a declared/existing user." },
+                "role": { "type": "string", "enum": ["viewer", "editor", "admin"] }
+            }
+        },
+        "site": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["title"],
+            "properties": {
+                "title": { "type": "string" },
+                "slug": { "type": "string" },
+                "summary": { "type": "string" },
+                "theme": { "type": "string" },
+                "isPublic": { "type": "boolean" },
+                "setAsDefault": { "type": "boolean" },
+                "permissions": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/sitePermission" }
+                }
+            }
+        }
+    }
+}
