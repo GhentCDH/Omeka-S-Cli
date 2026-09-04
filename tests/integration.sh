@@ -522,6 +522,27 @@ assert_success "dummy:create-items creates 5 items from local config"           
 assert_success "dummy:create-item-sets creates 5 items from remote config"             $CLI dummy:create-item-sets -n 5 --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/refs/heads/main/examples/dummy/item-set.json
 assert_fail    "dummy:create-items with invalid config must fail"   $CLI dummy:create-items --config /tmp/nonexistent.json
 
+# ── blueprints ───────────────────────────────────────────────────────────────
+
+section "Blueprints"
+
+BP=/app/omeka-s-cli/examples/blueprint/site.blueprint.jsonc
+
+assert_success "blueprint:validate accepts the example blueprint"          $CLI blueprint:validate "$BP"
+assert_success "blueprint:validate accepts a standalone module partial"    $CLI blueprint:validate /app/omeka-s-cli/examples/blueprint/modules.extra.jsonc --as modules
+
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    printf '{ "modules": [ { "name": "X", "state": "nope" } ] }' > /tmp/bad.blueprint.json
+fi
+assert_fail    "blueprint:validate rejects an invalid blueprint"           $CLI blueprint:validate /tmp/bad.blueprint.json
+
+assert_success "blueprint:deploy --dry-run makes no changes"               $CLI blueprint:deploy "$BP" --dry-run
+# the suite's instance is already installed, so a deploy that includes the core phase must refuse
+assert_fail    "blueprint:deploy onto an installed instance needs --force"  $CLI blueprint:deploy "$BP" --skip core
+assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI blueprint:deploy "$BP" --skip core --force
+assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
+assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 summary
