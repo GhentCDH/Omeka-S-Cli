@@ -42,6 +42,23 @@ class Path {
         return null;
     }
 
+    /**
+     * Whether the path is a directory with no entries (ignoring . and ..). A non-existent path
+     * counts as empty.
+     */
+    public static function isEmptyDir(string $path): bool
+    {
+        if (!is_dir($path)) {
+            return true;
+        }
+        foreach (scandir($path) ?: [] as $entry) {
+            if ($entry !== '.' && $entry !== '..') {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static function createTempFolder(string $prefix = ''): string
     {
         $randomPart = bin2hex(random_bytes(4)); // Generates 8 random characters
