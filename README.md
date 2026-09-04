@@ -30,6 +30,7 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
 - Manage vocabularies
     - Import vocabularies from file or url
     - Import vocabularies from JSON config file
+    - Search and import vocabularies from a repository (LOV)
     - Create JSON import configuration files 
     - List all vocabularies
     - Delete vocabularies
@@ -239,9 +240,9 @@ box compile
 
 ## To do
 
-- [ ] Module dependency checking
-- [ ] Add support for custom vocabularies
 - [ ] Add support for sites and site pages
+- [ ] Add support for media and files
+- [ ] Add support for blueprint deployments
 
 ## Credits
 
