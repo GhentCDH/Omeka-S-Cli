@@ -2,6 +2,7 @@
   "main": "bin/omeka-s-cli",
   "exclude-composer-files": false,
   "compression": "GZ",
+  "directories-bin": ["assets"],
   "compactors": [
     "KevinGH\\Box\\Compactor\\Php",
     "KevinGH\\Box\\Compactor\\PhpScoper"
