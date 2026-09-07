@@ -513,6 +513,47 @@ assert_success "re-import resource template with dependencies"    $CLI resource-
 
 section "Configuration"
 
+# Global settings only: there is no CLI to create a site or seed per-site/user settings, so the
+# scoped (site_setting / user_setting) path is covered by the unit tests instead.
+CFG=/tmp/osc-cfg
+run "clean config export dir"                                      rm -rf "$CFG"
+
+assert_success       "config:set seeds a global test key"          $CLI config:set osc_integration_key before
+assert_success       "config:export writes files"                  $CLI config:export "$CFG"
+assert_success       "config:export wrote core.setting.jsonc"      test -f "$CFG/core.setting.jsonc"
+assert_output_contains "exported core file contains the test key"  "osc_integration_key"  cat "$CFG/core.setting.jsonc"
+assert_output_contains "exported core file carries the version key" '"version"'           cat "$CFG/core.setting.jsonc"
+
+# Merge import round-trip: edit the value on disk, import, confirm it landed. Importing the core
+# file also exercises the protected-key guard (core "version" must be skipped without --force).
+run                    "edit the exported value on disk"           bash -c "sed -i 's/\"before\"/\"after\"/' $CFG/core.setting.jsonc"
+assert_output_contains "config:import skips the protected version key"  "protected key 'version'"  $CLI config:import "$CFG/core.setting.jsonc"
+assert_output_contains "config:get reflects the merged value"      "after"  $CLI config:get osc_integration_key
+
+# --dry-run must not change anything.
+run                    "edit the exported value again (not to be applied)"  bash -c "sed -i 's/\"after\"/\"dryrun\"/' $CFG/core.setting.jsonc"
+assert_success         "config:import --dry-run runs"              $CLI config:import "$CFG/core.setting.jsonc" --dry-run
+assert_output_contains "config:get is unchanged after --dry-run"   "after"  $CLI config:get osc_integration_key
+
+# --strict escalates a version mismatch to an error (and the transaction rolls back).
+run                    "doctor the omeka version in the exported core file"  bash -c "sed -i 's/\"omekaVersion\": \"[^\"]*\"/\"omekaVersion\": \"0.0.0\"/' $CFG/core.setting.jsonc"
+assert_fail            "config:import --strict fails on a version mismatch"  $CLI config:import "$CFG/core.setting.jsonc" --strict
+assert_output_contains "config:get is unchanged after the failed --strict import"  "after"  $CLI config:get osc_integration_key
+
+# --prune deletes a scope key that the file no longer contains.
+assert_success         "config:set an extra core key to be pruned"  $CLI config:set osc_prune_me doomed
+run                    "regenerate a clean export"                 bash -c "rm -rf $CFG && $CLI config:export $CFG"
+run                    "remove the prune key from the exported file"  bash -c "grep -v osc_prune_me $CFG/core.setting.jsonc > $CFG/core.tmp && mv $CFG/core.tmp $CFG/core.setting.jsonc"
+assert_success         "config:import --prune applies"             $CLI config:import "$CFG/core.setting.jsonc" --prune
+assert_fail            "the pruned key is gone"                     $CLI config:get osc_prune_me
+assert_output_contains "the untouched key survives the prune"      "after"  $CLI config:get osc_integration_key
+
+# Invalid sources.
+assert_fail            "config:import of a nonexistent file fails"  $CLI config:import /tmp/nonexistent.jsonc
+assert_fail            "config:export with an invalid --scope fails" $CLI config:export "$CFG" --scope bogus
+
+run                    "clean up config test dir"                  rm -rf "$CFG"
+
 # ── dummy data ───────────────────────────────────────────────────────────────
 
 section "Dummy data"
