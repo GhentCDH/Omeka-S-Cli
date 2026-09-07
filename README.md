@@ -39,6 +39,7 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
 - Config
     - Export list of installed modules and themes
     - Get, set and list global settings
+    - Export and import global settings (settings/user settings/site settings) to/from JSON config files
     - Create database.ini file
 - User
     - List all users
@@ -67,6 +68,7 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
     - `resource-template:import <file>` to import resource templates
 - Set config options
     - `config:set <id> <value>` to set global settings
+    - `config:import <folder>` to import a folder of config files
 
 ## Usage
 
@@ -263,5 +265,6 @@ Code copied from third-party sources:
 
 Inspired by:
 
-- [Libnamic Omeka S Cli](https://github.com/Libnamic/omeka-s-cli/)
-- [biblibre Omeka CLI](https://github.com/biblibre/omeka-cli)
+- [Omeka S Cli](https://github.com/Libnamic/omeka-s-cli/) by Libnamic
+- [Omeka CLI](https://github.com/biblibre/omeka-cli) by biblibre
+- [Omeka S Module Settings](https://github.com/mcoonen/omekas-module-settings) by Maarten Coonen
