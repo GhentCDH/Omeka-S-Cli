@@ -7,5 +7,7 @@ return [
     new GetCommand(),
     new SetCommand(),
     new ListCommand(),
+    new ExportCommand(),
+    new ImportCommand(),
     new CreateDbIniCommand(),
 ];

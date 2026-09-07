@@ -37,8 +37,14 @@
 - Build PHAR: `box compile` (configured by `box.json` + `scoper.inc.php`)
 - Optional container dev setup is defined in `compose.yml` and `Dockerfile`.
 
+## Testing
+- Unit tests: `vendor/bin/phpunit` (config `phpunit.xml`, tests under `tests/`). These run against unscoped source.
+- Integration tests: `tests/integration.sh` drives the CLI against a live Omeka in the dev container; select subsets with `--section <name>` (and `--skip <name>`).
+- IMPORTANT: run integration tests against a freshly built PHAR — `box compile`, then `tests/integration.sh --phar`. Scoping (see Packaging Notes) only takes effect in the PHAR, so a source-only run can pass while the shipped PHAR fails.
+
 ## Packaging Notes
-- PHAR scoping excludes `OSC`, `Omeka`, and `Laminas` namespaces (`scoper.inc.php`) because Omeka provides these at runtime.
+- PHAR scoping excludes `OSC`, `Omeka`, and `Laminas` namespaces (`scoper.inc.php`, prefix `_OmekaSCli`) because Omeka provides these at runtime. Every other vendored library (e.g. `Doctrine`) IS prefixed.
+- Consequence: an `OSC\` class must not type-hint an Omeka-supplied object from a prefixed namespace. The `Omeka\Connection` service is a `Doctrine\DBAL\Connection`; in the PHAR the hint becomes `_OmekaSCli\Doctrine\DBAL\Connection` and rejects Omeka's unprefixed runtime instance (TypeError). Leave such properties/params untyped, as the commands do (e.g. `$connection = $serviceManager->get('Omeka\Connection')`). This only surfaces in a `--phar` run.
 - `composer.json` lint/fix scripts ignore several command index files; do not use those files as strict style references.
 
 ## Source Of Existing AI Conventions
