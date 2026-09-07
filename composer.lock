@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "44618c35b00352cad3af67bf8de04db0",
+    "content-hash": "87bd1585fa03e000ccc6f721e0a15e52",
     "packages": [
         {
             "name": "adhocore/cli",
@@ -218,6 +218,65 @@
                 "source": "https://github.com/FakerPHP/Faker/tree/v1.24.1"
             },
             "time": "2024-11-21T13:46:39+00:00"
+        },
+        {
+            "name": "otar/jsonc",
+            "version": "v2.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/otar/jsonc.git",
+                "reference": "d24b9132cdf3cb74cc353649b0d5a9cc57d3b08f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/otar/jsonc/zipball/d24b9132cdf3cb74cc353649b0d5a9cc57d3b08f",
+                "reference": "d24b9132cdf3cb74cc353649b0d5a9cc57d3b08f",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^9.5 || ^10.0 || ^11.0 || ^12.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/functions.php"
+                ],
+                "psr-4": {
+                    "Otar\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Otar Chekurishvili",
+                    "email": "otar@hey.com",
+                    "homepage": "https://otar.me"
+                }
+            ],
+            "description": "A production-ready PHP library for parsing JSONC (JSON with Comments) format with drop-in compatibility for json_decode()",
+            "keywords": [
+                "comments",
+                "config",
+                "configuration",
+                "decoder",
+                "json",
+                "jsonc",
+                "parser",
+                "trailing-commas"
+            ],
+            "support": {
+                "issues": "https://github.com/otar/jsonc/issues",
+                "source": "https://github.com/otar/jsonc/tree/v2.0.0"
+            },
+            "time": "2026-06-11T06:36:07+00:00"
         },
         {
             "name": "psr/container",
