@@ -2,6 +2,7 @@
 namespace OSC\Blueprint;
 
 use Exception;
+use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\ResourceFetcher;
 use Otar\JSONC;
 
@@ -26,16 +27,26 @@ class BlueprintLoader
     /** Absolute sources currently being resolved, to detect circular imports. */
     private array $visiting = [];
 
+    /** Resolves repo-aware and relative references (`$import`) into fetchable paths/URLs. */
+    private ReferenceResolver $resolver;
+
+    public function __construct(?ReferenceResolver $resolver = null)
+    {
+        $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
+    }
+
     /**
      * Load and fully resolve a blueprint.
      *
-     * @param string $source Path or URL to the blueprint
+     * @param string $source Path or URL to the blueprint (a repo-aware reference is accepted too)
      * @return Blueprint The normalized, import-resolved blueprint
      * @throws Exception On fetch/parse errors or circular imports
      */
     public function load(string $source): Blueprint
     {
-        $blueprint = $this->decodeObject($source);
+        $source = $this->resolver->resolve($source);
+        $content = ResourceFetcher::fetch($source);
+        $blueprint = $this->decodeObject($content, $source);
         return new Blueprint($this->resolve($blueprint, $source));
     }
 
@@ -55,6 +66,7 @@ class BlueprintLoader
      */
     public function loadPartial(string $source, string $type): mixed
     {
+        $source = $this->resolver->resolve($source);
         $content = ResourceFetcher::fetch($source);
         $data = $this->decode($content);
 
@@ -72,9 +84,9 @@ class BlueprintLoader
         return $this->resolveList($data, $source, $type);
     }
 
-    private function decodeObject(string $source): array
+    /** Decode jsonc content that must be a JSON object (not a list); $source is used for errors only. */
+    private function decodeObject(string $content, string $source): array
     {
-        $content = ResourceFetcher::fetch($source);
         $data = $this->decode($content);
         if (!is_array($data) || array_is_list($data)) {
             throw new Exception("Blueprint '{$source}' must be a JSON object.");
@@ -113,7 +125,7 @@ class BlueprintLoader
                 continue;
             }
 
-            $ref = $this->resolveRef($entry['$import'], $source);
+            $ref = $this->resolver->resolve($entry['$import'], $source);
             $imported = $this->importList($ref, $key);
             foreach ($imported as $item) {
                 $resolved[] = $item;
@@ -175,7 +187,7 @@ class BlueprintLoader
         $merged = [];
         foreach ($settings as $entry) {
             if ($this->isReference($entry)) {
-                $ref = $this->resolveRef($entry['$import'], $source);
+                $ref = $this->resolver->resolve($entry['$import'], $source);
                 $imported = $this->resolveSettings($this->decode(ResourceFetcher::fetch($ref)), $ref);
                 $merged = array_merge($merged, $imported);
                 continue;
@@ -191,21 +203,6 @@ class BlueprintLoader
     private function isReference(mixed $entry): bool
     {
         return is_array($entry) && array_key_exists('$import', $entry);
-    }
-
-    /**
-     * Resolve a reference relative to the source that contains it.
-     */
-    private function resolveRef(string $ref, string $base): string
-    {
-        if (ResourceFetcher::isUrl($ref) || str_starts_with($ref, '/')) {
-            return $ref;
-        }
-        if (ResourceFetcher::isUrl($base)) {
-            // resolve relative to the base URL's directory (simple join; no ../ handling)
-            return preg_replace('#/[^/]*$#', '/', $base) . $ref;
-        }
-        return rtrim(dirname($base), '/') . '/' . $ref;
     }
 
     private function guardKey(string $source): string

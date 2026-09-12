@@ -6,7 +6,8 @@ use OSC\Commands\AbstractCommand;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Exceptions\WarningException;
-use OSC\Helper\ResourceFetcher;
+use OSC\Helper\Path;
+use OSC\Helper\Reference\ReferenceResolver;
 
 /**
  * Apply a resolved blueprint to an Omeka S instance by driving the existing CLI commands in order:
@@ -21,12 +22,16 @@ use OSC\Helper\ResourceFetcher;
  */
 class BlueprintApplier
 {
+    /** Resolves repo-aware and relative asset references against the blueprint source. */
+    private ReferenceResolver $resolver;
+
     /**
-     * @param AbstractCommand $command   The invoking command (for command lookup, output, verbosity)
-     * @param bool            $dryRun    Report actions without performing them
-     * @param bool            $update    Re-download/overwrite and update existing resources
-     * @param string[]        $skip      Phase names to skip
-     * @param string|null     $baseSource The blueprint source, to resolve relative asset paths
+     * @param AbstractCommand       $command   The invoking command (for command lookup, output, verbosity)
+     * @param bool                  $dryRun    Report actions without performing them
+     * @param bool                  $update    Re-download/overwrite and update existing resources
+     * @param string[]              $skip      Phase names to skip
+     * @param string|null           $baseSource The blueprint source, to resolve relative asset paths
+     * @param ReferenceResolver|null $resolver  Reference resolver (defaults to the standard providers)
      */
     public function __construct(
         private AbstractCommand $command,
@@ -34,7 +39,9 @@ class BlueprintApplier
         private bool $update = false,
         private array $skip = [],
         private ?string $baseSource = null,
+        ?ReferenceResolver $resolver = null,
     ) {
+        $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
     }
 
     public function apply(Blueprint $blueprint): void
@@ -224,19 +231,26 @@ class BlueprintApplier
                 continue;
             }
 
-            $this->propagateVerbosity($cmd);
-            // reset all importer inputs, then set the ones this entry provides
-            foreach (['url', 'file', 'namespaceUri', 'prefix', 'label', 'comment', 'lang', 'labelProperty', 'commentProperty', 'config'] as $option) {
-                $cmd->primeValue($option, $vocabulary[$option] ?? null);
+            // a relative RDF file path resolves against the blueprint; url stays as-is
+            if (isset($vocabulary['file'])) {
+                $vocabulary['file'] = $this->resolveAssetPath($vocabulary['file']);
             }
-            $cmd->primeValue('file', $this->resolveAssetPath($vocabulary['file'] ?? null));
-            $cmd->primeValue('format', $vocabulary['format'] ?? 'auto');
 
+            // a blueprint vocabulary entry is an importer config: hand it to the importer as a
+            // config file, so inline and $import-referenced configs follow one code path
+            $configFile = Path::createTempFile('bp-vocab-');
+            file_put_contents(
+                $configFile,
+                json_encode($vocabulary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+            );
             try {
-                $cmd->execute($this->update);
+                $this->propagateVerbosity($cmd);
+                $cmd->execute($configFile, $this->update);
             } catch (WarningException $e) {
                 // e.g. the vocabulary already exists and --update was not requested
                 $this->command->warn("  {$label}: " . $e->getMessage(), true);
+            } finally {
+                @unlink($configFile);
             }
         }
     }
@@ -338,13 +352,7 @@ class BlueprintApplier
         if ($path === null || $path === '') {
             return $path;
         }
-        if (ResourceFetcher::isUrl($path) || str_starts_with($path, '/') || !$this->baseSource) {
-            return $path;
-        }
-        if (ResourceFetcher::isUrl($this->baseSource)) {
-            return preg_replace('#/[^/]*$#', '/', $this->baseSource) . $path;
-        }
-        return rtrim(dirname($this->baseSource), '/') . '/' . $path;
+        return $this->resolver->resolve($path, $this->baseSource);
     }
 
     /**
