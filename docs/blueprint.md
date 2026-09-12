@@ -251,6 +251,31 @@ Within a resolved list, entries sharing a natural identity (module/theme `name`,
 resource-template `label`, user `email`, item/item-set `title`) collapse to the **last** occurrence,
 so a later inline entry overrides an imported one.
 
+### Reference forms
+
+The blueprint source (the argument to `blueprint:deploy` / `blueprint:validate`), every `$import`,
+and asset paths (`file`, `source`) all accept the same reference forms:
+
+| Form | Example |
+| --- | --- |
+| Local path | `./modules.extra.jsonc`, `/abs/path/site.blueprint.jsonc` |
+| Any URL | `https://example.org/site.blueprint.jsonc` |
+| GitHub raw URL | `https://raw.githubusercontent.com/owner/repo/main/site.blueprint.jsonc` |
+| GitHub browser URL | `https://github.com/owner/repo/blob/main/site.blueprint.jsonc` |
+| GitHub short scheme | `gh:owner/repo@main:site.blueprint.jsonc` |
+| GitLab browser URL | `https://gitlab.com/group/project/-/blob/main/site.blueprint.jsonc` |
+| GitLab short scheme | `gl:group/project@main:site.blueprint.jsonc` |
+
+Browser "blob" URLs are converted to raw-download URLs automatically. GitLab URLs are recognized by
+their `/-/blob/` path segment, so **self-hosted GitLab** instances work too. In the short schemes the
+`@<ref>` part (branch, tag, or commit) is optional and defaults to `HEAD`; the GitLab short scheme
+targets `gitlab.com` (for other hosts use a full browser or raw URL).
+
+Because references resolve relative to the file that contains them, a blueprint fetched from a repo
+can reference its neighbours by filename only (`modules.extra.jsonc`) or by a repo-relative path
+(`../shared/base.jsonc`) — the parent (`..`) segments are normalized and stay within the repo. Only
+public files are supported (no auth tokens yet).
+
 ## jsonc
 
 Blueprints may use `//` and `/* */` comments and trailing commas. Comments are stripped before
