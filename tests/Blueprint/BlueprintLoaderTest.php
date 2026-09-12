@@ -3,10 +3,14 @@ namespace Tests\Blueprint;
 
 use Exception;
 use OSC\Blueprint\BlueprintLoader;
+use OSC\Helper\Reference\ReferenceResolver;
+use OSC\Helper\Reference\RepoProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlueprintLoader::class)]
+#[UsesClass(ReferenceResolver::class)]
 class BlueprintLoaderTest extends TestCase
 {
     private string $dir;
@@ -108,5 +112,33 @@ class BlueprintLoaderTest extends TestCase
         $file = $this->write('bad.jsonc', '[ "A" ]');
         $this->expectException(Exception::class);
         (new BlueprintLoader())->load($file);
+    }
+
+    public function testRoutesSourceAndImportsThroughTheInjectedResolver(): void
+    {
+        // a fake provider maps test:<name> to a file in the temp dir, proving both the top-level
+        // source and a nested $import are resolved through the injected ReferenceResolver
+        $provider = new class ($this->dir) implements RepoProvider {
+            public function __construct(private string $dir)
+            {
+            }
+            public function supports(string $reference): bool
+            {
+                return str_starts_with($reference, 'test:');
+            }
+            public function toRawUrl(string $reference): string
+            {
+                return $this->dir . '/' . substr($reference, 5);
+            }
+        };
+        $this->write('more.jsonc', '["B"]');
+        $this->write('base.jsonc', '{ "modules": ["A", { "$import": "test:more.jsonc" }] }');
+
+        $loader = new BlueprintLoader(new ReferenceResolver([$provider]));
+        $blueprint = $loader->load('test:base.jsonc');
+
+        $names = array_map(fn($m) => is_string($m) ? $m : $m['name'], $blueprint->modules());
+        sort($names);
+        $this->assertSame(['A', 'B'], $names);
     }
 }
