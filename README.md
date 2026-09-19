@@ -45,6 +45,10 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - List all users
     - Add, delete, update, set password, enable or disable a user
     - Manage API keys for a user
+- Manage code snippets
+    - Manage custom PHP snippets via the [CodeSnippets](https://github.com/ateeducacion/omeka-s-CodeSnippets) module
+    - List, show, activate, deactivate, and delete snippets
+    - Export and import snippets using the canonical portable JSON format
 
 ### Automating Omeka S instance setup
 
@@ -213,6 +217,49 @@ omeka-s-cli resource-template:import "/path/to/template.json" 2
 Update an existing template by label:
 ```bash
 omeka-s-cli resource-template:import "/path/to/template.json" "My Custom Template"
+```
+
+### Example: Manage code snippets
+
+Manage PHP snippets using the [CodeSnippets](https://github.com/ateeducacion/omeka-s-CodeSnippets) module (requires CodeSnippets `1.0.1` or later for import/export).
+
+> [!NOTE]
+> Snippets are identified by numeric ID (names are not unique). Exports use the CodeSnippets portable versioned format, and imports always create new snippets. Stored snippets deliberately do not execute while Omeka-S-Cli runs under PHP CLI.
+
+List stored snippets:
+```bash
+omeka-s-cli code-snippet:list
+```
+
+Show details of a snippet:
+```bash
+omeka-s-cli code-snippet:show 4
+```
+
+Export all snippets to stdout:
+```bash
+omeka-s-cli code-snippet:export > snippets.json
+```
+
+Export a single snippet to a file:
+```bash
+omeka-s-cli code-snippet:export 4 --output snippet.json
+```
+
+Import snippets from a JSON export document:
+```bash
+omeka-s-cli code-snippet:import snippets.json
+```
+
+Activate or deactivate a snippet (activation triggers syntax validation):
+```bash
+omeka-s-cli code-snippet:activate 4
+omeka-s-cli code-snippet:deactivate 4
+```
+
+Delete a snippet:
+```bash
+omeka-s-cli code-snippet:delete 4
 ```
 
 ## Requirements
