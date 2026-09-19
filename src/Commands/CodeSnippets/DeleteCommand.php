@@ -2,7 +2,7 @@
 
 namespace OSC\Commands\CodeSnippets;
 
-use InvalidArgumentException;
+use CodeSnippets\Exception\SnippetNotFoundException;
 
 class DeleteCommand extends AbstractCodeSnippetCommand
 {
@@ -15,15 +15,11 @@ class DeleteCommand extends AbstractCodeSnippetCommand
 
     public function execute(string $id, ?bool $ignoreNotFound = false): void
     {
-        if (!is_numeric($id)) {
-            throw new InvalidArgumentException("Snippet ID must be an integer, got: '{$id}'.");
-        }
-
-        $snippetId = (int) $id;
+        $snippetId = $this->parseSnippetId($id);
 
         try {
             $this->getSnippetService()->delete($snippetId);
-        } catch (\Throwable $e) {
+        } catch (SnippetNotFoundException $e) {
             $this->skipMissing($e, (bool) $ignoreNotFound);
         }
 

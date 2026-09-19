@@ -563,13 +563,32 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
     assert_fail "importing invalid active snippet batch fails" $CLI code-snippet:import "$CS_INVALID_BATCH"
     assert_output_is "snippet count unchanged after atomic failed import" "$COUNT_BEFORE_FAIL" bash -c "$CLI code-snippet:list --json | jq 'length'"
 
+    # invalid snippet ID validation
+    assert_fail "code-snippet:show with ID 0 fails" $CLI code-snippet:show 0
+    assert_fail "code-snippet:show with ID -1 fails" $CLI code-snippet:show -- -1
+    assert_fail "code-snippet:show with ID +1 fails" $CLI code-snippet:show '+1'
+    assert_fail "code-snippet:show with ID 1.5 fails" $CLI code-snippet:show 1.5
+    assert_fail "code-snippet:show with ID 1e2 fails" $CLI code-snippet:show 1e2
+    assert_fail "code-snippet:show with ID abc fails" $CLI code-snippet:show abc
+    assert_fail "code-snippet:export abc fails as invalid ID" $CLI code-snippet:export abc
+
     # missing ID checks
     assert_fail "code-snippet:show nonexistent ID fails" $CLI code-snippet:show 999999
     assert_success "code-snippet:show nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:show 999999 --ignore-not-found
     assert_fail "code-snippet:activate nonexistent ID fails" $CLI code-snippet:activate 999999
     assert_success "code-snippet:activate nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:activate 999999 --ignore-not-found
+    assert_fail "code-snippet:deactivate nonexistent ID fails" $CLI code-snippet:deactivate 999999
+    assert_success "code-snippet:deactivate nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:deactivate 999999 --ignore-not-found
     assert_fail "code-snippet:delete nonexistent ID fails" $CLI code-snippet:delete 999999
     assert_success "code-snippet:delete nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:delete 999999 --ignore-not-found
+    assert_fail "code-snippet:export nonexistent ID fails" $CLI code-snippet:export 999999
+    assert_success "code-snippet:export nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:export 999999 --ignore-not-found
+
+    # syntax error on activate is NOT suppressed by --ignore-not-found
+    CS_SYNTAX_ERR=/tmp/cs-syntax-err.json
+    echo '{"format":"omeka-s-code-snippets","version":1,"snippets":[{"name":"Bad Syntax","code":"broken php code {{{","active":false}]}' > "$CS_SYNTAX_ERR"
+    SYNTAX_ERR_ID=$(bash -c "$CLI code-snippet:import $CS_SYNTAX_ERR --json | jq -r '.[0].id'")
+    assert_fail "activating snippet with invalid syntax fails even with --ignore-not-found" $CLI code-snippet:activate "$SYNTAX_ERR_ID" --ignore-not-found
 
     # delete
     CS_TO_DELETE=/tmp/cs-to-delete.json
@@ -578,7 +597,7 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
     assert_success "delete snippet $DELETE_ID" $CLI code-snippet:delete "$DELETE_ID"
     assert_fail "deleted snippet $DELETE_ID no longer exists" $CLI code-snippet:show "$DELETE_ID"
 
-    run "clean up temporary files" rm -f "$CS_EXPORT_ALL" "$CS_EXPORT_ONE" "$CS_INVALID_BATCH" "$CS_TO_DELETE"
+    run "clean up temporary files" rm -f "$CS_EXPORT_ALL" "$CS_EXPORT_ONE" "$CS_INVALID_BATCH" "$CS_SYNTAX_ERR" "$CS_TO_DELETE"
 fi
 
 # ── config ───────────────────────────────────────────────────────

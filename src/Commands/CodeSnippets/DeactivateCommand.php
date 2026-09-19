@@ -2,7 +2,7 @@
 
 namespace OSC\Commands\CodeSnippets;
 
-use InvalidArgumentException;
+use CodeSnippets\Exception\SnippetNotFoundException;
 
 class DeactivateCommand extends AbstractCodeSnippetCommand
 {
@@ -16,16 +16,12 @@ class DeactivateCommand extends AbstractCodeSnippetCommand
 
     public function execute(string $id, ?bool $json = false, ?bool $ignoreNotFound = false): void
     {
-        if (!is_numeric($id)) {
-            throw new InvalidArgumentException("Snippet ID must be an integer, got: '{$id}'.");
-        }
-
-        $snippetId = (int) $id;
+        $snippetId = $this->parseSnippetId($id);
         $updated = null;
 
         try {
             $updated = $this->getSnippetService()->deactivate($snippetId);
-        } catch (\Throwable $e) {
+        } catch (SnippetNotFoundException $e) {
             $this->skipMissing($e, (bool) $ignoreNotFound);
         }
 

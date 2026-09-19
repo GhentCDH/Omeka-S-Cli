@@ -5,6 +5,8 @@
 
 namespace OSC\Commands\CodeSnippets;
 
+use Ahc\Cli\Exception\InvalidArgumentException;
+use CodeSnippets\Exception\SnippetNotFoundException;
 use OSC\Commands\AbstractCommand;
 
 /**
@@ -49,6 +51,33 @@ abstract class AbstractCodeSnippetCommand extends AbstractCommand
     }
 
     /**
+     * Parse and validate a numeric snippet ID.
+     *
+     * @param string $id Snippet ID string from input
+     *
+     * @return int Valid positive integer ID
+     *
+     * @throws InvalidArgumentException If the ID is not a valid positive integer
+     */
+    protected function parseSnippetId(string $id): int
+    {
+        if (!preg_match('/^[1-9]\d*$/', $id)) {
+            throw new InvalidArgumentException(
+                sprintf("Snippet ID must be a positive integer, got: '%s'.", $id)
+            );
+        }
+
+        $intId = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($intId === false) {
+            throw new InvalidArgumentException(
+                sprintf("Snippet ID is out of range, got: '%s'.", $id)
+            );
+        }
+
+        return $intId;
+    }
+
+    /**
      * Find a snippet by ID, honouring --ignore-not-found.
      *
      * @param int  $id             Snippet ID
@@ -56,13 +85,13 @@ abstract class AbstractCodeSnippetCommand extends AbstractCommand
      *
      * @return array
      *
-     * @throws \Throwable If snippet not found and not ignoring
+     * @throws SnippetNotFoundException If snippet not found and not ignoring
      */
     protected function requireSnippet(int $id, bool $ignoreNotFound = false): array
     {
         try {
             return $this->getSnippetService()->find($id);
-        } catch (\Throwable $e) {
+        } catch (SnippetNotFoundException $e) {
             $this->skipMissing($e, $ignoreNotFound);
         }
     }

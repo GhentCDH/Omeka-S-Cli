@@ -2,8 +2,6 @@
 
 namespace OSC\Commands\CodeSnippets;
 
-use InvalidArgumentException;
-
 class ShowCommand extends AbstractCodeSnippetCommand
 {
     public function __construct()
@@ -16,11 +14,9 @@ class ShowCommand extends AbstractCodeSnippetCommand
 
     public function execute(string $id, ?bool $json = false, ?bool $ignoreNotFound = false): void
     {
-        if (!is_numeric($id)) {
-            throw new InvalidArgumentException("Snippet ID must be an integer, got: '{$id}'.");
-        }
+        $snippetId = $this->parseSnippetId($id);
 
-        $snippet = $this->requireSnippet((int) $id, (bool) $ignoreNotFound);
+        $snippet = $this->requireSnippet($snippetId, (bool) $ignoreNotFound);
 
         $format = $this->getOutputFormat('table');
         if ($format === 'json') {
