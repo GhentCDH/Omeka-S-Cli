@@ -507,7 +507,79 @@ assert_success "install dependency: valuesuggest" $CLI module:download valuesugg
 assert_success "install dependency: NdeTermennetwerk"    $CLI module:download NdeTermennetwerk --install --force
 assert_success "re-import resource template with dependencies"    $CLI resource-template:import /app/omeka-s-cli/examples/resource-template/template-with-dependencies.json --update
 
-# todo: add test for resource-template with customvocab dependency
+# ── code snippets ────────────────────────────────────────────────────────────
+
+section "Code snippets"
+
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    run "ensure codesnippets module is not installed" $CLI module:delete CodeSnippets --force
+
+    assert_fail "code-snippet:list with missing CodeSnippets module fails" $CLI code-snippet:list
+    assert_success "download and install CodeSnippets 1.0.1" $CLI module:download https://github.com/ateeducacion/omeka-s-CodeSnippets/releases/download/1.0.1/CodeSnippets-1.0.1.zip --install
+    assert_success "code-snippet:list works after installation" $CLI code-snippet:list
+    assert_success "code-snippet:list --json returns at least 1 seeded snippet" bash -c "$CLI code-snippet:list --json | jq -e 'length > 0'"
+
+    # pick an inactive snippet ID from the seeded list, or fallback to first snippet
+    SNIPPET_ID=$(bash -c "$CLI code-snippet:list --json | jq -r '[.[] | select(.active == false)][0].id'")
+    if [[ -z "$SNIPPET_ID" || "$SNIPPET_ID" == "null" ]]; then
+        SNIPPET_ID=$(bash -c "$CLI code-snippet:list --json | jq -r '.[0].id'")
+    fi
+
+    assert_output_is "code-snippet:show --json returns the requested snippet ID" "$SNIPPET_ID" bash -c "$CLI code-snippet:show $SNIPPET_ID --json | jq -r .id"
+
+    # activate
+    assert_success "activate snippet $SNIPPET_ID" $CLI code-snippet:activate $SNIPPET_ID
+    assert_output_is "snippet $SNIPPET_ID is active after activate" "true" bash -c "$CLI code-snippet:show $SNIPPET_ID --json | jq -r .active"
+
+    # deactivate
+    assert_success "deactivate snippet $SNIPPET_ID" $CLI code-snippet:deactivate $SNIPPET_ID
+    assert_output_is "snippet $SNIPPET_ID is inactive after deactivate" "false" bash -c "$CLI code-snippet:show $SNIPPET_ID --json | jq -r .active"
+
+    # export all
+    CS_EXPORT_ALL=/tmp/cs-export-all.json
+    run "clean up export all file" rm -f "$CS_EXPORT_ALL"
+    assert_success "export all snippets to file" $CLI code-snippet:export --output "$CS_EXPORT_ALL"
+    assert_output_is "exported all format is omeka-s-code-snippets" "omeka-s-code-snippets" bash -c "jq -r .format $CS_EXPORT_ALL"
+    assert_output_is "exported all version is 1" "1" bash -c "jq -r .version $CS_EXPORT_ALL"
+    assert_success "exported all snippets is an array" bash -c "jq -e '.snippets | type == \"array\"' $CS_EXPORT_ALL"
+
+    # export one
+    CS_EXPORT_ONE=/tmp/cs-export-one.json
+    run "clean up export one file" rm -f "$CS_EXPORT_ONE"
+    assert_success "export single snippet to file" $CLI code-snippet:export $SNIPPET_ID --output "$CS_EXPORT_ONE"
+    assert_output_is "exported single format is omeka-s-code-snippets" "omeka-s-code-snippets" bash -c "jq -r .format $CS_EXPORT_ONE"
+    assert_output_is "exported single version is 1" "1" bash -c "jq -r .version $CS_EXPORT_ONE"
+    assert_output_is "exported single contains exactly 1 snippet" "1" bash -c "jq '.snippets | length' $CS_EXPORT_ONE"
+
+    # import
+    COUNT_BEFORE=$(bash -c "$CLI code-snippet:list --json | jq 'length'")
+    assert_success "import single-snippet export" $CLI code-snippet:import "$CS_EXPORT_ONE"
+    assert_output_is "snippet count increased by 1 after import" "$((COUNT_BEFORE + 1))" bash -c "$CLI code-snippet:list --json | jq 'length'"
+
+    # atomic failed import
+    COUNT_BEFORE_FAIL=$(bash -c "$CLI code-snippet:list --json | jq 'length'")
+    CS_INVALID_BATCH=/tmp/cs-invalid-batch.json
+    echo '{"format":"omeka-s-code-snippets","version":1,"snippets":[{"name":"Valid Inactive","code":"echo 1;","active":false},{"name":"Invalid Active","code":"broken php code {{{","active":true}]}' > "$CS_INVALID_BATCH"
+    assert_fail "importing invalid active snippet batch fails" $CLI code-snippet:import "$CS_INVALID_BATCH"
+    assert_output_is "snippet count unchanged after atomic failed import" "$COUNT_BEFORE_FAIL" bash -c "$CLI code-snippet:list --json | jq 'length'"
+
+    # missing ID checks
+    assert_fail "code-snippet:show nonexistent ID fails" $CLI code-snippet:show 999999
+    assert_success "code-snippet:show nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:show 999999 --ignore-not-found
+    assert_fail "code-snippet:activate nonexistent ID fails" $CLI code-snippet:activate 999999
+    assert_success "code-snippet:activate nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:activate 999999 --ignore-not-found
+    assert_fail "code-snippet:delete nonexistent ID fails" $CLI code-snippet:delete 999999
+    assert_success "code-snippet:delete nonexistent ID with --ignore-not-found succeeds" $CLI code-snippet:delete 999999 --ignore-not-found
+
+    # delete
+    CS_TO_DELETE=/tmp/cs-to-delete.json
+    echo '{"format":"omeka-s-code-snippets","version":1,"snippets":[{"name":"To Delete","code":"echo 2;","active":false}]}' > "$CS_TO_DELETE"
+    DELETE_ID=$(bash -c "$CLI code-snippet:import $CS_TO_DELETE --json | jq -r '.[0].id'")
+    assert_success "delete snippet $DELETE_ID" $CLI code-snippet:delete "$DELETE_ID"
+    assert_fail "deleted snippet $DELETE_ID no longer exists" $CLI code-snippet:show "$DELETE_ID"
+
+    run "clean up temporary files" rm -f "$CS_EXPORT_ALL" "$CS_EXPORT_ONE" "$CS_INVALID_BATCH" "$CS_TO_DELETE"
+fi
 
 # ── config ───────────────────────────────────────────────────────
 
