@@ -15,6 +15,11 @@ The JSON schema is bundled at
 [`assets/blueprints/omeka-s-cli.blueprint-schema.json`](../assets/blueprints/omeka-s-cli.blueprint-schema.json).
 Point your editor at it with a `$schema` key for completion and inline validation.
 
+Validation is **strict**: an unknown key on a known object is rejected, which catches typos (e.g.
+`stat` instead of `state`). Genuine free-form maps — `settings`, `user.settings` and `phpConstants` —
+stay open. Where our schema and the upstream Playground schema deliberately differ is tracked in
+[blueprint-shared-spec-collaboration.md](blueprint-shared-spec-collaboration.md).
+
 ## Commands
 
 ```
@@ -146,7 +151,11 @@ reference.
   Defaults to `activate`.
 - **`version`** — pin a specific release (resolved as `module:download name:version`).
 - **`source`** — `{ "type": "bundled" }` (ships with core, skipped), `{ "type": "url", "url": … }`
-  (a zip release or git URL), or `{ "type": "omeka.org", "slug": …, "version": … }`.
+  (a zip release or git URL), or `{ "type": "omeka.org", "slug": … }`. Pin the release with the
+  top-level `version` (above), not inside `source`.
+- **`assets`** — a list of `{ "url", "destination" }` ZIP payloads overlaid onto the module directory
+  after extraction (each unpacked into `destination` under the module root, stripping a single wrapper
+  folder). Accepted and validated for Playground compatibility, but **not yet applied** by the CLI.
 
 Modules are installed and enabled in the order you list them, so declare a module **before** the
 ones that depend on it (e.g. `Common` first). If the order is wrong, Omeka reports a clear
@@ -180,8 +189,8 @@ Each entry mirrors the `vocabulary:import` inputs: identifying fields plus exact
 ]
 ```
 
-Optional: `comment`, `format`, `lang`. A relative `file` is resolved against the blueprint's
-location.
+Optional: `comment`, `format`, `lang`, and `labelProperty` / `commentProperty` (RDF properties to use
+for labels/comments). A relative `file` is resolved against the blueprint's location.
 
 ### `resourceTemplates`
 
@@ -205,6 +214,12 @@ against the blueprint's location. Requires the `Common` module to be active.
 `email` is required; `role` defaults to `author`. Creating a user is idempotent (an existing email is
 left untouched). Valid roles: `global_admin`, `site_admin`, `editor`, `reviewer`, `author`,
 `researcher`.
+
+> **Security note.** `password` is stored **in clear text** in the blueprint file. Unlike the core
+> phase's `--db-password` / `--admin-password` (which are passed as flags and never written to the
+> blueprint), a user `password` has no external-reference or secrets mechanism yet. Treat any
+> blueprint containing user passwords as a secret in its own right — keep it out of shared version
+> control, or omit `password` and set it out of band.
 
 ### `settings`
 
@@ -230,8 +245,8 @@ read where relevant.
 
 ### Not yet applied
 
-`items`, `itemSets`, `site`/`sites` are part of the schema and are validated, but applying them
-(creating sites and content) is a later milestone.
+`items`, `itemSets`, `site`/`sites`, and `modules[].assets` are part of the schema and are validated,
+but applying them (creating sites and content, or overlaying module asset ZIPs) is a later milestone.
 
 ## Partials and `$import`
 
@@ -249,7 +264,10 @@ place by the items of the referenced list. This keeps a shared list under the ke
 References resolve relative to the file that contains them, may nest, and are rejected if circular.
 Within a resolved list, entries sharing a natural identity (module/theme `name`, vocabulary `prefix`,
 resource-template `label`, user `email`, item/item-set `title`) collapse to the **last** occurrence,
-so a later inline entry overrides an imported one.
+so a later inline entry overrides an imported one — this is what makes *layering* work (import a
+shared base list, then override a single entry locally). When an override actually changes a value,
+`deploy` and `validate` print an advisory warning so an *accidental* duplicate is still noticed;
+re-declaring an identical value is silent.
 
 ### Reference forms
 
