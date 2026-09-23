@@ -37,6 +37,10 @@ class ValidateCommand extends AbstractBlueprintCommand
             $errors = $validator->validateBlueprint($data->toArray());
         }
 
+        foreach ($loader->takeWarnings() as $warning) {
+            $this->warn("  {$warning}", true);
+        }
+
         if ($json) {
             $this->outputFormatted(['valid' => empty($errors), 'errors' => array_values($errors)], 'json');
         }

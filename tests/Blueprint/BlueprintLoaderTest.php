@@ -141,4 +141,44 @@ class BlueprintLoaderTest extends TestCase
         sort($names);
         $this->assertSame(['A', 'B'], $names);
     }
+
+    public function testOverridingDuplicateRecordsAWarning(): void
+    {
+        $base = $this->write('base.jsonc', <<<JSONC
+        {
+            "modules": [
+                { "name": "Log", "state": "download" },
+                { "name": "Log", "state": "activate" }
+            ]
+        }
+        JSONC);
+
+        $loader = new BlueprintLoader();
+        $loader->load($base);
+        $warnings = $loader->takeWarnings();
+
+        $this->assertCount(1, $warnings);
+        // the identity label keeps its original casing, and the message names the list key
+        $this->assertStringContainsString("modules: 'Log'", $warnings[0]);
+        // draining clears the buffer
+        $this->assertSame([], $loader->takeWarnings());
+    }
+
+    public function testIdenticalDuplicateDoesNotWarn(): void
+    {
+        $base = $this->write('base.jsonc', <<<JSONC
+        {
+            "modules": [
+                { "name": "Log", "state": "download" },
+                { "name": "Log", "state": "download" }
+            ]
+        }
+        JSONC);
+
+        $loader = new BlueprintLoader();
+        $loader->load($base);
+
+        // a duplicate that re-declares an identical value is a harmless no-op, not a warning
+        $this->assertSame([], $loader->takeWarnings());
+    }
 }
