@@ -85,7 +85,7 @@ class BlueprintApplier
                 continue;
             }
             // re-download when --update, or when a pinned version differs from what is on disk
-            $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version'] ?? ($module['source']['version'] ?? null));
+            $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version'] ?? null);
             try {
                 $this->run('module:download', fn($c) => $c->execute($uri, $force), false);
             } catch (ModuleExistsException) {
@@ -131,7 +131,7 @@ class BlueprintApplier
             }
             if ($type === 'omeka.org') {
                 $slug = $source['slug'] ?? $module['name'];
-                $version = $module['version'] ?? ($source['version'] ?? null);
+                $version = $module['version'] ?? null;
                 return $version ? "{$slug}:{$version}" : $slug;
             }
         }
@@ -185,7 +185,7 @@ class BlueprintApplier
                 $this->command->info("  would download theme '{$theme['name']}' ({$uri})", true);
                 continue;
             }
-            $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'] ?? '', $theme['version'] ?? ($theme['source']['version'] ?? null));
+            $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'] ?? '', $theme['version'] ?? null);
             try {
                 $this->run('theme:download', fn($c) => $c->execute($uri, $force, false), false);
             } catch (ThemeExistsException) {
@@ -207,7 +207,7 @@ class BlueprintApplier
             }
             if ($type === 'omeka.org') {
                 $slug = $source['slug'] ?? $theme['name'];
-                $version = $theme['version'] ?? ($source['version'] ?? null);
+                $version = $theme['version'] ?? null;
                 return $version ? "{$slug}:{$version}" : $slug;
             }
         }

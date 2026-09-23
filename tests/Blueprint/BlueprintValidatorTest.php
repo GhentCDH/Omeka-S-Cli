@@ -71,6 +71,31 @@ class BlueprintValidatorTest extends TestCase
         $this->assertNotEmpty($validator->validatePartial([['state' => 'install']], 'modules'));
     }
 
+    public function testAcceptsModuleAssetsAndRejectsMalformedEntries(): void
+    {
+        $validator = new BlueprintValidator();
+
+        // a well-formed assets array validates
+        $this->assertSame([], $validator->validateBlueprint([
+            'modules' => [[
+                'name' => 'AdvancedSearch',
+                'assets' => [['url' => 'https://example.org/extra.zip', 'destination' => 'asset/custom']],
+            ]],
+        ]));
+
+        // an assets entry missing the required 'destination' is rejected
+        $this->assertNotEmpty($validator->validateBlueprint([
+            'modules' => [['name' => 'AdvancedSearch', 'assets' => [['url' => 'https://example.org/extra.zip']]]],
+        ]));
+
+        // an unknown key inside an assets entry is rejected (item-level additionalProperties: false)
+        $this->assertNotEmpty($validator->validateBlueprint([
+            'modules' => [['name' => 'AdvancedSearch', 'assets' => [
+                ['url' => 'https://example.org/extra.zip', 'destination' => 'x', 'bogus' => 1],
+            ]]],
+        ]));
+    }
+
     public function testPlaygroundBlueprintWithRuntimeOnlyKeysStillValidates(): void
     {
         $blueprint = [
@@ -83,5 +108,48 @@ class BlueprintValidatorTest extends TestCase
             'themes' => [],
         ];
         $this->assertSame([], (new BlueprintValidator())->validateBlueprint($blueprint));
+    }
+
+    public function testRejectsUnknownUserRole(): void
+    {
+        $errors = (new BlueprintValidator())->validateBlueprint([
+            'users' => [['email' => 'a@b.c', 'role' => 'wizard']],
+        ]);
+        $this->assertNotEmpty($errors);
+    }
+
+    public function testStrictValidationRejectsUnknownKeys(): void
+    {
+        $v = new BlueprintValidator();
+        // unknown top-level key
+        $this->assertNotEmpty($v->validateBlueprint(['modulez' => []]));
+        // unknown key on a fixed object (user)
+        $this->assertNotEmpty($v->validateBlueprint([
+            'users' => [['email' => 'a@b.c', 'bogus' => 1]],
+        ]));
+    }
+
+    public function testVocabularyAcceptsLabelAndCommentProperty(): void
+    {
+        $errors = (new BlueprintValidator())->validateBlueprint([
+            'vocabularies' => [[
+                'prefix' => 'ex',
+                'namespaceUri' => 'https://ex.org/',
+                'label' => 'Ex',
+                'url' => 'https://ex.org/ex.rdf',
+                'labelProperty' => 'rdfs:label',
+                'commentProperty' => 'rdfs:comment',
+            ]],
+        ]);
+        $this->assertSame([], $errors);
+    }
+
+    public function testSettingsMapStillAllowsArbitraryKeys(): void
+    {
+        // settings is a genuine free-form map and stays open under strict validation
+        $errors = (new BlueprintValidator())->validateBlueprint([
+            'settings' => ['any_custom_setting_id' => 'value', 'another' => 3],
+        ]);
+        $this->assertSame([], $errors);
     }
 }

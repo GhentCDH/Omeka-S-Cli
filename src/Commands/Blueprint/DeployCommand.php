@@ -64,7 +64,11 @@ class DeployCommand extends AbstractBlueprintCommand
         ?string $adminPassword = 'admin',
     ): void {
         $this->info("Loading blueprint from '{$source}' ...", true);
-        $blueprint = (new BlueprintLoader())->load($source);
+        $loader = new BlueprintLoader();
+        $blueprint = $loader->load($source);
+        foreach ($loader->takeWarnings() as $warning) {
+            $this->warn("  {$warning}", true);
+        }
 
         $errors = (new BlueprintValidator())->validateBlueprint($blueprint->toArray());
         if ($errors) {

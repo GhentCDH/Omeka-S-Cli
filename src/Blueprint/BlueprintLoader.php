@@ -17,7 +17,9 @@ use Otar\JSONC;
  *
  * De-duplication: within a resolved list, entries sharing a natural identity (module/theme `name`,
  * vocabulary `prefix`, resource-template `label`, user `email`, item/item-set `title`) collapse to
- * the last occurrence, so a later inline entry — or a later import — overrides an earlier one.
+ * the last occurrence, so a later inline entry — or a later import — overrides an earlier one. When
+ * such an override actually changes the value, an advisory warning is recorded (see takeWarnings()),
+ * so intentional layering keeps working while an accidental duplicate stays visible.
  */
 class BlueprintLoader
 {
@@ -26,6 +28,9 @@ class BlueprintLoader
 
     /** Absolute sources currently being resolved, to detect circular imports. */
     private array $visiting = [];
+
+    /** Advisory messages gathered during the current load (e.g. a duplicate that overrode a value). */
+    private array $warnings = [];
 
     /** Resolves repo-aware and relative references (`$import`) into fetchable paths/URLs. */
     private ReferenceResolver $resolver;
@@ -44,10 +49,26 @@ class BlueprintLoader
      */
     public function load(string $source): Blueprint
     {
+        $this->warnings = [];
         $source = $this->resolver->resolve($source);
         $content = ResourceFetcher::fetch($source);
         $blueprint = $this->decodeObject($content, $source);
         return new Blueprint($this->resolve($blueprint, $source));
+    }
+
+    /**
+     * Advisory messages collected during the most recent load()/loadPartial(), then cleared.
+     *
+     * Currently: a notice that a later entry (often from an $import) overrode an earlier one with a
+     * different value. A duplicate that re-declares an identical value is not reported.
+     *
+     * @return string[]
+     */
+    public function takeWarnings(): array
+    {
+        $warnings = array_values(array_unique($this->warnings));
+        $this->warnings = [];
+        return $warnings;
     }
 
     /** Decode jsonc content (comments and trailing commas allowed), throwing on invalid JSON. */
@@ -66,6 +87,7 @@ class BlueprintLoader
      */
     public function loadPartial(string $source, string $type): mixed
     {
+        $this->warnings = [];
         $source = $this->resolver->resolve($source);
         $content = ResourceFetcher::fetch($source);
         $data = $this->decode($content);
@@ -227,6 +249,12 @@ class BlueprintLoader
                 $loose[] = $entry;
                 continue;
             }
+            // a later entry with the same identity but a different value overrides the earlier one;
+            // record it so an accidental duplicate is visible while intentional layering still works
+            if (array_key_exists($id, $keyed) && $keyed[$id] != $entry) {
+                $label = $this->identityLabel($entry, $key);
+                $this->warnings[] = "{$key}: '{$label}' is declared more than once; the later definition overrides the earlier one.";
+            }
             unset($keyed[$id]); // drop earlier occurrence so the last one keeps last position
             $keyed[$id] = $entry;
         }
@@ -235,9 +263,15 @@ class BlueprintLoader
 
     private function identity(mixed $entry, string $key): string
     {
+        return strtolower($this->identityLabel($entry, $key));
+    }
+
+    /** The natural-identity value of an entry, in its original casing (for messages). */
+    private function identityLabel(mixed $entry, string $key): string
+    {
         if (is_string($entry)) {
             // bare string form (module/theme name)
-            return strtolower($entry);
+            return $entry;
         }
         if (!is_array($entry)) {
             return '';
@@ -250,6 +284,6 @@ class BlueprintLoader
             'itemSets', 'items'   => $entry['title'] ?? '',
             default               => '',
         };
-        return is_string($field) ? strtolower($field) : '';
+        return is_string($field) ? $field : '';
     }
 }
