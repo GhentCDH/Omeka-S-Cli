@@ -1,16 +1,16 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/main/assets/blueprints/omeka-s-cli.blueprint-schema.json",
     "title": "Omeka S CLI blueprint",
     "description": "Declarative description of an Omeka S environment, deployable with `omeka-s-cli blueprint:apply`. A backward-compatible superset of the Omeka S Playground blueprint format.",
     "type": "object",
-    "additionalProperties": true,
+    "additionalProperties": false,
     "properties": {
         "$schema": { "type": "string" },
         "meta": {
             "type": "object",
             "description": "Human-readable metadata.",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
                 "title": { "type": "string" },
                 "author": { "type": "string" },
@@ -20,7 +20,7 @@
         "preferredVersions": {
             "type": "object",
             "description": "Informational runtime targets. Only `omeka` is used by the CLI (as the core version to download when bootstrapping).",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
                 "php": { "type": "string" },
                 "omeka": { "type": "string" }
@@ -29,7 +29,7 @@
         "siteOptions": {
             "type": "object",
             "description": "Install-wide defaults, applied at core install time.",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
                 "title": { "type": "string" },
                 "locale": { "type": "string" },
@@ -47,9 +47,27 @@
         "site": { "$ref": "#/$defs/site" },
         "sites": { "type": "array", "items": { "$ref": "#/$defs/site" } },
 
-        "debug": { "type": "object" },
-        "phpConstants": { "type": "object" },
-        "login": { "type": "object" },
+        "debug": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "enabled": { "type": "boolean" }
+            }
+        },
+        "phpConstants": {
+            "type": "object",
+            "description": "PHP constants to define before Omeka boots, mapping constant name to value. Runtime-only; ignored by the CLI.",
+            "propertyNames": { "pattern": "^[A-Z_][A-Z0-9_]*$" },
+            "additionalProperties": { "type": ["boolean", "string", "number"] }
+        },
+        "login": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "email": { "type": "string", "format": "email" },
+                "password": { "type": "string", "minLength": 1 }
+            }
+        },
         "landingPage": { "type": "string" }
     },
 
@@ -68,11 +86,13 @@
             "oneOf": [
                 {
                     "type": "object",
+                    "additionalProperties": false,
                     "required": ["type"],
                     "properties": { "type": { "const": "bundled" } }
                 },
                 {
                     "type": "object",
+                    "additionalProperties": false,
                     "required": ["type", "url"],
                     "properties": {
                         "type": { "const": "url" },
@@ -81,18 +101,18 @@
                 },
                 {
                     "type": "object",
+                    "additionalProperties": false,
                     "required": ["type"],
                     "properties": {
                         "type": { "const": "omeka.org" },
-                        "slug": { "type": "string" },
-                        "version": { "type": "string" }
+                        "slug": { "type": "string", "minLength": 1 }
                     }
                 }
             ]
         },
         "module": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["name"],
             "properties": {
                 "name": { "type": "string", "pattern": "^[^/\\\\]+$" },
@@ -102,7 +122,20 @@
                     "enum": ["download", "install", "activate"]
                 },
                 "version": { "type": "string" },
-                "source": { "$ref": "#/$defs/moduleSource" }
+                "source": { "$ref": "#/$defs/moduleSource" },
+                "assets": {
+                    "type": "array",
+                    "description": "Extra ZIP payloads overlaid onto the installed module directory after the module is extracted. Each archive is unpacked into 'destination' (relative to the module root); a single top-level wrapper folder is stripped, mirroring module extraction.",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["url", "destination"],
+                        "properties": {
+                            "url": { "type": "string", "format": "uri-reference" },
+                            "destination": { "type": "string", "minLength": 1 }
+                        }
+                    }
+                }
             }
         },
         "moduleList": {
@@ -119,7 +152,7 @@
         "themeSource": { "$ref": "#/$defs/moduleSource" },
         "theme": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["name"],
             "properties": {
                 "name": { "type": "string" },
@@ -141,7 +174,7 @@
         "vocabulary": {
             "type": "object",
             "description": "A vocabulary to import via the RDF importer. Provide exactly one RDF source (url or file) plus the identifying fields.",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["namespaceUri", "prefix", "label"],
             "oneOf": [
                 { "required": ["url"] },
@@ -155,7 +188,9 @@
                 "label": { "type": "string" },
                 "comment": { "type": "string" },
                 "format": { "type": "string" },
-                "lang": { "type": "string" }
+                "lang": { "type": "string" },
+                "labelProperty": { "type": "string", "description": "RDF property to use for labels." },
+                "commentProperty": { "type": "string", "description": "RDF property to use for comments." }
             }
         },
         "vocabularyList": {
@@ -170,7 +205,7 @@
 
         "resourceTemplate": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["source"],
             "properties": {
                 "source": {
@@ -224,15 +259,22 @@
 
         "user": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["email"],
             "properties": {
                 "email": { "type": "string", "format": "email" },
                 "username": { "type": "string" },
-                "password": { "type": "string" },
-                "role": { "type": "string" },
+                "password": { "type": "string", "minLength": 1 },
+                "role": {
+                    "type": "string",
+                    "enum": ["global_admin", "site_admin", "editor", "reviewer", "author", "researcher"]
+                },
                 "isActive": { "type": "boolean" },
-                "settings": { "type": "object" }
+                "settings": {
+                    "type": "object",
+                    "description": "Per-user settings written to user_setting (e.g. limit_to_granted_sites).",
+                    "additionalProperties": true
+                }
             }
         },
         "userList": {
@@ -247,7 +289,7 @@
 
         "itemSet": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["title"],
             "properties": {
                 "title": { "type": "string" },
@@ -266,7 +308,7 @@
 
         "media": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["url"],
             "properties": {
                 "type": { "type": "string", "enum": ["url"] },
@@ -277,14 +319,18 @@
         },
         "item": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["title"],
             "properties": {
                 "title": { "type": "string" },
                 "description": { "type": "string" },
                 "creator": { "type": "string" },
                 "itemSets": { "type": "array", "items": { "type": "string" } },
-                "sites": { "type": "array", "items": { "type": "string" } },
+                "sites": {
+                    "type": "array",
+                    "description": "Slugs (or titles) of the sites this item is assigned to. Defaults to the default site.",
+                    "items": { "type": "string" }
+                },
                 "media": { "type": "array", "items": { "$ref": "#/$defs/media" } }
             }
         },
@@ -300,16 +346,16 @@
 
         "sitePermission": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["user"],
             "properties": {
-                "user": { "type": "string", "description": "Email of a declared/existing user." },
+                "user": { "type": "string", "description": "Email of an existing blueprint user." },
                 "role": { "type": "string", "enum": ["viewer", "editor", "admin"] }
             }
         },
         "site": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": ["title"],
             "properties": {
                 "title": { "type": "string" },
@@ -320,6 +366,7 @@
                 "setAsDefault": { "type": "boolean" },
                 "permissions": {
                     "type": "array",
+                    "description": "Per-site user permissions, by user email.",
                     "items": { "$ref": "#/$defs/sitePermission" }
                 }
             }
