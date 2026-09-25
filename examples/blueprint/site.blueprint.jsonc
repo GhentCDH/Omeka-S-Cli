@@ -1,5 +1,5 @@
 {
-    "$schema": "../../assets/blueprints/omeka-s-cli.blueprint-schema.json",
+    "$schema": "https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/main/assets/schema/blueprint-schema.json",
     "meta": {
         "title": "Demo site",
         "description": "Example omeka-s-cli blueprint deploying a small environment."

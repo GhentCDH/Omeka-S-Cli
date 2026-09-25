@@ -8,6 +8,16 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(BlueprintValidator::class)]
 class BlueprintValidatorTest extends TestCase
 {
+    /**
+     * A validator bound to the bundled schema file instead of the remote URL, so the test suite
+     * exercises the fetch/registerRaw path without ever hitting the network. ResourceFetcher reads
+     * local paths directly and local sources are not cached, so this always sees the current schema.
+     */
+    private function validator(): BlueprintValidator
+    {
+        return new BlueprintValidator((new BlueprintValidator())->schemaFile());
+    }
+
     public function testBundledSchemaFileExists(): void
     {
         // guards the bundled-schema path so a box/layout change can't silently break validation
@@ -30,12 +40,12 @@ class BlueprintValidatorTest extends TestCase
             'settings' => ['installation_title' => 'x'],
             'users' => [['email' => 'a@b.c', 'password' => 'x', 'role' => 'global_admin']],
         ];
-        $this->assertSame([], (new BlueprintValidator())->validateBlueprint($blueprint));
+        $this->assertSame([], $this->validator()->validateBlueprint($blueprint));
     }
 
     public function testRejectsAnUnknownModuleState(): void
     {
-        $errors = (new BlueprintValidator())->validateBlueprint([
+        $errors = $this->validator()->validateBlueprint([
             'modules' => [['name' => 'X', 'state' => 'frobnicate']],
         ]);
         $this->assertNotEmpty($errors);
@@ -43,7 +53,7 @@ class BlueprintValidatorTest extends TestCase
 
     public function testReferentialCheckCatchesUnknownSitePermissionUser(): void
     {
-        $errors = (new BlueprintValidator())->validateBlueprint([
+        $errors = $this->validator()->validateBlueprint([
             'users' => [['email' => 'a@b.c', 'password' => 'x']],
             'site' => [
                 'title' => 'X',
@@ -56,7 +66,7 @@ class BlueprintValidatorTest extends TestCase
 
     public function testReferentialCheckCatchesUnknownItemSet(): void
     {
-        $errors = (new BlueprintValidator())->validateBlueprint([
+        $errors = $this->validator()->validateBlueprint([
             'itemSets' => [['title' => 'Known']],
             'items' => [['title' => 'Item', 'itemSets' => ['Unknown']]],
         ]);
@@ -66,14 +76,14 @@ class BlueprintValidatorTest extends TestCase
 
     public function testValidatesAStandaloneModulePartial(): void
     {
-        $validator = new BlueprintValidator();
+        $validator = $this->validator();
         $this->assertSame([], $validator->validatePartial(['Common', ['name' => 'X', 'state' => 'install']], 'modules'));
         $this->assertNotEmpty($validator->validatePartial([['state' => 'install']], 'modules'));
     }
 
     public function testAcceptsModuleAssetsAndRejectsMalformedEntries(): void
     {
-        $validator = new BlueprintValidator();
+        $validator = $this->validator();
 
         // a well-formed assets array validates
         $this->assertSame([], $validator->validateBlueprint([
@@ -107,12 +117,12 @@ class BlueprintValidatorTest extends TestCase
             'modules' => [],
             'themes' => [],
         ];
-        $this->assertSame([], (new BlueprintValidator())->validateBlueprint($blueprint));
+        $this->assertSame([], $this->validator()->validateBlueprint($blueprint));
     }
 
     public function testRejectsUnknownUserRole(): void
     {
-        $errors = (new BlueprintValidator())->validateBlueprint([
+        $errors = $this->validator()->validateBlueprint([
             'users' => [['email' => 'a@b.c', 'role' => 'wizard']],
         ]);
         $this->assertNotEmpty($errors);
@@ -120,7 +130,7 @@ class BlueprintValidatorTest extends TestCase
 
     public function testStrictValidationRejectsUnknownKeys(): void
     {
-        $v = new BlueprintValidator();
+        $v = $this->validator();
         // unknown top-level key
         $this->assertNotEmpty($v->validateBlueprint(['modulez' => []]));
         // unknown key on a fixed object (user)
@@ -131,7 +141,7 @@ class BlueprintValidatorTest extends TestCase
 
     public function testVocabularyAcceptsLabelAndCommentProperty(): void
     {
-        $errors = (new BlueprintValidator())->validateBlueprint([
+        $errors = $this->validator()->validateBlueprint([
             'vocabularies' => [[
                 'prefix' => 'ex',
                 'namespaceUri' => 'https://ex.org/',
@@ -147,9 +157,26 @@ class BlueprintValidatorTest extends TestCase
     public function testSettingsMapStillAllowsArbitraryKeys(): void
     {
         // settings is a genuine free-form map and stays open under strict validation
-        $errors = (new BlueprintValidator())->validateBlueprint([
+        $errors = $this->validator()->validateBlueprint([
             'settings' => ['any_custom_setting_id' => 'value', 'another' => 3],
         ]);
         $this->assertSame([], $errors);
+    }
+
+    public function testFetchesSchemaFromAConfiguredSource(): void
+    {
+        // pointing the source at the bundled file exercises the fetch + registerRaw branch
+        $validator = new BlueprintValidator((new BlueprintValidator())->schemaFile());
+        $this->assertSame([], $validator->validateBlueprint(['modules' => ['Common']]));
+        // and the schema is still enforced through that branch
+        $this->assertNotEmpty($validator->validateBlueprint(['modulez' => []]));
+    }
+
+    public function testFallsBackToBundledSchemaWhenSourceIsUnavailable(): void
+    {
+        // an unreachable source must not break validation: it falls back to the bundled schema
+        $validator = new BlueprintValidator('/nonexistent/blueprint-schema.json');
+        $this->assertSame([], $validator->validateBlueprint(['modules' => ['Common']]));
+        $this->assertNotEmpty($validator->validateBlueprint(['modulez' => []]));
     }
 }
