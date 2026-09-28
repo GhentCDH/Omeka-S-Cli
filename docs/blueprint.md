@@ -11,9 +11,16 @@ blueprint is accepted as-is (runtime-only keys such as `phpConstants`, `debug`, 
 extensions we add are proposed upstream; see
 [blueprint-schema-proposal.md](blueprint-schema-proposal.md).
 
-The JSON schema is bundled at
-[`assets/blueprints/omeka-s-cli.blueprint-schema.json`](../assets/blueprints/omeka-s-cli.blueprint-schema.json).
-Point your editor at it with a `$schema` key for completion and inline validation.
+The canonical JSON schema lives in the shared
+[`omeka-s-contrib/omeka-s-blueprints`](https://github.com/omeka-s-contrib/omeka-s-blueprints) repo.
+`blueprint:validate` / `blueprint:deploy` download it from there (tracking `main`) and cache it for
+24h under `~/.cache/omeka-s-cli`, so the CLI tracks the shared spec without a release. When the
+network is unavailable they fall back to a local copy — which is not committed but is downloaded on
+demand (`../scripts/fetch-blueprint-schema.php`) and bundled into the PHAR at build time. Use
+`blueprint:validate <source> --refresh` to bypass the cache and re-download immediately.
+
+Point your editor at the [schema URL](https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/main/assets/schema/blueprint-schema.json)
+with a `$schema` key for completion and inline validation.
 
 Validation is **strict**: an unknown key on a known object is rejected, which catches typos (e.g.
 `stat` instead of `state`). Genuine free-form maps — `settings`, `user.settings` and `phpConstants` —
