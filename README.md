@@ -284,18 +284,15 @@ omeka-s-cli resource-template:import "/path/to/template.json" "My Custom Templat
 
 ## Build
 
-This project uses https://github.com/box-project/box to create a phar file.
-
-### box global install
-
-```bash
-composer global require humbug/box
-```
-### compile phar
+This project uses https://github.com/box-project/box to create a phar file. Box is installed by `composer install`
+into an isolated `vendor-bin/box` tree (via `bamarni/composer-bin-plugin`), because its dependencies conflict with Omeka's.
 
 ```bash
-box compile
+composer install
+composer build
 ```
+
+This downloads the canonical blueprint schema (bundled as the offline fallback) and runs `box compile`.
 
 ## To do
 
