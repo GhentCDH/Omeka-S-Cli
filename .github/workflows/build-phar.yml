@@ -18,19 +18,15 @@ jobs:
         with:
           php-version: '8.2'
           extensions: mbstring, json
-          tools: composer
+          tools: composer, box
 
       # Install dependencies
       - name: Install dependencies
         run: composer install --no-dev --prefer-dist --no-progress --classmap-authoritative
 
-      # Install Box
-      - name: Install Box
-        run: curl -LSs https://github.com/box-project/box/releases/latest/download/box.phar -o box.phar
-
-      # Build the .phar file
+      # Build the .phar file (fetches the blueprint schema, then runs box compile)
       - name: Build .phar
-        run: php box.phar compile
+        run: composer build
 
       # Upload the .phar file as an artifact
       - name: Upload .phar artifact

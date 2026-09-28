@@ -1,0 +1,33 @@
+{
+    "$schema": "https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/main/assets/schema/blueprint-schema.json",
+    "meta": {
+        "title": "Demo site",
+        "description": "Example omeka-s-cli blueprint deploying a small environment."
+    },
+    "modules": [
+        // Pull in modules from a shared, reusable list.
+        { "$import": "./modules.extra.jsonc" },
+        // Custom modules for this blueprint.
+        { "name": "ValueSuggest", "state": "activate" },
+        { "name": "FacetedBrowse", "state": "activate" },
+        { "name": "Mapping", "state": "activate" },
+    ],
+    "themes": [
+        // The default theme ships with the core, so there is nothing to download.
+        { "name": "default", "source": { "type": "bundled" } }
+    ],
+    "vocabularies": [
+        {
+            "prefix": "schema",
+            "namespaceUri": "https://schema.org/",
+            "label": "schema.org",
+            "url": "https://schema.org/version/latest/schemaorg-current-https.rdf"
+        }
+    ],
+    "resourceTemplates": [
+        { "source": "../resource-template/base_resource.json" }
+    ],
+    "settings": {
+        "installation_title": "Blueprint Demo"
+    }
+}

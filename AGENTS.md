@@ -34,7 +34,7 @@
 - Install deps: `composer install`
 - Run CLI: `php bin/omeka-s-cli --help`
 - Lint/fix: `composer lint` / `composer fix`
-- Build PHAR: `box compile` (configured by `box.json` + `scoper.inc.php`)
+- Build PHAR: `composer build` (fetches the blueprint schema, then `box compile`; configured by `box.json` + `scoper.inc.php`). Box lives in `vendor-bin/box` (bamarni/composer-bin-plugin, installed by `composer install`) since its deps conflict with Omeka's, so a local `composer install --no-dev` removes it (Box excludes dev packages from the PHAR anyway). CI installs `--no-dev` and gets the latest Box from `setup-php`.
 - Optional container dev setup is defined in `compose.yml` and `Dockerfile`.
 
 ## Testing
