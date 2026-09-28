@@ -5,10 +5,12 @@
         "description": "Example omeka-s-cli blueprint deploying a small environment."
     },
     "modules": [
-        // Common is a dependency of the resource template imported below.
-        { "name": "Common", "state": "activate" },
-        // Pull in additional modules from a shared, reusable list.
-        { "$import": "./modules.extra.jsonc" }
+        // Pull in modules from a shared, reusable list.
+        { "$import": "./modules.extra.jsonc" },
+        // Custom modules for this blueprint.
+        { "name": "ValueSuggest", "state": "activate" },
+        { "name": "FacetedBrowse", "state": "activate" },
+        { "name": "Mapping", "state": "activate" },
     ],
     "themes": [
         // The default theme ships with the core, so there is nothing to download.
