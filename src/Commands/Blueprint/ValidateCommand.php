@@ -17,17 +17,24 @@ class ValidateCommand extends AbstractBlueprintCommand
             . '(modules, themes, vocabularies, resourceTemplates, settings, users, items, itemSets)'
         );
         $this->optionJson();
+        $this->option('--refresh', 'Re-download the canonical blueprint schema', 'boolval', false);
         $this->usage(
             'blueprint:validate ./site.blueprint.jsonc<eol/>'
             . 'blueprint:validate ./modules.jsonc --as modules<eol/>'
+            . 'blueprint:validate ./site.blueprint.jsonc --refresh<eol/>'
             . 'blueprint:validate https://example.org/site.blueprint.json --json'
         );
     }
 
-    public function execute(string $source, ?string $as = null, ?bool $json = false): void
+    public function execute(string $source, ?string $as = null, ?bool $json = false, ?bool $refresh = false): void
     {
         $loader = new BlueprintLoader();
         $validator = new BlueprintValidator();
+
+        if ($refresh) {
+            $this->info('Refreshing the blueprint schema from the shared repository...', true);
+            $validator->refresh();
+        }
 
         if ($as !== null) {
             $data = $loader->loadPartial($source, $as);
