@@ -2,3 +2,5 @@ test
 vendor
 data
 .env
+/assets/blueprints/
+/vendor-bin/*/composer.lock
