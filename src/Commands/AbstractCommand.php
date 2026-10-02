@@ -292,26 +292,59 @@ abstract class AbstractCommand extends Command
         return $data;
     }
 
+    /**
+     * Resolve the Omeka S installation path.
+     *
+     * An explicit --base-path is strict: if it is given but does not exist or is not an Omeka
+     * installation, this throws (a deliberate user error). When no --base-path is given it searches
+     * upward from the current directory and returns null when nothing is found — so callers can decide
+     * whether loading the instance is worthwhile. Only inspects the directory layout (via isOmekaDir);
+     * it does not bootstrap Omeka.
+     *
+     * @return string|null The resolved Omeka S base path, or null when no --base-path was given and
+     *                     none was found by searching from the current directory
+     * @throws Exception When an explicit --base-path is given but does not exist / is not an Omeka dir
+     */
+    protected function findOmekaPath(): ?string {
+        $basePath = $this->values()['basePath'] ?? null;
+        if ($basePath) {
+            $resolved = realpath(Path::toAbsolutePath(rtrim($basePath, DIRECTORY_SEPARATOR), $this->getCwd()));
+            if ($resolved === false) {
+                throw new Exception("The provided base path does not exist.");
+            }
+            if (!$this->isOmekaDir($resolved)) {
+                throw new Exception("The provided base path {$resolved} does not contain a valid Omeka S context.");
+            }
+            return $resolved;
+        }
+
+        return $this->searchOmekaDir();
+    }
+
+    /**
+     * Whether an Omeka S instance is available, so a command can decide if loading the instance /
+     * reading its version is worthwhile. Does not bootstrap Omeka.
+     *
+     * Soft only for auto-detection: when no --base-path is given it returns false if the current
+     * directory is not inside an instance. An explicit but invalid --base-path still throws (that is a
+     * deliberate user error, per findOmekaPath()).
+     *
+     * @return bool
+     * @throws Exception When an explicit --base-path is given but is invalid
+     */
+    public function hasOmekaInstance(): bool {
+        return $this->findOmekaPath() !== null;
+    }
+
     protected function getOmekaPath(): string {
         static $basePath = null;
         if ($basePath) {
             return $basePath;
         }
 
-        $basePath = $this->values()['basePath'] ?? null;
-        if ($basePath) {
-            $basePath = realpath(Path::toAbsolutePath(rtrim($basePath, DIRECTORY_SEPARATOR), $this->getCwd()));
-            if ($basePath === false) {
-                throw new Exception("The provided base path does not exist.");
-            }
-            if (!$this->isOmekaDir($basePath)) {
-                throw new Exception("The provided base path {$basePath} does not contain a valid Omeka S context.");
-            }
-        } else {
-            $basePath = $this->searchOmekaDir();
-            if (!$basePath) {
-                throw new Exception("Could not find a valid Omeka S context.");
-            }
+        $basePath = $this->findOmekaPath();
+        if (!$basePath) {
+            throw new Exception("Could not find a valid Omeka S context.");
         }
 
         $this->debug("Omeka S found at {$basePath}", true);
