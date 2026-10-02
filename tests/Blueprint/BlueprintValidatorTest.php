@@ -35,7 +35,7 @@ class BlueprintValidatorTest extends TestCase
             ],
             'themes' => ['default'],
             'vocabularies' => [
-                ['prefix' => 'schema', 'namespaceUri' => 'https://schema.org/', 'label' => 'schema.org', 'url' => 'https://schema.org/x.rdf'],
+                ['prefix' => 'schema', 'namespaceUri' => 'https://schema.org/', 'label' => 'schema.org', 'source' => 'https://schema.org/x.rdf'],
             ],
             'settings' => ['installation_title' => 'x'],
             'users' => [['email' => 'a@b.c', 'password' => 'x', 'role' => 'global_admin']],
@@ -55,10 +55,10 @@ class BlueprintValidatorTest extends TestCase
     {
         $errors = $this->validator()->validateBlueprint([
             'users' => [['email' => 'a@b.c', 'password' => 'x']],
-            'site' => [
+            'sites' => [[
                 'title' => 'X',
                 'permissions' => [['user' => 'ghost@nowhere.org', 'role' => 'admin']],
-            ],
+            ]],
         ]);
         $this->assertNotEmpty($errors);
         $this->assertStringContainsString('ghost@nowhere.org', implode("\n", $errors));
@@ -81,51 +81,79 @@ class BlueprintValidatorTest extends TestCase
         $this->assertNotEmpty($validator->validatePartial([['state' => 'install']], 'modules'));
     }
 
-    public function testAcceptsModuleAssetsAndRejectsMalformedEntries(): void
+    public function testAddonSourceIsASingleString(): void
     {
-        $validator = $this->validator();
-
-        // a well-formed assets array validates
-        $this->assertSame([], $validator->validateBlueprint([
-            'modules' => [[
-                'name' => 'AdvancedSearch',
-                'assets' => [['url' => 'https://example.org/extra.zip', 'destination' => 'asset/custom']],
-            ]],
+        $v = $this->validator();
+        $this->assertSame([], $v->validateBlueprint([
+            'modules' => [
+                ['name' => 'Mapping', 'source' => 'https://example.org/Mapping-2.1.0.zip'],
+                ['name' => 'Log', 'source' => 'gh:Daniel-KM/Omeka-S-module-Log', 'version' => '3.4.30'],
+            ],
+            'themes' => [['name' => 'freedom', 'source' => 'gh:omeka-s-themes/freedom']],
         ]));
-
-        // an assets entry missing the required 'destination' is rejected
-        $this->assertNotEmpty($validator->validateBlueprint([
-            'modules' => [['name' => 'AdvancedSearch', 'assets' => [['url' => 'https://example.org/extra.zip']]]],
-        ]));
-
-        // an unknown key inside an assets entry is rejected (item-level additionalProperties: false)
-        $this->assertNotEmpty($validator->validateBlueprint([
-            'modules' => [['name' => 'AdvancedSearch', 'assets' => [
-                ['url' => 'https://example.org/extra.zip', 'destination' => 'x', 'bogus' => 1],
-            ]]],
+        // the pre-v0.1 object form is rejected
+        $this->assertNotEmpty($v->validateBlueprint([
+            'modules' => [['name' => 'Common', 'source' => ['type' => 'omeka.org', 'slug' => 'Common']]],
         ]));
     }
 
-    public function testPlaygroundBlueprintWithRuntimeOnlyKeysStillValidates(): void
+    public function testValidatesRootFilesAndRejectsUnsafeDestinations(): void
     {
-        $blueprint = [
-            'phpConstants' => ['FOO' => true],
-            'debug' => ['enabled' => false],
-            'login' => ['email' => 'admin@example.com', 'password' => 'password'],
-            'landingPage' => '/admin',
-            'site' => ['title' => 'Playground', 'slug' => 'playground', 'theme' => 'default'],
-            'modules' => [],
-            'themes' => [],
-        ];
-        $this->assertSame([], $this->validator()->validateBlueprint($blueprint));
+        $v = $this->validator();
+        $this->assertSame([], $v->validateBlueprint([
+            'files' => [
+                ['source' => './cleanurl.config.php', 'destination' => 'config/cleanurl.config.php'],
+                ['source' => 'https://example.org/extra.zip', 'destination' => 'modules/X/asset', 'extract' => true],
+            ],
+        ]));
+        foreach (['../config/local.config.php', '/etc/passwd', 'config/../../x'] as $destination) {
+            $this->assertNotEmpty(
+                $v->validateBlueprint(['files' => [['source' => './x', 'destination' => $destination]]]),
+                $destination
+            );
+        }
+        // modules[].assets was replaced by the root files list
+        $this->assertNotEmpty($v->validateBlueprint([
+            'modules' => [['name' => 'X', 'assets' => [['url' => 'https://example.org/extra.zip', 'destination' => 'asset']]]],
+        ]));
     }
 
-    public function testRejectsUnknownUserRole(): void
+    public function testValidatesAStandaloneFilesPartial(): void
     {
-        $errors = $this->validator()->validateBlueprint([
-            'users' => [['email' => 'a@b.c', 'role' => 'wizard']],
-        ]);
-        $this->assertNotEmpty($errors);
+        $this->assertSame([], $this->validator()->validatePartial([['source' => './a', 'destination' => 'config/a']], 'files'));
+    }
+
+    public function testInstallReplacesSiteOptions(): void
+    {
+        $v = $this->validator();
+        $this->assertSame([], $v->validateBlueprint([
+            'install' => ['title' => 'Demo', 'locale' => 'en_US', 'timezone' => 'UTC', 'admin' => ['email' => 'admin@example.com']],
+        ]));
+        $this->assertNotEmpty($v->validateBlueprint(['siteOptions' => ['title' => 'Demo']]));
+    }
+
+    public function testImplementationSpecificKeysLiveUnderTopLevelExtensions(): void
+    {
+        $v = $this->validator();
+        $this->assertSame([], $v->validateBlueprint([
+            'x-playground' => ['landingPage' => '/admin', 'login' => ['email' => 'admin@example.com']],
+            'x-omeka-s-cli' => ['anything' => true],
+            'sites' => [['title' => 'Playground', 'slug' => 'playground', 'theme' => 'default']],
+        ]));
+        // the former runtime keys and the singular site are no longer top-level keys
+        foreach (['landingPage' => '/admin', 'phpConstants' => ['FOO' => true], 'site' => ['title' => 'X']] as $key => $value) {
+            $this->assertNotEmpty($v->validateBlueprint([$key => $value]), $key);
+        }
+        // extensions are top-level only
+        $this->assertNotEmpty($v->validateBlueprint(['modules' => [['name' => 'X', 'x-playground' => []]]]));
+    }
+
+    public function testAcceptsAnyNonEmptyUserRole(): void
+    {
+        $v = $this->validator();
+        // modules register their own roles (e.g. Guest adds 'guest')
+        $this->assertSame([], $v->validateBlueprint(['users' => [['email' => 'a@b.c', 'role' => 'guest']]]));
+        $this->assertNotEmpty($v->validateBlueprint(['users' => [['email' => 'a@b.c', 'role' => '']]]));
     }
 
     public function testStrictValidationRejectsUnknownKeys(): void
@@ -146,7 +174,7 @@ class BlueprintValidatorTest extends TestCase
                 'prefix' => 'ex',
                 'namespaceUri' => 'https://ex.org/',
                 'label' => 'Ex',
-                'url' => 'https://ex.org/ex.rdf',
+                'source' => 'https://ex.org/ex.rdf',
                 'labelProperty' => 'rdfs:label',
                 'commentProperty' => 'rdfs:comment',
             ]],

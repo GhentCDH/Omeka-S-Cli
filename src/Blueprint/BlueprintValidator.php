@@ -13,7 +13,7 @@ use Throwable;
  * referential integrity that a schema alone cannot express (an item referencing an undeclared item
  * set, a site permission referencing an undeclared user).
  *
- * The schema is fetched from the shared `omeka-s-blueprints` repository (see SCHEMA_ID) and cached
+ * The schema is fetched from the shared `omeka-s-blueprints` site (see SCHEMA_ID) and cached
  * for 24h under `$HOME/.cache/omeka-s-cli`. When the fetch fails (offline, network error, GitHub
  * down) it transparently falls back to a copy at `assets/blueprints/blueprint-schema.json`. That copy
  * is not committed: it is downloaded on demand (see `scripts/fetch-blueprint-schema.php`) — by the test
@@ -25,7 +25,8 @@ use Throwable;
  */
 class BlueprintValidator
 {
-    public const SCHEMA_ID = 'https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/main/assets/schema/blueprint-schema.json';
+    /** The floating v0 schema: the latest v0.x.y release, which never gets breaking changes. */
+    public const SCHEMA_ID = 'https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json';
 
     /** Resolved schema content (from the source or its cache); false until resolved, null when unavailable */
     private string|false|null $schemaContent = false;
@@ -34,6 +35,7 @@ class BlueprintValidator
     private const PARTIAL_DEFS = [
         'modules'            => 'moduleList',
         'themes'             => 'themeList',
+        'files'              => 'fileList',
         'vocabularies'       => 'vocabularyList',
         'resourceTemplates'  => 'resourceTemplateList',
         'resource-templates' => 'resourceTemplateList',
@@ -231,17 +233,11 @@ class BlueprintValidator
     }
 
     /**
-     * @return array<int, array> The blueprint's sites (from `sites`, else the singular `site`)
+     * @return array<int, array> The blueprint's sites
      */
     private function sites(array $blueprint): array
     {
-        if (isset($blueprint['sites']) && is_array($blueprint['sites'])) {
-            return $blueprint['sites'];
-        }
-        if (isset($blueprint['site']) && is_array($blueprint['site'])) {
-            return [$blueprint['site']];
-        }
-        return [];
+        return is_array($blueprint['sites'] ?? null) ? $blueprint['sites'] : [];
     }
 
     /**

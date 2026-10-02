@@ -13,10 +13,10 @@ use OSC\Helper\UserConfig;
 class DeployCommand extends AbstractBlueprintCommand
 {
     /** All phases, in deploy order. */
-    private const PHASES = ['core', 'modules', 'themes', 'vocabularies', 'resourceTemplates', 'users', 'settings'];
+    private const PHASES = ['core', 'modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'settings'];
 
     /** Phases handled in the current process (no active-module services required). */
-    private const IN_PROCESS_PHASES = ['modules', 'themes'];
+    private const IN_PROCESS_PHASES = ['modules', 'themes', 'files'];
 
     public function __construct()
     {
@@ -26,7 +26,7 @@ class DeployCommand extends AbstractBlueprintCommand
         $this->option('-f --force', 'Allow deploying onto an installed instance (resets it when the core phase runs)', 'boolval', false);
         $this->option(
             '--skip',
-            'Comma-separated phases to skip (core, modules, themes, vocabularies, resourceTemplates, users, settings)'
+            'Comma-separated phases to skip (core, modules, themes, files, vocabularies, resourceTemplates, users, settings)'
         );
         $this->optionDryRun();
 
@@ -37,10 +37,10 @@ class DeployCommand extends AbstractBlueprintCommand
         $this->option('--db-user', 'Database user (core phase)');
         $this->option('--db-password', 'Database password (core phase)');
 
-        // Core phase: administrator account
-        $this->option('--admin-name', 'Administrator name (core phase)', 'strval', 'Admin');
-        $this->option('--admin-email', 'Administrator e-mail (core phase)', 'strval', 'admin@example.com');
-        $this->option('--admin-password', 'Administrator password (core phase)', 'strval', 'admin');
+        // Core phase: administrator account. Flags win over the blueprint's install.admin.
+        $this->option('--admin-name', 'Administrator name (core phase; default: install.admin.name, else Admin)');
+        $this->option('--admin-email', 'Administrator e-mail (core phase; default: install.admin.email, else admin@example.com)');
+        $this->option('--admin-password', 'Administrator password (core phase; default: install.admin.password, else admin)');
 
         $this->usage(
             'blueprint:deploy ./site.blueprint.jsonc --base-path /var/www/omeka-s --db-name omeka --db-user omeka --db-password secret<eol/>'
@@ -59,9 +59,9 @@ class DeployCommand extends AbstractBlueprintCommand
         ?string $dbName = null,
         ?string $dbUser = null,
         ?string $dbPassword = null,
-        ?string $adminName = 'Admin',
-        ?string $adminEmail = 'admin@example.com',
-        ?string $adminPassword = 'admin',
+        ?string $adminName = null,
+        ?string $adminEmail = null,
+        ?string $adminPassword = null,
     ): void {
         $this->info("Loading blueprint from '{$source}' ...", true);
         $loader = new BlueprintLoader();
@@ -109,7 +109,12 @@ class DeployCommand extends AbstractBlueprintCommand
                     'host' => $dbHost, 'port' => $dbPort, 'dbname' => $dbName,
                     'username' => $dbUser, 'password' => $dbPassword,
                 ]);
-                $admin = new UserConfig($adminName, $adminEmail, $adminPassword);
+                $installAdmin = $blueprint->install()['admin'] ?? [];
+                $admin = new UserConfig(
+                    $adminName ?? $installAdmin['name'] ?? 'Admin',
+                    $adminEmail ?? $installAdmin['email'] ?? 'admin@example.com',
+                    $adminPassword ?? $installAdmin['password'] ?? 'admin',
+                );
 
                 $core->run($blueprint, $targetPath, $database, $admin, $force);
 

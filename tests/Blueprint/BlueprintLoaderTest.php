@@ -65,6 +65,25 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame(['name' => 'A', 'state' => 'install'], $byName['A']);
     }
 
+    public function testResolvesFileImportsAndDeduplicatesByDestination(): void
+    {
+        $this->write('files.jsonc', '[{ "source": "./a.php", "destination": "config/a.php" }]');
+        $base = $this->write('base.jsonc', <<<JSONC
+        {
+            "files": [
+                { "\$import": "./files.jsonc" },
+                { "source": "./b.php", "destination": "config/a.php" }
+            ]
+        }
+        JSONC);
+
+        $loader = new BlueprintLoader();
+        $files = $loader->load($base)->files();
+
+        $this->assertSame([['source' => './b.php', 'destination' => 'config/a.php']], $files);
+        $this->assertNotEmpty($loader->takeWarnings());
+    }
+
     public function testSettingsListMergesMapsAndImportsInOrder(): void
     {
         $this->write('s.jsonc', '{ "b": 3, "c": 4 }');

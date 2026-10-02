@@ -53,7 +53,7 @@ Each part below is optional. The tool handles them in this order.
   You can also pin a `version`.
 
 - **`themes`** — the look of the site. Just list the theme names. `default` comes with Omeka, so
-  mark it as `bundled` (nothing to download).
+  there is nothing to download.
 
 - **`vocabularies`** — sets of standard terms (like schema.org) to import. Give a short `prefix`, the
   `namespaceUri`, a `label` and the `url` of the vocabulary file.
@@ -97,7 +97,7 @@ A few Playground fields are only meaningful in the web-browser version of Omeka 
 ```jsonc
 {
     // Where the tool looks up the file format (optional, helps your editor).
-    "$schema": "https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/main/assets/blueprints/omeka-s-cli.blueprint-schema.json",
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
 
     "meta": {
         "title": "My archive",
@@ -111,7 +111,7 @@ A few Playground fields are only meaningful in the web-browser version of Omeka 
     ],
 
     "themes": [
-        { "name": "default", "source": { "type": "bundled" } }
+        "default"
     ],
 
     "vocabularies": [
@@ -119,7 +119,7 @@ A few Playground fields are only meaningful in the web-browser version of Omeka 
             "prefix": "schema",
             "namespaceUri": "https://schema.org/",
             "label": "schema.org",
-            "url": "https://schema.org/version/latest/schemaorg-current-https.rdf"
+            "source": "https://schema.org/version/latest/schemaorg-current-https.rdf"
         }
     ],
 
