@@ -65,14 +65,14 @@ class CoreInstaller
         }
 
         // 4. install the core (in-process, empty database)
-        $siteOptions = $blueprint->siteOptions();
+        $install = $blueprint->install();
         $this->command->info('  installing Omeka S core ...', true);
-        $this->runSubcommand('core:install', function ($c) use ($siteOptions, $admin, $targetPath) {
+        $this->runSubcommand('core:install', function ($c) use ($install, $admin, $targetPath) {
             $c->primeValue('basePath', $targetPath);
             $c->execute(
-                (string) ($siteOptions['title'] ?? 'Omeka S'),
-                (string) ($siteOptions['timezone'] ?? 'UTC'),
-                (string) ($siteOptions['locale'] ?? 'en_US'),
+                (string) ($install['title'] ?? 'Omeka S'),
+                (string) ($install['timezone'] ?? 'UTC'),
+                (string) ($install['locale'] ?? 'en_US'),
                 $admin->getEmail(),
                 $admin->getName(),
                 $admin->getPassword(),

@@ -12,7 +12,7 @@ class UpdateCommand extends AbstractUserCommand
         $this->argument('<user>', 'User ID or email address');
         $this->option('--name', 'New display name');
         $this->option('--email', 'New email address');
-        $this->option('--role', 'New role (global_admin, site_admin, editor, reviewer, author, researcher)');
+        $this->option('--role', 'New role (global_admin, site_admin, editor, reviewer, author, researcher, or a role added by a module)');
         $this->option('--activate', 'Activate the user', 'boolval', false);
         $this->option('--deactivate', 'Deactivate the user', 'boolval', false);
         $this->optionIgnoreNotFound('user');
@@ -38,10 +38,7 @@ class UpdateCommand extends AbstractUserCommand
         }
 
         if ($role !== null) {
-            $validRoles = ['global_admin', 'site_admin', 'editor', 'reviewer', 'author', 'researcher'];
-            if (!in_array($role, $validRoles, true)) {
-                throw new InvalidArgumentException("Invalid role: {$role}. Valid roles are: " . implode(', ', $validRoles));
-            }
+            $this->assertValidRole($role);
         }
 
         $api = $this->getOmekaInstance()->getApi();

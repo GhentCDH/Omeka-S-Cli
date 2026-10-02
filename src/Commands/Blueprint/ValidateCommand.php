@@ -14,7 +14,7 @@ class ValidateCommand extends AbstractBlueprintCommand
         $this->option(
             '--as',
             'Validate a standalone partial list instead of a full blueprint '
-            . '(modules, themes, vocabularies, resourceTemplates, settings, users, items, itemSets)'
+            . '(modules, themes, files, vocabularies, resourceTemplates, settings, users, items, itemSets)'
         );
         $this->optionJson();
         $this->option('--refresh', 'Re-download the canonical blueprint schema', 'boolval', false);
@@ -32,7 +32,7 @@ class ValidateCommand extends AbstractBlueprintCommand
         $validator = new BlueprintValidator();
 
         if ($refresh) {
-            $this->info('Refreshing the blueprint schema from the shared repository...', true);
+            $this->info('Refreshing the blueprint schema from the shared site...', true);
             $validator->refresh();
         }
 

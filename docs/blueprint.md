@@ -1,31 +1,25 @@
 # Blueprints
 
 A **blueprint** is a declarative JSON (or [jsonc](#jsonc)) file describing an Omeka S environment:
-the modules, themes, vocabularies, resource templates, users and settings that should be present.
+the modules, themes, files, vocabularies, resource templates, users and settings that should be present.
 `blueprint:deploy` reads it and drives the existing CLI commands to bring an instance to that state.
 
-The format is a backward-compatible **superset** of the
-[Omeka S Playground](https://github.com/ateeducacion/omeka-s-playground) blueprint, so a Playground
-blueprint is accepted as-is (runtime-only keys such as `phpConstants`, `debug`, `login` and
-`landingPage` are ignored — they concern the in-browser runtime, not a real instance). The
-extensions we add are proposed upstream; see
-[blueprint-schema-proposal.md](blueprint-schema-proposal.md).
+The format is the shared [Omeka S blueprint](https://github.com/omeka-s-contrib/omeka-s-blueprints)
+specification (v0), also used by the [Omeka S Playground](https://github.com/ateeducacion/omeka-s-playground).
+Implementation-specific settings live under top-level `x-` keys (`x-playground`, `x-omeka-s-cli`), which
+other consumers ignore, so a Playground blueprint deploys as-is.
 
-The canonical JSON schema lives in the shared
-[`omeka-s-contrib/omeka-s-blueprints`](https://github.com/omeka-s-contrib/omeka-s-blueprints) repo.
-`blueprint:validate` / `blueprint:deploy` download it from there (tracking `main`) and cache it for
-24h under `~/.cache/omeka-s-cli`, so the CLI tracks the shared spec without a release. When the
-network is unavailable they fall back to a local copy — which is not committed but is downloaded on
-demand (`../scripts/fetch-blueprint-schema.php`) and bundled into the PHAR at build time. Use
+`blueprint:validate` / `blueprint:deploy` download the [`v0` schema](https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json) (the latest `v0.x.y`
+release, which never gets breaking changes) and cache it for 24h under `~/.cache/omeka-s-cli`. When
+the network is unavailable they fall back to a local copy — which is not committed but is downloaded
+on demand (`../scripts/fetch-blueprint-schema.php`) and bundled into the PHAR at build time. Use
 `blueprint:validate <source> --refresh` to bypass the cache and re-download immediately.
 
-Point your editor at the [schema URL](https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/main/assets/schema/blueprint-schema.json)
-with a `$schema` key for completion and inline validation.
+Point your editor at the same URL with a `$schema` key for completion and inline validation.
 
 Validation is **strict**: an unknown key on a known object is rejected, which catches typos (e.g.
-`stat` instead of `state`). Genuine free-form maps — `settings`, `user.settings` and `phpConstants` —
-stay open. Where our schema and the upstream Playground schema deliberately differ is tracked in
-[blueprint-shared-spec-collaboration.md](blueprint-shared-spec-collaboration.md).
+`stat` instead of `state`). Genuine free-form maps — `settings`, `user.settings` and `x-` extensions
+— stay open.
 
 ## Commands
 
@@ -41,14 +35,14 @@ blueprint:export   [output]
 - **`blueprint:validate`** checks a blueprint against the schema and runs referential checks (an item
   referencing an undeclared item set, a site permission referencing an undeclared user). Exits
   non-zero on failure. `--as <type>` validates a standalone [partial](#partials-and-import) list
-  (`modules`, `themes`, `vocabularies`, `resourceTemplates`, `settings`, `users`, `items`,
+  (`modules`, `themes`, `files`, `vocabularies`, `resourceTemplates`, `settings`, `users`, `items`,
   `itemSets`) instead of a full blueprint.
 - **`blueprint:deploy`** validates, then runs the phases in order. `--dry-run` prints the ordered
   actions without changing anything. `--update` re-downloads/updates resources that already exist.
   `--skip` takes a comma-separated list of phases to skip. `--force` is required to act on an
   instance that is already installed (see [the core phase](#the-core-phase)). The `--db-*` and
-  `--admin-*` flags feed the core phase; secrets are only ever passed as flags, never stored in the
-  blueprint.
+  `--admin-*` flags feed the core phase; the `--admin-*` flags override the blueprint's
+  `install.admin`.
 
 - **`blueprint:export`** reads the live instance and writes a blueprint capturing it. With an
   `[output]` path it writes a file, otherwise it prints to stdout. See [Export](#export).
@@ -66,13 +60,13 @@ blueprint:export ./snapshot.blueprint.jsonc   # write a file
 blueprint:export                              # or print to stdout
 ```
 
-The first cut exports **modules** (name + version + state), **themes** (name + version; `default` is
-marked `bundled`) and **vocabularies**, as jsonc with a header comment.
+The first cut exports **modules** (name + version + state), **themes** (name + version; `default`
+without a version, since it ships with the core) and **vocabularies**, as jsonc with a header comment.
 
 - Omeka's built-in vocabularies (`dcterms`, `dctype`) are skipped.
 - Omeka does not store where a vocabulary's RDF was imported from, so the source is resolved
   **best-effort** against the GhentCDH vocabulary index. A vocabulary that can't be resolved is
-  written with an empty `"url": ""` and listed in the header comment — fill in a `url` or `file`
+  written with an empty `"source": ""` and listed in the header comment — fill in its `source`
   before deploying it.
 
 Not yet exported: settings, users, resource templates (and the `--split`/`--output-dir`/
@@ -85,6 +79,7 @@ Not yet exported: settings, users, resource templates (and the `--split`/`--outp
 | core | (bootstrap) | `core:download` → write `database.ini` → `core:install` (see below) |
 | modules | `modules` | `module:download` (+ `module:install` / `module:enable`) |
 | themes | `themes` | `theme:download` |
+| files | `files` | copy (or extract) files into the Omeka S root |
 | vocabularies | `vocabularies` | `vocabulary:import` |
 | resource templates | `resourceTemplates` | `resource-template:import` |
 | users | `users` | `user:add` |
@@ -106,8 +101,8 @@ from a bare machine to a running site. It:
 2. **Writes `config/database.ini`** from the `--db-*` flags when the instance has no credentials yet.
    An existing, real `database.ini` is kept, so a reset reuses the instance's own credentials. The
    database is created if it does not exist.
-3. **Installs the core** (`core:install`) with the admin account from `--admin-*` and the
-   title/locale/timezone from the blueprint's `siteOptions`.
+3. **Installs the core** (`core:install`) with the title/locale/timezone from the blueprint's
+   `install`, and the admin account from the `--admin-*` flags, else `install.admin`.
 
 Safety and reset:
 
@@ -118,8 +113,9 @@ Safety and reset:
 - To **sync** a blueprint onto an existing site without reinstalling, skip the core phase:
   `--skip core --force`.
 
-`--base-path` tells the core phase where the instance lives (or should be created). Secrets
-(`--db-password`, `--admin-password`) are passed as flags only — they never live in the blueprint.
+`--base-path` tells the core phase where the instance lives (or should be created). The database
+password is only passed as a flag. The admin password may come from `install.admin.password`, but
+prefer `--admin-password` so the blueprint holds no secret.
 
 ```bash
 # from scratch: download + install the core, then deploy everything
@@ -147,8 +143,8 @@ reference.
     { "name": "Common", "state": "activate" },
     { "name": "Log", "state": "download" },             // downloaded but not installed
     { "name": "AdvancedSearch", "version": "3.4.51" },  // pin a version
-    { "name": "Foo", "source": { "type": "url",
-        "url": "https://example.org/Foo-1.0.0.zip" } }, // from a zip release
+    { "name": "Foo", "source": "https://example.org/Foo-1.0.0.zip" },  // from a zip release
+    { "name": "Bar", "source": "gh:owner/Bar", "version": "1.2.0" },  // a git tag
     { "$import": "./modules.extra.jsonc" }
 ]
 ```
@@ -156,13 +152,12 @@ reference.
 - **`name`** (required in object form) — the module id (its directory name).
 - **`state`** — `download` (place files only), `install`, or `activate` (install **and** enable).
   Defaults to `activate`.
-- **`version`** — pin a specific release (resolved as `module:download name:version`).
-- **`source`** — `{ "type": "bundled" }` (ships with core, skipped), `{ "type": "url", "url": … }`
-  (a zip release or git URL), or `{ "type": "omeka.org", "slug": … }`. Pin the release with the
-  top-level `version` (above), not inside `source`.
-- **`assets`** — a list of `{ "url", "destination" }` ZIP payloads overlaid onto the module directory
-  after extraction (each unpacked into `destination` under the module root, stripping a single wrapper
-  folder). Accepted and validated for Playground compatibility, but **not yet applied** by the CLI.
+- **`source`** — where to get the module: a zip release URL, a git repository URL
+  (`https://…/repo.git`, `git@host:owner/repo.git`) or `gh:owner/repo` — anything `module:download`
+  accepts. Without a source, a module already in `modules/` is used as is; otherwise `name` is
+  resolved through the omeka.org catalogs.
+- **`version`** — the release to use: `module:download name:version` without a source, or the tag
+  (`#version`) of a git source. A zip URL already pins the release, so it wins.
 
 Modules are installed and enabled in the order you list them, so declare a module **before** the
 ones that depend on it (e.g. `Common` first). If the order is wrong, Omeka reports a clear
@@ -170,20 +165,39 @@ dependency error.
 
 ### `themes`
 
-Same shape as modules, minus `state` (themes have no install step; they are activated per site). A
-`bundled` source is skipped.
+Same shape as modules, minus `state` (themes have no install step; they are activated per site). The
+`default` theme ships with the core, so it is already present and nothing is downloaded.
 
 ```jsonc
 "themes": [
-    { "name": "default", "source": { "type": "bundled" } },
+    "default",
     { "name": "freedom", "version": "1.0.7" }
 ]
 ```
 
+### `files`
+
+Files placed in the Omeka S installation after modules and themes, e.g. a module config file or an
+extra asset archive.
+
+```jsonc
+"files": [
+    { "source": "./cleanurl.config.php", "destination": "config/cleanurl.config.php" },
+    { "source": "https://example.org/extra.zip", "destination": "modules/Foo/asset/extra", "extract": true }
+]
+```
+
+- **`source`** — path or URL; a relative path is resolved against the blueprint's location.
+- **`destination`** — relative to the Omeka S root. Absolute paths and `..` segments are rejected.
+- **`extract`** — treat `source` as a zip and extract it into `destination` (a single top-level
+  directory in the archive is stripped). Defaults to `false`: the file is copied.
+
+Files are written on every deploy, overwriting what is there.
+
 ### `vocabularies`
 
-Each entry mirrors the `vocabulary:import` inputs: identifying fields plus exactly one RDF source
-(`url` or `file`).
+Each entry mirrors the `vocabulary:import` inputs: identifying fields plus the RDF `source` (a path
+or URL).
 
 ```jsonc
 "vocabularies": [
@@ -191,13 +205,13 @@ Each entry mirrors the `vocabulary:import` inputs: identifying fields plus exact
         "prefix": "schema",
         "namespaceUri": "https://schema.org/",
         "label": "schema.org",
-        "url": "https://schema.org/version/latest/schemaorg-current-https.rdf"
+        "source": "https://schema.org/version/latest/schemaorg-current-https.rdf"
     }
 ]
 ```
 
 Optional: `comment`, `format`, `lang`, and `labelProperty` / `commentProperty` (RDF properties to use
-for labels/comments). A relative `file` is resolved against the blueprint's location.
+for labels/comments). A relative `source` is resolved against the blueprint's location.
 
 ### `resourceTemplates`
 
@@ -220,7 +234,7 @@ against the blueprint's location. Requires the `Common` module to be active.
 
 `email` is required; `role` defaults to `author`. Creating a user is idempotent (an existing email is
 left untouched). Valid roles: `global_admin`, `site_admin`, `editor`, `reviewer`, `author`,
-`researcher`.
+`researcher`, and any role added by an active module (e.g. `guest`).
 
 > **Security note.** `password` is stored **in clear text** in the blueprint file. Unlike the core
 > phase's `--db-password` / `--admin-password` (which are passed as flags and never written to the
@@ -244,16 +258,26 @@ in order — handy for pulling in per-module settings exports.
 ]
 ```
 
-### Runtime-only keys (ignored)
+### `install`
 
-`phpConstants`, `debug`, `login`, `landingPage`, and `preferredVersions.php` are accepted (so
-Playground blueprints validate) but not acted on. `preferredVersions.omeka` and `siteOptions` are
-read where relevant.
+```jsonc
+"install": {
+    "title": "My Archive", "locale": "en_US", "timezone": "UTC",
+    "admin": { "name": "Admin", "email": "admin@example.org" }
+}
+```
+
+Used by [the core phase](#the-core-phase) only; ignored with `--skip core`.
+
+### Ignored keys
+
+`meta`, `preferredVersions.php` and `x-` extensions other than `x-omeka-s-cli` (e.g. `x-playground`)
+are accepted but not acted on. `preferredVersions.omeka` is read by the core phase.
 
 ### Not yet applied
 
-`items`, `itemSets`, `site`/`sites`, and `modules[].assets` are part of the schema and are validated,
-but applying them (creating sites and content, or overlaying module asset ZIPs) is a later milestone.
+`items`, `itemSets` and `sites` are part of the schema and are validated, but applying them (creating
+sites and content) is a later milestone.
 
 ## Partials and `$import`
 
@@ -269,7 +293,7 @@ place by the items of the referenced list. This keeps a shared list under the ke
 ```
 
 References resolve relative to the file that contains them, may nest, and are rejected if circular.
-Within a resolved list, entries sharing a natural identity (module/theme `name`, vocabulary `prefix`,
+Within a resolved list, entries sharing a natural identity (module/theme `name`, file `destination`, vocabulary `prefix`,
 resource-template `label`, user `email`, item/item-set `title`) collapse to the **last** occurrence,
 so a later inline entry overrides an imported one — this is what makes *layering* work (import a
 shared base list, then override a single entry locally). When an override actually changes a value,
@@ -279,7 +303,7 @@ re-declaring an identical value is silent.
 ### Reference forms
 
 The blueprint source (the argument to `blueprint:deploy` / `blueprint:validate`), every `$import`,
-and asset paths (`file`, `source`) all accept the same reference forms:
+and asset paths (`files[].source`, `vocabularies[].source`, `resourceTemplates[].source`) all accept the same reference forms:
 
 | Form | Example |
 | --- | --- |
