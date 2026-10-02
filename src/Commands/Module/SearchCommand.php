@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Commands\Module;
 
+use OSC\Helper\VersionCompatibility;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
 class SearchCommand extends AbstractModuleCommand
@@ -17,14 +18,15 @@ class SearchCommand extends AbstractModuleCommand
             ->argument('[query]', 'Part of the module name or description')
             ->option('-r --repository [repositoryid]', 'Filter by repository', 'strval')
             ->option('--unregistered', 'Show only modules not registered in the omeka.org add-ons directory')
-            ->option('--refresh', 'Refresh the repository data', 'boolval', false);
+            ->option('--refresh', 'Refresh the repository data', 'boolval', false)
+            ->option('--include-incompatible', 'Include modules incompatible with the current Omeka S version', 'boolval', false);
 
         $this->optionJson();
         $this->optionCSV();
         $this->optionExtended();
     }
 
-    public function execute(?string $query, ?bool $json = false, ?bool $extended = false, ?string $repository = null, ?bool $unregistered = false): void
+    public function execute(?string $query, ?bool $json = false, ?bool $extended = false, ?string $repository = null, ?bool $unregistered = false, ?bool $includeIncompatible = false): void
     {
         $format = $this->getOutputFormat('table');
 
@@ -43,6 +45,19 @@ class SearchCommand extends AbstractModuleCommand
             $moduleResults = $manager->search($query, $repository);
         } else {
             $moduleResults = $manager->list($repository);
+        }
+
+        // when run inside an Omeka S instance, show only modules compatible with its version;
+        // outside an instance there is nothing to constrain against, so list everything
+        if (!$includeIncompatible && $this->hasOmekaInstance()) {
+            $omekaVersion = $this->getOmekaVersion();
+            $this->debug("Filtering modules compatible with Omeka S {$omekaVersion}", true);
+            $moduleResults = array_filter($moduleResults, function($moduleResult) use ($omekaVersion) {
+                return (bool) VersionCompatibility::getLatestCompatible(
+                    $moduleResult->getItem()->getVersions(),
+                    $omekaVersion
+                );
+            });
         }
 
         $moduleList = $this->formatModuleResults($moduleResults, $extended);
