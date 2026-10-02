@@ -29,6 +29,20 @@ abstract class AbstractUserCommand extends AbstractCommand
         $this->skipMissing(new InvalidArgumentException("User not found: {$user}"), $ignoreNotFound);
     }
 
+    /**
+     * Reject a role the Omeka ACL does not know. Modules can register their own roles (e.g. Guest
+     * adds 'guest'), so the valid set depends on the active modules.
+     *
+     * @throws InvalidArgumentException If the role is unknown
+     */
+    protected function assertValidRole(string $role): void
+    {
+        $acl = $this->getOmekaInstance()->getServiceManager()->get('Omeka\Acl');
+        if (!$acl->hasRole($role)) {
+            throw new InvalidArgumentException("Invalid role: {$role}. Valid roles are: " . implode(', ', $acl->getRoles()));
+        }
+    }
+
     protected function findUser(string $userIdentifier, ApiManager $api): ?UserRepresentation
     {
         // Try to find user by ID or email
