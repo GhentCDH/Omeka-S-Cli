@@ -231,9 +231,13 @@ class BlueprintApplier
                 continue;
             }
 
-            // a relative RDF file path resolves against the blueprint; url stays as-is
-            if (isset($vocabulary['file'])) {
-                $vocabulary['file'] = $this->resolveAssetPath($vocabulary['file']);
+            // normalise the RDF source (source|file|url): a relative one resolves against the
+            // blueprint, a URL/absolute path passes through. Written as `source` so the vocabulary
+            // importer uses the canonical key (no deprecation warning).
+            $rdfSource = $vocabulary['source'] ?? $vocabulary['file'] ?? $vocabulary['url'] ?? null;
+            if ($rdfSource !== null) {
+                unset($vocabulary['file'], $vocabulary['url']);
+                $vocabulary['source'] = $this->resolveAssetPath($rdfSource);
             }
 
             // a blueprint vocabulary entry is an importer config: hand it to the importer as a
