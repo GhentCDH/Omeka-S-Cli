@@ -61,7 +61,33 @@ class ReferenceResolver
         if (ResourceFetcher::isUrl($base)) {
             return (string) BaseUri::from($base)->resolve($reference);
         }
-        return rtrim(dirname($base), '/') . '/' . $reference;
+        return $this->normalizePath(rtrim(dirname($base), '/') . '/' . $reference);
+    }
+
+    /**
+     * Collapse `.` and `..` segments in a filesystem path lexically (no disk access, so it works for
+     * paths that do not exist yet). Keeps a leading `/` for absolute paths and leading `..` for
+     * relative ones. Mirrors the normalization league/uri already applies to URL references.
+     */
+    private function normalizePath(string $path): string
+    {
+        $isAbsolute = str_starts_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                if ($segments !== [] && end($segments) !== '..') {
+                    array_pop($segments);
+                } elseif (!$isAbsolute) {
+                    $segments[] = '..';
+                }
+                continue;
+            }
+            $segments[] = $segment;
+        }
+        return ($isAbsolute ? '/' : '') . implode('/', $segments);
     }
 
     /** Convert a repo-aware reference to a raw URL, or null if no provider recognizes it. */

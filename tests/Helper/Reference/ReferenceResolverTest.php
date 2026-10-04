@@ -89,6 +89,46 @@ class ReferenceResolverTest extends TestCase
         );
     }
 
+    public function testNormalizesDotSegmentsAgainstLocalBase(): void
+    {
+        $this->assertSame(
+            '/tmp/dir/sub/other.jsonc',
+            $this->resolver->resolve('./sub/other.jsonc', '/tmp/dir/site.jsonc')
+        );
+    }
+
+    public function testResolvesParentTraversalAgainstLocalBase(): void
+    {
+        $this->assertSame(
+            '/tmp/other.jsonc',
+            $this->resolver->resolve('../other.jsonc', '/tmp/dir/site.jsonc')
+        );
+    }
+
+    public function testResolvesRelativeAgainstRelativeBase(): void
+    {
+        // a base can itself be a relative path (e.g. `--config ./dir/site.jsonc`)
+        $this->assertSame(
+            'dir/other.jsonc',
+            $this->resolver->resolve('other.jsonc', 'dir/site.jsonc')
+        );
+    }
+
+    public function testResolvesParentTraversalAgainstRelativeBase(): void
+    {
+        $this->assertSame(
+            'dir/other.jsonc',
+            $this->resolver->resolve('../other.jsonc', 'dir/sub/site.jsonc')
+        );
+    }
+
+    public function testAbsoluteReferenceIgnoresBase(): void
+    {
+        // an absolute reference is returned as-is even when a base is supplied
+        $this->assertSame('/abs/other.jsonc', $this->resolver->resolve('/abs/other.jsonc', '/tmp/dir/site.jsonc'));
+        $this->assertSame('https://e.org/x.rdf', $this->resolver->resolve('https://e.org/x.rdf', '/tmp/dir/site.jsonc'));
+    }
+
     public function testRelativeWithoutBaseReturnedUnchanged(): void
     {
         $this->assertSame('other.jsonc', $this->resolver->resolve('other.jsonc'));
