@@ -65,9 +65,9 @@ class ImportFromRepoCommand extends AbstractCommand
         $vocabularyItem = $vocabularyResult->getItem();
         $this->info("Resolved to vocabulary '{$vocabularyItem->getName()}' (ns: {$vocabularyItem->getNamespaceUri()}, prefix: {$vocabularyItem->getPrefix()})", true);
 
-        // Prepare importer configuration
+        // Prepare importer configuration (repo URLs are absolute, so no resolution needed)
         $importerConfig = [
-            'url' => $vocabularyItem->getUrl(),
+            'source' => $vocabularyItem->getUrl(),
             'label' => $vocabularyItem->getName(),
             'namespaceUri' => $vocabularyItem->getNamespaceUri(),
             'prefix' => $vocabularyItem->getPrefix(),
