@@ -8,6 +8,7 @@ use Ahc\Cli\Input\Command;
 use Omeka\Api\Exception\ValidationException;
 use Omeka\Stdlib\RdfImporter;
 use OSC\Exceptions\WarningException;
+use OSC\Helper\VocabularyConfig;
 
 trait VocabularyImporterTrait
 {
@@ -15,8 +16,9 @@ trait VocabularyImporterTrait
     protected function registerVocabularyImporterOptions(Command $command): Command
     {
         return $command
-            ->option('--url', 'Vocabulary URL')
-            ->option('--file', 'Path to Vocabulary file')
+            ->option('--source', 'Path or URL to the vocabulary RDF (absolute, relative to the config, or a URI)')
+            ->option('--url', 'Vocabulary URL (deprecated: use --source)')
+            ->option('--file', 'Path to Vocabulary file (deprecated: use --source)')
             ->option('-l --label', 'Label for the vocabulary (required)')
             ->option('-c --comment', 'Comment/description for the vocabulary')
             ->option('-n --namespace-uri', 'Namespace URI for the vocabulary (required)')
@@ -29,74 +31,23 @@ trait VocabularyImporterTrait
 
     public function filterVocabularyFormat(?string $format): ?string
     {
-        $validFormats = ['auto', 'jsonld', 'rdfxml', 'turtle', 'ntriples'];
-        if ($format === null || in_array(strtolower($format), $validFormats, true)) {
+        if (VocabularyConfig::isValidFormat($format)) {
             return $format ? strtolower($format) : null;
         }
         throw new InvalidArgumentException(
-            "Invalid format '{$format}'. Valid formats are: " . implode(', ', $validFormats) . '.'
+            "Invalid format '{$format}'. Valid formats are: " . implode(', ', VocabularyConfig::VALID_FORMATS) . '.'
         );
     }
 
     protected function prepareImporterOptions(array $values): array
     {
+        $config = VocabularyConfig::fromArray($values);
 
-        $options = [];
-
-        // check source (file/url)
-        if (count(array_intersect_key($values, array_flip(['file', 'url']))) === 0) {
-            throw new InvalidArgumentException('You must specify either a file or a url for the vocabulary.');
-        }
-        if (count(array_intersect_key($values, array_flip(['file', 'url']))) !== 1) {
-            throw new InvalidArgumentException('You must specify either a file or a url for the vocabulary, but not both.');
+        if ($deprecatedKey = $config->deprecatedSourceKey()) {
+            $this->warn("The '{$deprecatedKey}' key is deprecated; use 'source' instead.", true);
         }
 
-        $file = $values['file'] ?? null;
-        if ($file) {
-            $strategy = 'file';
-            $options['file'] = $file;
-        }
-
-        $url = $values['url'] ?? null;
-        if ($url) {
-            $strategy = 'url';
-            $options['url'] = $url;
-        }
-
-        $label = $values['label'] ?? null;
-        if (!$label) {
-            throw new InvalidArgumentException('No label set for the vocabulary.');
-        }
-
-        $namespaceUri = $values['namespaceUri'] ?? null;
-        $prefix = $values['prefix'] ?? null;
-        if (!$namespaceUri || !$prefix) {
-            throw new InvalidArgumentException('A vocabulary must have a namespace uri and a prefix.');
-        }
-
-        $vocabulary = [
-            'o:namespace_uri' => $namespaceUri,
-            'o:prefix' => $prefix,
-            'o:label' => $label,
-        ];
-        if ($values['comment'] ?? null) {
-            $vocabulary['o:comment'] = $values['comment'];
-        }
-
-        // Set format (auto = guess)
-        $format = $values['format'] ?? null;
-        $options['format'] = $format && $format !== 'auto' ? $format : 'guess';
-
-        // Set optional properties
-        $options['lang'] = $values['lang'] ?? null;
-        $options['label_property'] = $values['labelProperty'] ?? null;
-        $options['comment_property'] = $values['commentProperty'] ?? null;
-
-        return [
-            'strategy' => $strategy,
-            'vocabulary' => array_filter($vocabulary, fn($v) => $v !== null),
-            'options' => array_filter($options, fn($v) => $v !== null),
-        ];
+        return $config->toImporterOptions();
     }
 
     /**

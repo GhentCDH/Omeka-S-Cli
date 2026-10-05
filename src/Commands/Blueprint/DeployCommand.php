@@ -28,6 +28,9 @@ class DeployCommand extends AbstractBlueprintCommand
             '--skip',
             'Comma-separated phases to skip (core, modules, themes, vocabularies, resourceTemplates, users, settings)'
         );
+        // internal: phases already applied by an earlier stage of a multi-process deploy; kept silent
+        // rather than reported as skipped. Set automatically when the deploy re-executes itself.
+        $this->option('--defer', 'Internal: phases already applied by a previous deploy stage');
         $this->optionDryRun();
 
         // Core phase: database connection (secrets come from flags, never the blueprint)
@@ -54,6 +57,7 @@ class DeployCommand extends AbstractBlueprintCommand
         ?bool $update = false,
         ?bool $force = false,
         ?string $skip = null,
+        ?string $defer = null,
         ?string $dbHost = null,
         ?string $dbPort = null,
         ?string $dbName = null,
@@ -79,7 +83,8 @@ class DeployCommand extends AbstractBlueprintCommand
             throw new Exception("Refusing to deploy an invalid blueprint. Run 'blueprint:validate' for details.");
         }
 
-        $skipPhases = $skip ? array_values(array_filter(array_map('trim', explode(',', $skip)))) : [];
+        $skipPhases = $this->parsePhases($skip);
+        $deferPhases = $this->parsePhases($defer);
         $dryRun = $this->isDryRun();
         $update = (bool) $update;
         $force = (bool) $force;
@@ -114,7 +119,7 @@ class DeployCommand extends AbstractBlueprintCommand
                 $core->run($blueprint, $targetPath, $database, $admin, $force);
 
                 // core is installed now: run the remaining phases in a fresh process so it is seen
-                $this->reExecRemaining($source, $this->mergeSkip($skipPhases, ['core']), $update);
+                $this->reExecRemaining($source, $this->mergeSkip($skipPhases, ['core']), $deferPhases, $update, 'Core installed');
                 return;
             }
         } elseif (!$dryRun) {
@@ -128,22 +133,29 @@ class DeployCommand extends AbstractBlueprintCommand
         // fresh process (same reason module:update shells out).
         $moduleBoundaryNeeded = !$dryRun
             && !in_array('modules', $skipPhases, true)
+            && !in_array('modules', $deferPhases, true)
             && $blueprint->hasInstallableModules();
 
         if ($moduleBoundaryNeeded) {
-            $restPhases = array_diff(self::PHASES, self::IN_PROCESS_PHASES);
-            $phase1Skip = $this->mergeSkip($skipPhases, $restPhases);
-            (new BlueprintApplier($this, false, $update, $phase1Skip, $source))->apply($blueprint);
+            // stage 1: modules + themes here; the module-dependent phases are deferred to a fresh
+            // process, since a module's services only register at the next Omeka bootstrap
+            $stage1Defer = $this->mergeSkip($deferPhases, array_diff(self::PHASES, self::IN_PROCESS_PHASES));
+            (new BlueprintApplier($this, false, $update, $skipPhases, $stage1Defer))->apply($blueprint);
 
-            $phase2Skip = $this->mergeSkip($skipPhases, self::IN_PROCESS_PHASES);
-            if (count($phase2Skip) < count(self::PHASES)) {
-                $this->reExecRemaining($source, $phase2Skip, $update);
-            }
+            // stage 2: the deferred phases, now that the modules are active
+            $stage2Defer = $this->mergeSkip($deferPhases, self::IN_PROCESS_PHASES);
+            $this->reExecRemaining($source, $skipPhases, $stage2Defer, $update, 'Modules ready');
             return;
         }
 
-        (new BlueprintApplier($this, $dryRun, $update, $skipPhases, $source))->apply($blueprint);
+        (new BlueprintApplier($this, $dryRun, $update, $skipPhases, $deferPhases))->apply($blueprint);
         $this->ok($dryRun ? 'Dry run complete.' : 'Blueprint deployed.', true);
+    }
+
+    /** Parse a comma-separated phase list into a trimmed array. */
+    private function parsePhases(?string $csv): array
+    {
+        return $csv ? array_values(array_filter(array_map('trim', explode(',', $csv)))) : [];
     }
 
     /**
@@ -157,21 +169,32 @@ class DeployCommand extends AbstractBlueprintCommand
     }
 
     /**
-     * Re-run deploy for the remaining phases in a fresh process (modules already active there).
+     * Re-run deploy for the remaining phases in a fresh process (so just-installed core/modules are
+     * active there). Phases already done are passed as --defer (silent), the user's --skip is carried
+     * through, and $reason explains the reload.
      *
-     * @param string[] $skipPhases
+     * @param string[] $skip
+     * @param string[] $defer
      */
-    private function reExecRemaining(string $source, array $skipPhases, bool $update): void
+    private function reExecRemaining(string $source, array $skip, array $defer, bool $update, string $reason): void
     {
-        if (count($skipPhases) >= count(self::PHASES)) {
+        if (!array_diff(self::PHASES, $skip, $defer)) {
             $this->ok('Blueprint deployed.', true);
             return;
         }
-        $arguments = ['blueprint:deploy', $source, '--skip', implode(',', $skipPhases), '--force'];
+        $arguments = ['blueprint:deploy', $source, '--force'];
+        if ($skip) {
+            $arguments[] = '--skip';
+            $arguments[] = implode(',', $skip);
+        }
+        if ($defer) {
+            $arguments[] = '--defer';
+            $arguments[] = implode(',', $defer);
+        }
         if ($update) {
             $arguments[] = '--update';
         }
-        $this->info('Continuing in a fresh process ...', true);
+        $this->info("{$reason} — reloading Omeka, then applying the remaining phases ...", true);
         $exitCode = $this->runInNewProcess($arguments);
         if ($exitCode !== 0) {
             throw new Exception("Deploying the remaining phases failed (exit code {$exitCode}).");

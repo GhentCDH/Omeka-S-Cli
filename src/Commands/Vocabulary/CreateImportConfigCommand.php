@@ -2,6 +2,7 @@
 namespace OSC\Commands\Vocabulary;
 
 use Exception;
+use OSC\Helper\VocabularyConfig;
 
 class CreateImportConfigCommand extends AbstractVocabularyCommand
 {
@@ -14,7 +15,7 @@ class CreateImportConfigCommand extends AbstractVocabularyCommand
         $this
             ->option('--output', 'Output the import configuration to a file')
             ->usage(
-                'vocabulary:create-import-config  --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema" --output ./schema-dot-org.json<eol/>'
+                'vocabulary:create-import-config  --source "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema" --output ./schema-dot-org.json<eol/>'
             );
     }
 
@@ -24,22 +25,17 @@ class CreateImportConfigCommand extends AbstractVocabularyCommand
             return $value !== null;
         });
 
-        // Prepare importer options (used as data validation step)
-        $importerOptions = $this->prepareImporterOptions($args);
-
-        // Prepare output
-        $configOptions = array_intersect_key($args, array_flip(['file', 'url', 'label', 'namespaceUri', 'prefix', 'comment', 'format', 'lang', 'labelProperty', 'commentProperty']));
-        $configOptions = array_filter($configOptions, function($value) {
-            return $value !== null;
-        });
+        // Validate and normalise into the canonical config shape (emits `source`, drops extras)
+        $config = VocabularyConfig::fromArray($args);
+        $json = json_encode($config->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         if ($output) {
-            if (file_put_contents($output, json_encode($configOptions, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n") === false) {
+            if (file_put_contents($output, $json . "\n") === false) {
                 throw new Exception("Failed to write to file: {$output}");
             };
             $this->ok("Config file written to '{$output}'.", true);
         } else {
-            $this->echo(json_encode($configOptions, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), true);
+            $this->echo($json, true);
         }
     }
 }

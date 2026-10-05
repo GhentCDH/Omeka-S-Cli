@@ -1,0 +1,7 @@
+{
+  "source": "example.ttl",
+  "label": "Example",
+  "namespaceUri": "http://example.org/ns#",
+  "prefix": "ex",
+  "format": "turtle"
+}

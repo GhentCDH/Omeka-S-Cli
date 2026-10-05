@@ -26,6 +26,16 @@ class BlueprintLoader
     /** Keys whose value is a list of items that may contain `$import` references. */
     private const LIST_KEYS = ['modules', 'themes', 'vocabularies', 'resourceTemplates', 'users', 'itemSets', 'items'];
 
+    /**
+     * Per-list item fields that hold a relative asset reference. They are resolved against the source
+     * that declares the item — so a vocabulary pulled in via `$import` resolves its `source` against
+     * the imported config's location, not the top-level blueprint's.
+     */
+    private const ASSET_FIELDS = [
+        'vocabularies' => ['source', 'file'],
+        'resourceTemplates' => ['source'],
+    ];
+
     /** Absolute sources currently being resolved, to detect circular imports. */
     private array $visiting = [];
 
@@ -143,11 +153,13 @@ class BlueprintLoader
         $resolved = [];
         foreach ($list as $entry) {
             if (!$this->isReference($entry)) {
-                $resolved[] = $entry;
+                // an inline item is declared by `$source`, so its relative asset refs resolve against it
+                $resolved[] = $this->resolveItemAssets($entry, $source, $key);
                 continue;
             }
 
             $ref = $this->resolver->resolve($entry['$import'], $source);
+            // items pulled in by importList() were already asset-resolved against the imported source
             $imported = $this->importList($ref, $key);
             foreach ($imported as $item) {
                 $resolved[] = $item;
@@ -220,6 +232,28 @@ class BlueprintLoader
             $merged = array_merge($merged, $entry);
         }
         return $merged;
+    }
+
+    /**
+     * Resolve an inline item's relative asset fields (see ASSET_FIELDS) against the source that
+     * declares it. Repo-aware references become raw URLs; absolute paths and URLs pass through.
+     *
+     * @param mixed  $entry  The inline item
+     * @param string $source The source declaring the item (for relative resolution)
+     * @param string $key    The list key (selects which fields are asset references)
+     * @return mixed The item with its asset fields resolved
+     */
+    private function resolveItemAssets(mixed $entry, string $source, string $key): mixed
+    {
+        if (!is_array($entry)) {
+            return $entry;
+        }
+        foreach (self::ASSET_FIELDS[$key] ?? [] as $field) {
+            if (isset($entry[$field]) && is_string($entry[$field]) && trim($entry[$field]) !== '') {
+                $entry[$field] = $this->resolver->resolve($entry[$field], $source);
+            }
+        }
+        return $entry;
     }
 
     private function isReference(mixed $entry): bool

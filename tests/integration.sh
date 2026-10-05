@@ -440,10 +440,14 @@ assert_fail    "the user is really gone"                                       $
 
 section "Vocabularies"
 assert_success "vocabulary:list returns results" $CLI vocabulary:list
-assert_success "add vocabulary schema.org using options" $CLI vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
+assert_success "add vocabulary schema.org using --source option" $CLI vocabulary:import --source "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
 assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
-assert_success "add vocabulary schema.org from local config" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/schema-dot-org.json
+assert_success "deprecated --url option still imports" $CLI vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
 assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
+assert_success "add vocabulary schema.org from local config (source url)" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/schema-dot-org.json
+assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
+assert_success "add vocabulary from local config with a RELATIVE source" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/example-local.json
+assert_success "delete the relative-source vocabulary" $CLI vocabulary:delete ex
 assert_success "add vocabulary person-name-vocabulary from remote config" $CLI vocabulary:import --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Vocabularies/refs/heads/main/person-name-vocabulary.json
 
 run "delete vocabulary person-name-vocabulary" $CLI vocabulary:delete pvn

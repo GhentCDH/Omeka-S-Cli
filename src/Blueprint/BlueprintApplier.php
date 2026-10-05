@@ -2,46 +2,51 @@
 namespace OSC\Blueprint;
 
 use Exception;
+use Omeka\Module\Manager as ModuleManager;
 use OSC\Commands\AbstractCommand;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Path;
-use OSC\Helper\Reference\ReferenceResolver;
 
 /**
  * Apply a resolved blueprint to an Omeka S instance by driving the existing CLI commands in order:
  * modules, themes, vocabularies, resource templates, users, settings.
  *
- * The commands run in-process, sharing one Omeka bootstrap. Modules are a special case: every module
- * is downloaded first (a pure filesystem step that does not bootstrap Omeka), and only then are they
- * installed/enabled. That ordering matters — Omeka reads the modules directory when it boots, so a
- * module downloaded after boot would be invisible. Installing all downloads together lets the first
- * install trigger the boot with every new module already on disk (the same reason `module:download
- * -i` works).
+ * Most phases run in-process. Modules are special: every module is downloaded first (a filesystem step
+ * that needs no bootstrap), then each module is installed/enabled in its OWN fresh process. A module's
+ * services register only at a bootstrap where it is active, so a module that depends on another (e.g.
+ * on Common) must be installed in a process where that dependency is already active — which per-module
+ * processes guarantee, since each module is listed after the ones it depends on. Relative asset paths
+ * (vocabulary/resource-template sources) are already resolved by BlueprintLoader against the source
+ * that declared them, so the applier uses them as-is.
  */
 class BlueprintApplier
 {
-    /** Resolves repo-aware and relative asset references against the blueprint source. */
-    private ReferenceResolver $resolver;
+    /** Human-readable phase names for the per-phase status lines. */
+    private const PHASE_LABELS = [
+        'modules'           => 'Modules',
+        'themes'            => 'Themes',
+        'vocabularies'      => 'Vocabularies',
+        'resourceTemplates' => 'Resource templates',
+        'users'             => 'Users',
+        'settings'          => 'Settings',
+    ];
 
     /**
-     * @param AbstractCommand       $command   The invoking command (for command lookup, output, verbosity)
-     * @param bool                  $dryRun    Report actions without performing them
-     * @param bool                  $update    Re-download/overwrite and update existing resources
-     * @param string[]              $skip      Phase names to skip
-     * @param string|null           $baseSource The blueprint source, to resolve relative asset paths
-     * @param ReferenceResolver|null $resolver  Reference resolver (defaults to the standard providers)
+     * @param AbstractCommand $command The invoking command (for command lookup, output, verbosity)
+     * @param bool            $dryRun  Report actions without performing them
+     * @param bool            $update  Re-download/overwrite and update existing resources
+     * @param string[]        $skip    Phases the user asked to skip (reported as skipped)
+     * @param string[]        $defer   Phases handled in another stage of a multi-process deploy (silent)
      */
     public function __construct(
         private AbstractCommand $command,
         private bool $dryRun = false,
         private bool $update = false,
         private array $skip = [],
-        private ?string $baseSource = null,
-        ?ReferenceResolver $resolver = null,
+        private array $defer = [],
     ) {
-        $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
     }
 
     public function apply(Blueprint $blueprint): void
@@ -56,14 +61,21 @@ class BlueprintApplier
 
     private function runPhase(string $name, mixed $data, callable $run): void
     {
+        $label = self::PHASE_LABELS[$name] ?? $name;
+
+        // handled in another stage of a multi-process deploy: stay silent here, it is not skipped
+        if (in_array($name, $this->defer, true)) {
+            return;
+        }
         if (in_array($name, $this->skip, true)) {
-            $this->command->info("• {$name}: skipped", true);
+            $this->command->info("• {$label}: skipped (--skip)", true);
             return;
         }
         if (empty($data)) {
+            $this->command->info("• {$label}: nothing to do", true);
             return;
         }
-        $this->command->info("• {$name}", true);
+        $this->command->info("• {$label}", true);
         $run($data);
     }
 
@@ -93,24 +105,59 @@ class BlueprintApplier
             }
         }
 
-        // 2. install (state install|activate), in blueprint order (author lists dependencies first)
-        $installIds = $this->moduleNames($modules, ['install', 'activate']);
-        foreach ($installIds as $id) {
-            if ($this->dryRun) {
-                $this->command->info("  would install module '{$id}'", true);
-                continue;
+        // 2. install + enable each module in its OWN process, in blueprint order. A module's services
+        //    register only at a bootstrap where it is active, so a dependent (e.g. on Common) must be
+        //    installed in a fresh process where its dependency is already active. Blueprint order lists
+        //    dependencies first, so processing one module per process satisfies that.
+        if ($this->dryRun) {
+            foreach ($modules as $module) {
+                if ($module['name'] === '' || !in_array($module['state'], ['install', 'activate'], true)) {
+                    continue;
+                }
+                $this->command->info("  would install module '{$module['name']}'", true);
+                if ($module['state'] === 'activate') {
+                    $this->command->info("  would enable module '{$module['name']}'", true);
+                }
             }
-            $this->run('module:install', fn($c) => $c->execute($id));
+            return;
         }
 
-        // 3. enable (state activate), in blueprint order
-        $enableIds = $this->moduleNames($modules, ['activate']);
-        foreach ($enableIds as $id) {
-            if ($this->dryRun) {
-                $this->command->info("  would enable module '{$id}'", true);
+        // snapshot current states once, to skip modules already in their target state (cheap re-deploys)
+        $moduleApi = $this->command->getOmekaInstance(false)->getModuleApi();
+        foreach ($modules as $module) {
+            $name = $module['name'];
+            $state = $module['state'];
+            if ($name === '' || !in_array($state, ['install', 'activate'], true)) {
                 continue;
             }
-            $this->run('module:enable', fn($c) => $c->execute($id));
+
+            $onDisk = $moduleApi->getModule($name);
+            $isInstalled = $onDisk && in_array(
+                $onDisk->getState(),
+                [ModuleManager::STATE_ACTIVE, ModuleManager::STATE_NOT_ACTIVE],
+                true
+            );
+            $isActive = $onDisk && $onDisk->getState() === ModuleManager::STATE_ACTIVE;
+
+            if (!$isInstalled) {
+                // install also activates the module in Omeka S
+                $this->runModuleStep('module:install', $name);
+            } elseif ($state === 'activate' && !$isActive) {
+                // already installed but inactive: activate it
+                $this->runModuleStep('module:enable', $name);
+            }
+        }
+    }
+
+    /**
+     * Run a module operation in a fresh process, so the module's services are available to the modules
+     * processed after it. Throws when the child process fails.
+     */
+    private function runModuleStep(string $command, string $id): void
+    {
+        $exitCode = $this->command->runInNewProcess([$command, $id]);
+        if ($exitCode !== 0) {
+            throw new Exception("'{$command} {$id}' failed (exit code {$exitCode}).");
         }
     }
 
@@ -231,9 +278,13 @@ class BlueprintApplier
                 continue;
             }
 
-            // a relative RDF file path resolves against the blueprint; url stays as-is
-            if (isset($vocabulary['file'])) {
-                $vocabulary['file'] = $this->resolveAssetPath($vocabulary['file']);
+            // normalise the RDF source to the canonical `source` key (so the importer emits no
+            // deprecation warning). The path itself was already resolved by the loader against the
+            // source that declared it, so it is used as-is here.
+            $rdfSource = $vocabulary['source'] ?? $vocabulary['file'] ?? $vocabulary['url'] ?? null;
+            if ($rdfSource !== null) {
+                unset($vocabulary['file'], $vocabulary['url']);
+                $vocabulary['source'] = $rdfSource;
             }
 
             // a blueprint vocabulary entry is an importer config: hand it to the importer as a
@@ -270,7 +321,7 @@ class BlueprintApplier
                 $this->command->info("  would import resource template '{$label}'", true);
                 continue;
             }
-            $source = $this->resolveAssetPath($source);
+            // $source was already resolved by the loader against the source that declared it
             $ignoreDeps = (bool) ($template['ignoreDeps'] ?? false);
             $this->run(
                 'resource-template:import',
@@ -341,18 +392,6 @@ class BlueprintApplier
     private function propagateVerbosity(AbstractCommand $cmd): void
     {
         $cmd->primeValue('verbosity', $this->command->values()['verbosity'] ?? 1);
-    }
-
-    /**
-     * Resolve a relative asset path against the blueprint's location. URLs and absolute paths pass
-     * through unchanged.
-     */
-    private function resolveAssetPath(?string $path): ?string
-    {
-        if ($path === null || $path === '') {
-            return $path;
-        }
-        return $this->resolver->resolve($path, $this->baseSource);
     }
 
     /**

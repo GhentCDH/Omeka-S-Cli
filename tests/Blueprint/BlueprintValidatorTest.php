@@ -120,12 +120,23 @@ class BlueprintValidatorTest extends TestCase
         $this->assertSame([], $this->validator()->validateBlueprint($blueprint));
     }
 
-    public function testRejectsUnknownUserRole(): void
+    public function testRejectsAnEmptyUserRole(): void
     {
+        // the shared schema treats `role` as a free, non-empty string (minLength 1) so module-
+        // registered roles are allowed; only an empty role is invalid
         $errors = $this->validator()->validateBlueprint([
-            'users' => [['email' => 'a@b.c', 'role' => 'wizard']],
+            'users' => [['email' => 'a@b.c', 'role' => '']],
         ]);
         $this->assertNotEmpty($errors);
+    }
+
+    public function testAcceptsANonCoreUserRole(): void
+    {
+        // a module-registered role (e.g. a guest role) is a valid non-empty string
+        $errors = $this->validator()->validateBlueprint([
+            'users' => [['email' => 'a@b.c', 'role' => 'guest']],
+        ]);
+        $this->assertSame([], $errors);
     }
 
     public function testStrictValidationRejectsUnknownKeys(): void
