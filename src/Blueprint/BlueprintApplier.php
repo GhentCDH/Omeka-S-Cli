@@ -8,7 +8,6 @@ use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Path;
-use OSC\Helper\Reference\ReferenceResolver;
 
 /**
  * Apply a resolved blueprint to an Omeka S instance by driving the existing CLI commands in order:
@@ -260,13 +259,13 @@ class BlueprintApplier
                 continue;
             }
 
-            // normalise the RDF source (source|file|url): a relative one resolves against the
-            // blueprint, a URL/absolute path passes through. Written as `source` so the vocabulary
-            // importer uses the canonical key (no deprecation warning).
+            // normalise the RDF source to the canonical `source` key (so the importer emits no
+            // deprecation warning). The path itself was already resolved by the loader against the
+            // source that declared it, so it is used as-is here.
             $rdfSource = $vocabulary['source'] ?? $vocabulary['file'] ?? $vocabulary['url'] ?? null;
             if ($rdfSource !== null) {
                 unset($vocabulary['file'], $vocabulary['url']);
-                $vocabulary['source'] = $this->resolveAssetPath($rdfSource);
+                $vocabulary['source'] = $rdfSource;
             }
 
             // a blueprint vocabulary entry is an importer config: hand it to the importer as a
@@ -303,7 +302,7 @@ class BlueprintApplier
                 $this->command->info("  would import resource template '{$label}'", true);
                 continue;
             }
-            $source = $this->resolveAssetPath($source);
+            // $source was already resolved by the loader against the source that declared it
             $ignoreDeps = (bool) ($template['ignoreDeps'] ?? false);
             $this->run(
                 'resource-template:import',
@@ -374,18 +373,6 @@ class BlueprintApplier
     private function propagateVerbosity(AbstractCommand $cmd): void
     {
         $cmd->primeValue('verbosity', $this->command->values()['verbosity'] ?? 1);
-    }
-
-    /**
-     * Resolve a relative asset path against the blueprint's location. URLs and absolute paths pass
-     * through unchanged.
-     */
-    private function resolveAssetPath(?string $path): ?string
-    {
-        if ($path === null || $path === '') {
-            return $path;
-        }
-        return $this->resolver->resolve($path, $this->baseSource);
     }
 
     /**
