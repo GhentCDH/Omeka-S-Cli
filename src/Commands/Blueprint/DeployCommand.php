@@ -133,7 +133,7 @@ class DeployCommand extends AbstractBlueprintCommand
         if ($moduleBoundaryNeeded) {
             $restPhases = array_diff(self::PHASES, self::IN_PROCESS_PHASES);
             $phase1Skip = $this->mergeSkip($skipPhases, $restPhases);
-            (new BlueprintApplier($this, false, $update, $phase1Skip, $source))->apply($blueprint);
+            (new BlueprintApplier($this, false, $update, $phase1Skip))->apply($blueprint);
 
             $phase2Skip = $this->mergeSkip($skipPhases, self::IN_PROCESS_PHASES);
             if (count($phase2Skip) < count(self::PHASES)) {
@@ -142,7 +142,7 @@ class DeployCommand extends AbstractBlueprintCommand
             return;
         }
 
-        (new BlueprintApplier($this, $dryRun, $update, $skipPhases, $source))->apply($blueprint);
+        (new BlueprintApplier($this, $dryRun, $update, $skipPhases))->apply($blueprint);
         $this->ok($dryRun ? 'Dry run complete.' : 'Blueprint deployed.', true);
     }
 

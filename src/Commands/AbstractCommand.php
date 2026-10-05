@@ -352,7 +352,7 @@ abstract class AbstractCommand extends Command
         return $basePath;
     }
 
-    protected function getOmekaInstance(bool $elevated = true): OmekaInstance {
+    public function getOmekaInstance(bool $elevated = true): OmekaInstance {
         $instance = OmekaInstanceFactory::createInstance($this->getOmekaPath());
         if ($elevated) {
             // check if omeka is installed
@@ -385,7 +385,7 @@ abstract class AbstractCommand extends Command
      * @return int The exit code of the child process
      * @throws Exception If the omeka-s-cli entry point can not be determined
      */
-    protected function runInNewProcess(array $arguments): int
+    public function runInNewProcess(array $arguments): int
     {
         // running from a phar: Phar::running() is the only reliable path to the entry point
         $entryPoint = \Phar::running(false);
