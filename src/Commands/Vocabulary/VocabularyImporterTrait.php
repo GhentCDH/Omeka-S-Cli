@@ -135,7 +135,7 @@ trait VocabularyImporterTrait
                 $rdfImporter->update($existingVocabulary->id(), $diff);
                 $this->info('done', true);
             } catch (ValidationException $e) {
-                $this->io()->eol();
+                $this->info('', true);
                 throw new \Exception("Could not update vocabulary (" . $e->getMessage() . ").");
             }
 
@@ -143,7 +143,7 @@ trait VocabularyImporterTrait
         } else {
             // Import new vocabulary
             try {
-                $this->io()->info("Importing vocabulary from {$source} ... ");
+                $this->info("Importing vocabulary from {$source} ... ");
                 $response = $rdfImporter->import(
                     $importerOptions['strategy'],
                     $importerOptions['vocabulary'],
@@ -152,7 +152,7 @@ trait VocabularyImporterTrait
                 $vocabulary = $response->getContent();
                 $this->info('done', true);
             } catch (\Exception $e) {
-                $this->io()->eol();
+                $this->info('', true);
                 throw new \Exception("Could not import vocabulary ({$e->getMessage()})");
             }
 

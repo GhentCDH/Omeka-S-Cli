@@ -110,7 +110,7 @@ class DownloadCommand extends AbstractThemeCommand
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {
-            $this->io()->eol();
+            $this->info("", true);
         }
 
         try {
