@@ -18,6 +18,21 @@ class DeployCommand extends AbstractBlueprintCommand
     /** Phases handled in the current process (no active-module services required). */
     private const IN_PROCESS_PHASES = ['modules', 'themes'];
 
+    /**
+     * The deploy as the user sees it: two numbered stages, each grouping phases. Independent of the
+     * process boundaries a deploy needs internally (after the core install, after the modules).
+     */
+    private const STAGES = [
+        1 => ['title' => 'Install core, modules and themes', 'phases' => ['core', 'modules', 'themes']],
+        2 => [
+            'title'  => 'Configure vocabularies, resource templates, users and settings',
+            'phases' => ['vocabularies', 'resourceTemplates', 'users', 'settings'],
+        ],
+    ];
+
+    /** A deploy shows outcomes by default; -v adds the sub-commands' detail, -vv debug output. */
+    protected const DEFAULT_VERBOSITY = self::VERBOSITY_OUTCOMES;
+
     public function __construct()
     {
         parent::__construct('blueprint:deploy', 'Deploy an Omeka S site from a blueprint');
@@ -67,11 +82,23 @@ class DeployCommand extends AbstractBlueprintCommand
         ?string $adminEmail = 'admin@example.com',
         ?string $adminPassword = 'admin',
     ): void {
-        $this->info("Loading blueprint from '{$source}' ...", true);
+        $skipPhases = $this->parsePhases($skip);
+        $deferPhases = $this->parsePhases($defer);
+
+        // a later stage of a multi-process deploy: the first process already reported loading the
+        // blueprint (and its warnings), so the continuation stays quiet about it
+        $isContinuation = (bool) $deferPhases;
+
+        if (!$isContinuation) {
+            $this->note("Loading blueprint from '{$source}' ...", true);
+        }
         $loader = new BlueprintLoader();
         $blueprint = $loader->load($source);
-        foreach ($loader->takeWarnings() as $warning) {
-            $this->warn("  {$warning}", true);
+        $loaderWarnings = $loader->takeWarnings();
+        if (!$isContinuation) {
+            foreach ($loaderWarnings as $warning) {
+                $this->warn("  {$warning}", true);
+            }
         }
 
         $errors = (new BlueprintValidator())->validateBlueprint($blueprint->toArray());
@@ -83,8 +110,6 @@ class DeployCommand extends AbstractBlueprintCommand
             throw new Exception("Refusing to deploy an invalid blueprint. Run 'blueprint:validate' for details.");
         }
 
-        $skipPhases = $this->parsePhases($skip);
-        $deferPhases = $this->parsePhases($defer);
         $dryRun = $this->isDryRun();
         $update = (bool) $update;
         $force = (bool) $force;
@@ -94,7 +119,10 @@ class DeployCommand extends AbstractBlueprintCommand
         }
 
         $core = new CoreInstaller($this);
-        $coreRequested = !in_array('core', $skipPhases, true);
+        $coreDeferred = in_array('core', $deferPhases, true);
+        $coreRequested = !$coreDeferred && !in_array('core', $skipPhases, true);
+
+        $this->announceStage(1, $deferPhases);
 
         // ── core phase ──────────────────────────────────────────────────────────────────────
         if ($coreRequested) {
@@ -119,10 +147,10 @@ class DeployCommand extends AbstractBlueprintCommand
                 $core->run($blueprint, $targetPath, $database, $admin, $force);
 
                 // core is installed now: run the remaining phases in a fresh process so it is seen
-                $this->reExecRemaining($source, $this->mergeSkip($skipPhases, ['core']), $deferPhases, $update, 'Core installed');
+                $this->reExecRemaining($source, $skipPhases, $this->mergeSkip($deferPhases, ['core']), $update, 'Core installed');
                 return;
             }
-        } elseif (!$dryRun) {
+        } elseif (!$dryRun && !$coreDeferred) {
             // ── sync onto an existing instance ──
             $core->assertExistingInstallDeployable(DatabaseConfig::fromOmekaPath($this->getOmekaPath()), $force);
         }
@@ -140,7 +168,7 @@ class DeployCommand extends AbstractBlueprintCommand
             // stage 1: modules + themes here; the module-dependent phases are deferred to a fresh
             // process, since a module's services only register at the next Omeka bootstrap
             $stage1Defer = $this->mergeSkip($deferPhases, array_diff(self::PHASES, self::IN_PROCESS_PHASES));
-            (new BlueprintApplier($this, false, $update, $skipPhases, $stage1Defer))->apply($blueprint);
+            (new BlueprintApplier($this, false, $update, $skipPhases, $stage1Defer))->applyModulesAndThemes($blueprint);
 
             // stage 2: the deferred phases, now that the modules are active
             $stage2Defer = $this->mergeSkip($deferPhases, self::IN_PROCESS_PHASES);
@@ -148,8 +176,27 @@ class DeployCommand extends AbstractBlueprintCommand
             return;
         }
 
-        (new BlueprintApplier($this, $dryRun, $update, $skipPhases, $deferPhases))->apply($blueprint);
+        $applier = new BlueprintApplier($this, $dryRun, $update, $skipPhases, $deferPhases);
+        $applier->applyModulesAndThemes($blueprint);
+        $this->announceStage(2, $deferPhases);
+        $applier->applyConfiguration($blueprint);
         $this->ok($dryRun ? 'Dry run complete.' : 'Blueprint deployed.', true);
+    }
+
+    /**
+     * Print a stage heading, in the process that starts the stage: a stage with a phase deferred
+     * (already applied by an earlier process) was announced there.
+     *
+     * @param int      $stage The stage number (a key of STAGES)
+     * @param string[] $defer Phases already applied by an earlier process
+     */
+    private function announceStage(int $stage, array $defer): void
+    {
+        if (array_intersect(self::STAGES[$stage]['phases'], $defer)) {
+            return;
+        }
+        $count = count(self::STAGES);
+        $this->heading("Phase {$stage}/{$count}: " . self::STAGES[$stage]['title']);
     }
 
     /** Parse a comma-separated phase list into a trimmed array. */
@@ -194,7 +241,7 @@ class DeployCommand extends AbstractBlueprintCommand
         if ($update) {
             $arguments[] = '--update';
         }
-        $this->info("{$reason} — reloading Omeka, then applying the remaining phases ...", true);
+        $this->debug("{$reason}, continuing in a new process ...", true);
         $exitCode = $this->runInNewProcess($arguments);
         if ($exitCode !== 0) {
             throw new Exception("Deploying the remaining phases failed (exit code {$exitCode}).");
