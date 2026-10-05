@@ -593,6 +593,14 @@ assert_success "blueprint:export writes a blueprint"                        bash
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
 assert_output_contains "the export captures an installed module" "Common"   $CLI blueprint:export
 
+# a full deploy (core phase included) started outside the Omeka S directory: it, and the processes
+# it continues in after the core install, must find the instance through --base-path alone, not by
+# searching the working directory. Resets the instance (database.ini is reused), so keep this last.
+assert_success "blueprint:deploy with the core phase works outside the Omeka S directory" \
+    bash -c "cd /tmp && $CLI blueprint:deploy $BP --base-path /var/www/omeka-s --force"
+assert_output_is "the deploy from outside the Omeka S directory applied its settings" '"Blueprint Demo"' \
+    bash -c "cd /tmp && $CLI config:get installation_title --base-path /var/www/omeka-s"
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 summary
