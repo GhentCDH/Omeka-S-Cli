@@ -92,9 +92,16 @@ Not yet exported: settings, users, resource templates (and the `--split`/`--outp
 
 Vocabularies run before resource templates so the properties/classes a template references already
 exist, and settings run last so a module writing its defaults at install time cannot overwrite them.
-When the blueprint installs or activates modules, deploy crosses a process boundary after the module
-phase — a module's services only become available at the next Omeka bootstrap — so the
-module-dependent phases run in a fresh process automatically.
+
+A module's services only register at an Omeka bootstrap where that module is active, so deploy runs in
+several processes automatically: each module is installed/enabled in its **own** fresh process (in
+blueprint order, dependencies first) so a module that depends on another — e.g. on `Common` — sees it
+already active; then the module-dependent phases (vocabularies onward) run in one more fresh process.
+Deploy prints what each stage does and why it reloads (`Modules ready — reloading Omeka ...`).
+
+Per-phase status lines distinguish the cases: `• Vocabularies` (running), `• Users: nothing to do`
+(declared nothing), and `• Settings: skipped (--skip)` (you skipped it). Phases handled in another
+stage are silent, not reported as skipped.
 
 ## The core phase
 
