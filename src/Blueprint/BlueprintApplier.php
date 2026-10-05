@@ -23,17 +23,29 @@ use OSC\Helper\Path;
  */
 class BlueprintApplier
 {
+    /** Human-readable phase names for the per-phase status lines. */
+    private const PHASE_LABELS = [
+        'modules'           => 'Modules',
+        'themes'            => 'Themes',
+        'vocabularies'      => 'Vocabularies',
+        'resourceTemplates' => 'Resource templates',
+        'users'             => 'Users',
+        'settings'          => 'Settings',
+    ];
+
     /**
      * @param AbstractCommand $command The invoking command (for command lookup, output, verbosity)
      * @param bool            $dryRun  Report actions without performing them
      * @param bool            $update  Re-download/overwrite and update existing resources
-     * @param string[]        $skip    Phase names to skip
+     * @param string[]        $skip    Phases the user asked to skip (reported as skipped)
+     * @param string[]        $defer   Phases handled in another stage of a multi-process deploy (silent)
      */
     public function __construct(
         private AbstractCommand $command,
         private bool $dryRun = false,
         private bool $update = false,
         private array $skip = [],
+        private array $defer = [],
     ) {
     }
 
@@ -49,14 +61,21 @@ class BlueprintApplier
 
     private function runPhase(string $name, mixed $data, callable $run): void
     {
+        $label = self::PHASE_LABELS[$name] ?? $name;
+
+        // handled in another stage of a multi-process deploy: stay silent here, it is not skipped
+        if (in_array($name, $this->defer, true)) {
+            return;
+        }
         if (in_array($name, $this->skip, true)) {
-            $this->command->info("• {$name}: skipped", true);
+            $this->command->info("• {$label}: skipped (--skip)", true);
             return;
         }
         if (empty($data)) {
+            $this->command->info("• {$label}: nothing to do", true);
             return;
         }
-        $this->command->info("• {$name}", true);
+        $this->command->info("• {$label}", true);
         $run($data);
     }
 
