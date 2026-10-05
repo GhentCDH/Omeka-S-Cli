@@ -189,7 +189,8 @@ class DownloadCommand extends AbstractModuleCommand
             }
         }
 
-        $this->ok("Module '{$moduleDirName}' downloaded.", true);
+        $version = $moduleIni['info']['version'] ?? null;
+        $this->ok("Module '{$moduleDirName}'" . ($version ? " v{$version}" : '') . " downloaded.", true);
 
         if ($install) {
             $command = $this->app()->commands()['module:install'] ?? null;

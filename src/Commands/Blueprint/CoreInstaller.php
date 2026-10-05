@@ -29,15 +29,15 @@ class CoreInstaller
      */
     public function run(Blueprint $blueprint, string $targetPath, DatabaseConfig $database, UserConfig $admin, bool $force): void
     {
-        $this->command->info('• core', true);
+        $this->command->section('Core');
 
         // 1. core files
         if (!$this->command->isOmekaDir($targetPath)) {
-            $this->command->info('  downloading Omeka S core ...', true);
+            $this->command->note('Downloading Omeka S core ...', true);
             $version = $blueprint->preferredOmekaVersion();
             $this->runSubcommand('core:download', fn($c) => $c->execute($version, $targetPath, true));
         } else {
-            $this->command->info("  core already present at {$targetPath}", true);
+            $this->command->note("Core already present at {$targetPath}", true);
         }
 
         // 2. database.ini. Omeka's core zip ships an empty template, so "the file exists" is not
@@ -47,7 +47,7 @@ class CoreInstaller
         $existing = file_exists($iniPath) ? (@parse_ini_file($iniPath) ?: []) : [];
         $hasRealCredentials = !empty($existing['dbname']) && !empty($existing['user']);
         if (!$hasRealCredentials) {
-            $this->command->info('  writing database.ini ...', true);
+            $this->command->note('Writing database.ini ...', true);
             $database->writeIniFile($iniPath);
         }
 
@@ -60,13 +60,13 @@ class CoreInstaller
                     . '(this deletes all data), or --skip core to deploy onto it.'
                 );
             }
-            $this->command->info('  resetting the database (dropping all tables) ...', true);
+            $this->command->note('Resetting the database (dropping all tables) ...', true);
             $this->dropAllTables($database);
         }
 
         // 4. install the core (in-process, empty database)
         $siteOptions = $blueprint->siteOptions();
-        $this->command->info('  installing Omeka S core ...', true);
+        $this->command->note('Installing Omeka S core ...', true);
         $this->runSubcommand('core:install', function ($c) use ($siteOptions, $admin, $targetPath) {
             $c->primeValue('basePath', $targetPath);
             $c->execute(
@@ -82,10 +82,10 @@ class CoreInstaller
 
     public function reportDryRun(Blueprint $blueprint): void
     {
-        $this->command->info('• core', true);
+        $this->command->section('Core');
         $version = $blueprint->preferredOmekaVersion() ?? 'latest';
-        $this->command->info("  would ensure the Omeka S core ({$version}) is downloaded and installed", true);
-        $this->command->info('  would write database.ini if missing, and reset the database if it is already installed (with --force)', true);
+        $this->command->note("Would ensure the Omeka S core ({$version}) is downloaded and installed", true);
+        $this->command->note('Would write database.ini if missing, and reset the database if it is already installed (with --force)', true);
     }
 
     /**

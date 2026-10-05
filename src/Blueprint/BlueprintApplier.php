@@ -51,8 +51,25 @@ class BlueprintApplier
 
     public function apply(Blueprint $blueprint): void
     {
+        $this->applyModulesAndThemes($blueprint);
+        $this->applyConfiguration($blueprint);
+    }
+
+    /**
+     * The phases that add code to the instance: modules and themes.
+     */
+    public function applyModulesAndThemes(Blueprint $blueprint): void
+    {
         $this->runPhase('modules', $blueprint->modules(), fn($d) => $this->applyModules($d));
         $this->runPhase('themes', $blueprint->themes(), fn($d) => $this->applyThemes($d));
+    }
+
+    /**
+     * The phases that configure the instance (and may need the modules' services): vocabularies,
+     * resource templates, users and settings.
+     */
+    public function applyConfiguration(Blueprint $blueprint): void
+    {
         $this->runPhase('vocabularies', $blueprint->vocabularies(), fn($d) => $this->applyVocabularies($d));
         $this->runPhase('resourceTemplates', $blueprint->resourceTemplates(), fn($d) => $this->applyResourceTemplates($d));
         $this->runPhase('users', $blueprint->users(), fn($d) => $this->applyUsers($d));
@@ -68,14 +85,14 @@ class BlueprintApplier
             return;
         }
         if (in_array($name, $this->skip, true)) {
-            $this->command->info("• {$label}: skipped (--skip)", true);
+            $this->command->section($label, null, 'skipped (--skip)');
             return;
         }
         if (empty($data)) {
-            $this->command->info("• {$label}: nothing to do", true);
+            $this->command->section($label, null, 'nothing to do');
             return;
         }
-        $this->command->info("• {$label}", true);
+        $this->command->section($label);
         $run($data);
     }
 
@@ -89,11 +106,11 @@ class BlueprintApplier
         foreach ($modules as $module) {
             $uri = $this->moduleUri($module);
             if ($uri === null) {
-                $this->command->info("  {$module['name']}: bundled, nothing to download", true);
+                $this->command->note("{$module['name']}: bundled, nothing to download", true);
                 continue;
             }
             if ($this->dryRun) {
-                $this->command->info("  would download module '{$module['name']}' ({$uri})", true);
+                $this->command->note("would download module '{$module['name']}' ({$uri})", true);
                 continue;
             }
             // re-download when --update, or when a pinned version differs from what is on disk
@@ -101,7 +118,7 @@ class BlueprintApplier
             try {
                 $this->run('module:download', fn($c) => $c->execute($uri, $force), false);
             } catch (ModuleExistsException) {
-                $this->command->info("  {$module['name']}: already at the required version, skipping (use --update to replace)", true);
+                $this->command->note("{$module['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }
 
@@ -114,9 +131,9 @@ class BlueprintApplier
                 if ($module['name'] === '' || !in_array($module['state'], ['install', 'activate'], true)) {
                     continue;
                 }
-                $this->command->info("  would install module '{$module['name']}'", true);
+                $this->command->note("would install module '{$module['name']}'", true);
                 if ($module['state'] === 'activate') {
-                    $this->command->info("  would enable module '{$module['name']}'", true);
+                    $this->command->note("would enable module '{$module['name']}'", true);
                 }
             }
             return;
@@ -225,18 +242,18 @@ class BlueprintApplier
                 : $theme;
             $uri = $this->themeUri($theme);
             if ($uri === null) {
-                $this->command->info("  {$theme['name']}: bundled, nothing to download", true);
+                $this->command->note("{$theme['name']}: bundled, nothing to download", true);
                 continue;
             }
             if ($this->dryRun) {
-                $this->command->info("  would download theme '{$theme['name']}' ({$uri})", true);
+                $this->command->note("would download theme '{$theme['name']}' ({$uri})", true);
                 continue;
             }
             $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'] ?? '', $theme['version'] ?? null);
             try {
                 $this->run('theme:download', fn($c) => $c->execute($uri, $force, false), false);
             } catch (ThemeExistsException) {
-                $this->command->info("  {$theme['name']}: already at the required version, skipping (use --update to replace)", true);
+                $this->command->note("{$theme['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }
     }
@@ -274,7 +291,7 @@ class BlueprintApplier
         foreach ($vocabularies as $vocabulary) {
             $label = $vocabulary['label'] ?? $vocabulary['prefix'] ?? '?';
             if ($this->dryRun) {
-                $this->command->info("  would import vocabulary '{$label}'", true);
+                $this->command->note("would import vocabulary '{$label}'", true);
                 continue;
             }
 
@@ -295,7 +312,7 @@ class BlueprintApplier
                 json_encode($vocabulary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
             );
             try {
-                $this->propagateVerbosity($cmd);
+                $this->propagateContext($cmd);
                 $cmd->execute($configFile, $this->update);
             } catch (WarningException $e) {
                 // e.g. the vocabulary already exists and --update was not requested
@@ -318,7 +335,7 @@ class BlueprintApplier
             }
             $label = $template['label'] ?? basename((string) $source);
             if ($this->dryRun) {
-                $this->command->info("  would import resource template '{$label}'", true);
+                $this->command->note("would import resource template '{$label}'", true);
                 continue;
             }
             // $source was already resolved by the loader against the source that declared it
@@ -346,7 +363,7 @@ class BlueprintApplier
             $isInactive = array_key_exists('isActive', $user) ? !$user['isActive'] : false;
 
             if ($this->dryRun) {
-                $this->command->info("  would create user '{$email}' ({$role})", true);
+                $this->command->note("would create user '{$email}' ({$role})", true);
                 continue;
             }
             // ignoreExisting = true keeps apply idempotent
@@ -360,7 +377,7 @@ class BlueprintApplier
     {
         foreach ($settings as $id => $value) {
             if ($this->dryRun) {
-                $this->command->info("  would set '{$id}'", true);
+                $this->command->note("would set '{$id}'", true);
                 continue;
             }
             // json_encode round-trips losslessly through config:set's convertStringToType()
@@ -376,7 +393,7 @@ class BlueprintApplier
         if (!$cmd instanceof AbstractCommand) {
             throw new Exception("Required command '{$name}' is not available.");
         }
-        $this->propagateVerbosity($cmd);
+        $this->propagateContext($cmd);
         if (!$catchWarnings) {
             $call($cmd);
             return;
@@ -385,13 +402,19 @@ class BlueprintApplier
             $call($cmd);
         } catch (WarningException $e) {
             // a non-fatal advisory (e.g. "already exists, use --update"): keep apply idempotent
-            $this->command->warn('  ' . $e->getMessage(), true);
+            $this->command->warn($e->getMessage(), true);
         }
     }
 
-    private function propagateVerbosity(AbstractCommand $cmd): void
+    /**
+     * Hand the invoking command's context to a sub-command run in-process: its verbosity, and the
+     * Omeka S base path (so the sub-command works on the same instance, whatever the working
+     * directory, instead of relying on a path resolved earlier by another command).
+     */
+    private function propagateContext(AbstractCommand $cmd): void
     {
         $cmd->primeValue('verbosity', $this->command->values()['verbosity'] ?? 1);
+        $cmd->primeValue('basePath', $this->command->resolveOmekaPath());
     }
 
     /**

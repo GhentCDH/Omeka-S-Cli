@@ -110,7 +110,7 @@ class DownloadCommand extends AbstractThemeCommand
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {
-            $this->io()->eol();
+            $this->info("", true);
         }
 
         try {
@@ -167,7 +167,8 @@ class DownloadCommand extends AbstractThemeCommand
             }
         }
 
-        $this->ok("Theme '{$themeDirName}' downloaded.", true);
+        $version = $themeIni['info']['version'] ?? null;
+        $this->ok("Theme '{$themeDirName}'" . ($version ? " v{$version}" : '') . " downloaded.", true);
     }
 
     private function removeTheme(string $path): void

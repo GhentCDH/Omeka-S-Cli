@@ -33,7 +33,7 @@ class ImportCommand extends AbstractVocabularyCommand
         if ($config !== null) {
             // Import parameters come from a JSON config file (path or URL)
             try {
-                $this->io()->info("Load configuration from '{$config}' ... ");
+                $this->info("Load configuration from '{$config}' ... ");
                 $importerConfig = ResourceFetcher::fetchJson($config);
                 $this->info("done");
             } finally {
