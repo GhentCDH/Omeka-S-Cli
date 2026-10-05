@@ -41,7 +41,8 @@ class EnableCommand extends AbstractModuleCommand
             }
 
             $moduleApi->enable($module);
-            $this->ok("Module '{$moduleId}' enabled.", true);
+            $version = $module->getIni('version');
+            $this->ok("Module '{$moduleId}'" . ($version ? " v{$version}" : '') . " enabled.", true);
         }
 
         if ($all) {

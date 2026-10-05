@@ -42,7 +42,8 @@ class InstallCommand extends AbstractModuleCommand
             }
 
             $moduleApi->install($module);
-            $this->ok("Module '{$moduleId}' installed.", true);
+            $version = $module->getIni('version');
+            $this->ok("Module '{$moduleId}'" . ($version ? " v{$version}" : '') . " installed.", true);
         }
 
         if ($all) {
