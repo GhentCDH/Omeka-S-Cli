@@ -6,20 +6,22 @@ use Omeka\Module\Manager as ModuleManager;
 use OSC\Commands\AbstractCommand;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
+use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Path;
+use OSC\Helper\ResourceFetcher;
 
 /**
  * Apply a resolved blueprint to an Omeka S instance by driving the existing CLI commands in order:
- * modules, themes, vocabularies, resource templates, users, settings.
+ * modules, themes, files, vocabularies, resource templates, users, settings.
  *
  * Most phases run in-process. Modules are special: every module is downloaded first (a filesystem step
  * that needs no bootstrap), then each module is installed/enabled in its OWN fresh process. A module's
  * services register only at a bootstrap where it is active, so a module that depends on another (e.g.
  * on Common) must be installed in a process where that dependency is already active — which per-module
  * processes guarantee, since each module is listed after the ones it depends on. Relative asset paths
- * (vocabulary/resource-template sources) are already resolved by BlueprintLoader against the source
- * that declared them, so the applier uses them as-is.
+ * (file/vocabulary/resource-template sources) are already resolved by BlueprintLoader against the
+ * source that declared them, so the applier uses them as-is.
  */
 class BlueprintApplier
 {
@@ -27,6 +29,7 @@ class BlueprintApplier
     private const PHASE_LABELS = [
         'modules'           => 'Modules',
         'themes'            => 'Themes',
+        'files'             => 'Files',
         'vocabularies'      => 'Vocabularies',
         'resourceTemplates' => 'Resource templates',
         'users'             => 'Users',
@@ -56,12 +59,14 @@ class BlueprintApplier
     }
 
     /**
-     * The phases that add code to the instance: modules and themes.
+     * The phases that add code and files to the instance: modules, themes and files. Files come last,
+     * so they can land inside a module or theme, and before configuration, which may read them.
      */
     public function applyModulesAndThemes(Blueprint $blueprint): void
     {
         $this->runPhase('modules', $blueprint->modules(), fn($d) => $this->applyModules($d));
         $this->runPhase('themes', $blueprint->themes(), fn($d) => $this->applyThemes($d));
+        $this->runPhase('files', $blueprint->files(), fn($d) => $this->applyFiles($d));
     }
 
     /**
@@ -277,6 +282,58 @@ class BlueprintApplier
         }
         $version = $theme['version'] ?? null;
         return $version ? "{$theme['name']}:{$version}" : ($theme['name'] ?? null);
+    }
+
+    // --- files -----------------------------------------------------------------------------------
+
+    private function applyFiles(array $files): void
+    {
+        foreach ($files as $file) {
+            $destination = $this->safeDestination((string) ($file['destination'] ?? ''));
+            // $source was already resolved by the loader against the source that declared it
+            $source = (string) ($file['source'] ?? '');
+            $extract = (bool) ($file['extract'] ?? false);
+            if ($this->dryRun) {
+                $this->command->note('would ' . ($extract ? 'extract' : 'copy') . " '{$source}' to '{$destination}'", true);
+                continue;
+            }
+            $target = $this->command->resolveOmekaPath() . '/' . $destination;
+            if ($extract) {
+                $tmp = (new ZipDownloader($source))->download();
+                try {
+                    // a single top-level directory is stripped, as with add-on archives
+                    $entries = array_values(array_diff(scandir($tmp) ?: [], ['.', '..']));
+                    $root = count($entries) === 1 && is_dir("{$tmp}/{$entries[0]}") ? "{$tmp}/{$entries[0]}" : $tmp;
+                    Path::copyFolder($root, $target);
+                } finally {
+                    Path::removeFolder($tmp);
+                }
+            } else {
+                $dir = dirname($target);
+                if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+                    throw new Exception("Could not create directory '{$dir}'.");
+                }
+                if (file_put_contents($target, ResourceFetcher::fetch($source)) === false) {
+                    throw new Exception("Could not write '{$target}'.");
+                }
+            }
+            $this->command->ok("File '{$destination}' " . ($extract ? 'extracted' : 'written') . '.', true);
+        }
+    }
+
+    /**
+     * A files[].destination, checked to stay inside the Omeka S root: relative, without '..'
+     * segments. The schema enforces the same rule; this guards blueprints that skipped validation.
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function safeDestination(string $destination): string
+    {
+        $segments = explode('/', str_replace('\\', '/', $destination));
+        if ($destination === '' || $segments[0] === '' || preg_match('/^[A-Za-z]:/', $destination) || in_array('..', $segments, true)) {
+            throw new \InvalidArgumentException("Unsafe file destination '{$destination}': it must be a path inside the Omeka S root.");
+        }
+        return $destination;
     }
 
     // --- vocabularies ----------------------------------------------------------------------------

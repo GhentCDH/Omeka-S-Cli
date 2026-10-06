@@ -13,17 +13,17 @@ use OSC\Helper\UserConfig;
 class DeployCommand extends AbstractBlueprintCommand
 {
     /** All phases, in deploy order. */
-    private const PHASES = ['core', 'modules', 'themes', 'vocabularies', 'resourceTemplates', 'users', 'settings'];
+    private const PHASES = ['core', 'modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'settings'];
 
     /** Phases handled in the current process (no active-module services required). */
-    private const IN_PROCESS_PHASES = ['modules', 'themes'];
+    private const IN_PROCESS_PHASES = ['modules', 'themes', 'files'];
 
     /**
      * The deploy as the user sees it: two numbered stages, each grouping phases. Independent of the
      * process boundaries a deploy needs internally (after the core install, after the modules).
      */
     private const STAGES = [
-        1 => ['title' => 'Install core, modules and themes', 'phases' => ['core', 'modules', 'themes']],
+        1 => ['title' => 'Install core, modules, themes and files', 'phases' => ['core', 'modules', 'themes', 'files']],
         2 => [
             'title'  => 'Configure vocabularies, resource templates, users and settings',
             'phases' => ['vocabularies', 'resourceTemplates', 'users', 'settings'],
@@ -41,7 +41,7 @@ class DeployCommand extends AbstractBlueprintCommand
         $this->option('-f --force', 'Allow deploying onto an installed instance (resets it when the core phase runs)', 'boolval', false);
         $this->option(
             '--skip',
-            'Comma-separated phases to skip (core, modules, themes, vocabularies, resourceTemplates, users, settings)'
+            'Comma-separated phases to skip (core, modules, themes, files, vocabularies, resourceTemplates, users, settings)'
         );
         // internal: phases already applied by an earlier stage of a multi-process deploy; kept silent
         // rather than reported as skipped. Set automatically when the deploy re-executes itself.
@@ -157,16 +157,16 @@ class DeployCommand extends AbstractBlueprintCommand
 
         // ── remaining phases ────────────────────────────────────────────────────────────────
         // Installing modules only registers their services at the next Omeka bootstrap, so when the
-        // blueprint installs modules do modules+themes here and the module-dependent phases in a
-        // fresh process (same reason module:update shells out).
+        // blueprint installs modules do modules, themes and files here and the module-dependent phases
+        // in a fresh process (same reason module:update shells out).
         $moduleBoundaryNeeded = !$dryRun
             && !in_array('modules', $skipPhases, true)
             && !in_array('modules', $deferPhases, true)
             && $blueprint->hasInstallableModules();
 
         if ($moduleBoundaryNeeded) {
-            // stage 1: modules + themes here; the module-dependent phases are deferred to a fresh
-            // process, since a module's services only register at the next Omeka bootstrap
+            // stage 1: modules, themes and files here; the module-dependent phases are deferred to a
+            // fresh process, since a module's services only register at the next Omeka bootstrap
             $stage1Defer = $this->mergeSkip($deferPhases, array_diff(self::PHASES, self::IN_PROCESS_PHASES));
             (new BlueprintApplier($this, false, $update, $skipPhases, $stage1Defer))->applyModulesAndThemes($blueprint);
 

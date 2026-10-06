@@ -16,15 +16,16 @@ use Otar\JSONC;
  * contains them. Circular references are detected and rejected.
  *
  * De-duplication: within a resolved list, entries sharing a natural identity (module/theme `name`,
- * vocabulary `prefix`, resource-template `label`, user `email`, item/item-set `title`) collapse to
- * the last occurrence, so a later inline entry — or a later import — overrides an earlier one. When
- * such an override actually changes the value, an advisory warning is recorded (see takeWarnings()),
- * so intentional layering keeps working while an accidental duplicate stays visible.
+ * file `destination`, vocabulary `prefix`, resource-template `label`, user `email`, item/item-set
+ * `title`) collapse to the last occurrence, so a later inline entry — or a later import — overrides
+ * an earlier one. When such an override actually changes the value, an advisory warning is recorded
+ * (see takeWarnings()), so intentional layering keeps working while an accidental duplicate stays
+ * visible.
  */
 class BlueprintLoader
 {
     /** Keys whose value is a list of items that may contain `$import` references. */
-    private const LIST_KEYS = ['modules', 'themes', 'vocabularies', 'resourceTemplates', 'users', 'itemSets', 'items'];
+    private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'itemSets', 'items'];
 
     /**
      * Per-list item fields that hold a relative asset reference. They are resolved against the source
@@ -32,6 +33,7 @@ class BlueprintLoader
      * the imported config's location, not the top-level blueprint's.
      */
     private const ASSET_FIELDS = [
+        'files' => ['source'],
         'vocabularies' => ['source', 'file'],
         'resourceTemplates' => ['source'],
     ];
@@ -312,6 +314,7 @@ class BlueprintLoader
         }
         $field = match ($key) {
             'modules', 'themes'   => $entry['name'] ?? '',
+            'files'               => $entry['destination'] ?? '',
             'vocabularies'        => $entry['prefix'] ?? '',
             'resourceTemplates'   => $entry['label'] ?? $entry['source'] ?? '',
             'users'               => $entry['email'] ?? '',

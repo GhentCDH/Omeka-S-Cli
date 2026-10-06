@@ -319,4 +319,64 @@ class BlueprintLoaderTest extends TestCase
         $this->assertCount(1, $templates);
         $this->assertSame($this->dir . '/rt/tpl.json', $templates[0]['source']);
     }
+
+    // ── file `source` resolution and de-duplication ──────────────────────────────────────────────
+
+    public function testInlineFileRelativeSourceResolvesAgainstBlueprint(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'files' => [['source' => './config/a.php', 'destination' => 'config/a.php']],
+        ]));
+
+        $files = (new BlueprintLoader())->load($base)->files();
+        $this->assertSame($this->dir . '/config/a.php', $files[0]['source']);
+    }
+
+    public function testImportedFileListRelativeSourceResolvesAgainstTheList(): void
+    {
+        $this->writeIn('files/list.jsonc', json_encode([['source' => 'a.php', 'destination' => 'config/a.php']]));
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'files' => [['$import' => './files/list.jsonc']],
+        ]));
+
+        $files = (new BlueprintLoader())->load($base)->files();
+        $this->assertSame($this->dir . '/files/a.php', $files[0]['source']);
+    }
+
+    public function testFileAbsoluteSourcesUnchangedAndRepoReferenceBecomesRawUrl(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'files' => [
+                ['source' => '/abs/a.php', 'destination' => 'config/a.php'],
+                ['source' => 'https://example.org/b.zip', 'destination' => 'files/b', 'extract' => true],
+                ['source' => 'gh:owner/repo@v1:config/c.php', 'destination' => 'config/c.php'],
+            ],
+        ]));
+
+        $sources = array_column((new BlueprintLoader())->load($base)->files(), 'source');
+        $this->assertSame([
+            '/abs/a.php',
+            'https://example.org/b.zip',
+            'https://raw.githubusercontent.com/owner/repo/v1/config/c.php',
+        ], $sources);
+    }
+
+    public function testFilesDeduplicateByDestination(): void
+    {
+        $this->write('files.jsonc', '[{ "source": "/abs/a.php", "destination": "config/a.php" }]');
+        $base = $this->write('base.jsonc', <<<JSONC
+        {
+            "files": [
+                { "\$import": "./files.jsonc" },
+                { "source": "/abs/b.php", "destination": "config/a.php" }
+            ]
+        }
+        JSONC);
+
+        $loader = new BlueprintLoader();
+        $files = $loader->load($base)->files();
+
+        $this->assertSame([['source' => '/abs/b.php', 'destination' => 'config/a.php']], $files);
+        $this->assertNotEmpty($loader->takeWarnings());
+    }
 }

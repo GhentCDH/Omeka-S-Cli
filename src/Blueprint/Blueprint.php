@@ -32,6 +32,12 @@ class Blueprint
     }
 
     /** @return array<int,mixed> */
+    public function files(): array
+    {
+        return $this->data['files'] ?? [];
+    }
+
+    /** @return array<int,mixed> */
     public function vocabularies(): array
     {
         return $this->data['vocabularies'] ?? [];
