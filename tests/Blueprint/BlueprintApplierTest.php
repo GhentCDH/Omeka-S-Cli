@@ -210,4 +210,31 @@ class BlueprintApplierTest extends TestCase
         $this->assertContains('default: already present, nothing to download', $this->dryRunAddons($blueprint));
         $this->assertContains("would download theme 'default' (default)", $this->dryRunAddons($blueprint, true));
     }
+
+    public function testAddonOnDiskWithASourceIsUsedAsIs(): void
+    {
+        // e.g. a module mounted for development, whose entry has a source for other consumers
+        mkdir($this->dir . '/omeka/modules/Dev/config', 0777, true);
+        file_put_contents($this->dir . '/omeka/modules/Dev/config/module.ini', "[info]\nversion = \"1.2.0\"\n");
+        mkdir($this->dir . '/omeka/themes/dev', 0777, true);
+
+        $notes = $this->dryRunAddons([
+            'modules' => [['name' => 'Dev', 'source' => 'https://example.org/Dev-1.2.0.zip', 'version' => '1.2.0']],
+            'themes' => [['name' => 'dev', 'source' => 'gh:owner/dev']],
+        ]);
+
+        $this->assertContains('Dev: already present, nothing to download', $notes);
+        $this->assertContains('dev: already present, nothing to download', $notes);
+    }
+
+    public function testAddonOnDiskIsDownloadedAgainWhenThePinnedVersionDiffers(): void
+    {
+        mkdir($this->dir . '/omeka/modules/Dev/config', 0777, true);
+        file_put_contents($this->dir . '/omeka/modules/Dev/config/module.ini', "[info]\nversion = \"1.2.0\"\n");
+        $zip = 'https://example.org/Dev-1.3.0.zip';
+
+        $notes = $this->dryRunAddons(['modules' => [['name' => 'Dev', 'source' => $zip, 'version' => '1.3.0']]]);
+
+        $this->assertContains("would download module 'Dev' ({$zip})", $notes);
+    }
 }

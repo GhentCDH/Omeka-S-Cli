@@ -107,11 +107,11 @@ class BlueprintApplier
     {
         $modules = array_map([$this, 'normalizeModule'], $modules);
 
-        // 1. download every module (one already on disk without a source is used as is)
+        // 1. download every module (one already on disk is used as is, whatever its source)
         foreach ($modules as $module) {
             // re-download when --update, or when a pinned version differs from what is on disk
             $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version']);
-            if (!$force && $module['source'] === null && $this->isOnDisk('modules', $module['name'])) {
+            if (!$force && $this->isOnDisk('modules', $module['name'])) {
                 $this->command->note("{$module['name']}: already present, nothing to download", true);
                 continue;
             }
@@ -239,8 +239,8 @@ class BlueprintApplier
         foreach ($themes as $theme) {
             $theme = (is_string($theme) ? ['name' => $theme] : $theme) + ['name' => '', 'source' => null, 'version' => null];
             $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'], $theme['version']);
-            // e.g. the default theme, which ships with the core
-            if (!$force && $theme['source'] === null && $this->isOnDisk('themes', $theme['name'])) {
+            // e.g. the default theme (ships with the core) or a mounted one
+            if (!$force && $this->isOnDisk('themes', $theme['name'])) {
                 $this->command->note("{$theme['name']}: already present, nothing to download", true);
                 continue;
             }

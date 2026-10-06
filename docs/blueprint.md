@@ -161,8 +161,9 @@ reference.
   Defaults to `activate`.
 - **`source`** — where to get the module: a zip release URL, a git repository URL
   (`https://…/repo.git`, `git@host:owner/repo.git`) or `gh:owner/repo` — anything `module:download`
-  accepts. Without a source, a module already in `modules/` is used as is; otherwise `name` is
-  resolved through the omeka.org catalogs.
+  accepts. Without a source, `name` is resolved through the omeka.org catalogs. Either way, a module
+  already in `modules/` (e.g. mounted for development) is used as is, unless `--update` is given or
+  a pinned `version` differs from the one on disk.
 - **`version`** — the release to use: `module:download name:version` without a source, or the tag
   (`#version`) of a git source. A zip URL already pins the release, so it wins.
 
