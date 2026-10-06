@@ -236,16 +236,6 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame('https://example.org/schema.rdf', $vocabs[0]['source']);
     }
 
-    public function testInlineVocabularyLegacyRelativeFileResolvesAgainstBlueprint(): void
-    {
-        $base = $this->writeIn('site.jsonc', json_encode([
-            'vocabularies' => [$this->vocab(['file' => 'schema.ttl'])],
-        ]));
-
-        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
-        $this->assertSame($this->dir . '/schema.ttl', $vocabs[0]['file']);
-    }
-
     public function testImportedVocabularyConfigRelativeSourceResolvesAgainstTheConfig(): void
     {
         // the config lives in a subdirectory; its relative source must resolve against THAT directory,

@@ -34,7 +34,7 @@ class BlueprintLoader
      */
     private const ASSET_FIELDS = [
         'files' => ['source'],
-        'vocabularies' => ['source', 'file'],
+        'vocabularies' => ['source'],
         'resourceTemplates' => ['source'],
     ];
 

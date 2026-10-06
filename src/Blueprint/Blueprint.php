@@ -61,10 +61,10 @@ class Blueprint
         return $this->data['settings'] ?? [];
     }
 
-    /** @return array<string,mixed> */
-    public function siteOptions(): array
+    /** @return array<string,mixed> Install-time values: title, locale, timezone and admin */
+    public function install(): array
     {
-        return $this->data['siteOptions'] ?? [];
+        return $this->data['install'] ?? [];
     }
 
     public function preferredOmekaVersion(): ?string

@@ -55,10 +55,10 @@ class DeployCommand extends AbstractBlueprintCommand
         $this->option('--db-user', 'Database user (core phase)');
         $this->option('--db-password', 'Database password (core phase)');
 
-        // Core phase: administrator account
-        $this->option('--admin-name', 'Administrator name (core phase)', 'strval', 'Admin');
-        $this->option('--admin-email', 'Administrator e-mail (core phase)', 'strval', 'admin@example.com');
-        $this->option('--admin-password', 'Administrator password (core phase)', 'strval', 'admin');
+        // Core phase: administrator account. Flags win over the blueprint's install.admin.
+        $this->option('--admin-name', 'Administrator name (core phase; default: install.admin.name, else Admin)');
+        $this->option('--admin-email', 'Administrator e-mail (core phase; default: install.admin.email, else admin@example.com)');
+        $this->option('--admin-password', 'Administrator password (core phase; default: install.admin.password, else admin)');
 
         $this->usage(
             'blueprint:deploy ./site.blueprint.jsonc --base-path /var/www/omeka-s --db-name omeka --db-user omeka --db-password secret<eol/>'
@@ -78,9 +78,9 @@ class DeployCommand extends AbstractBlueprintCommand
         ?string $dbName = null,
         ?string $dbUser = null,
         ?string $dbPassword = null,
-        ?string $adminName = 'Admin',
-        ?string $adminEmail = 'admin@example.com',
-        ?string $adminPassword = 'admin',
+        ?string $adminName = null,
+        ?string $adminEmail = null,
+        ?string $adminPassword = null,
     ): void {
         $skipPhases = $this->parsePhases($skip);
         $deferPhases = $this->parsePhases($defer);
@@ -142,7 +142,12 @@ class DeployCommand extends AbstractBlueprintCommand
                     'host' => $dbHost, 'port' => $dbPort, 'dbname' => $dbName,
                     'username' => $dbUser, 'password' => $dbPassword,
                 ]);
-                $admin = new UserConfig($adminName, $adminEmail, $adminPassword);
+                $installAdmin = $blueprint->install()['admin'] ?? [];
+                $admin = new UserConfig(
+                    $adminName ?? $installAdmin['name'] ?? 'Admin',
+                    $adminEmail ?? $installAdmin['email'] ?? 'admin@example.com',
+                    $adminPassword ?? $installAdmin['password'] ?? 'admin',
+                );
 
                 $core->run($blueprint, $targetPath, $database, $admin, $force);
 

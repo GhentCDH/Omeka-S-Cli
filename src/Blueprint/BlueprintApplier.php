@@ -107,19 +107,19 @@ class BlueprintApplier
     {
         $modules = array_map([$this, 'normalizeModule'], $modules);
 
-        // 1. download every module (bundled modules ship with core and are skipped)
+        // 1. download every module (one already on disk without a source is used as is)
         foreach ($modules as $module) {
-            $uri = $this->moduleUri($module);
-            if ($uri === null) {
-                $this->command->note("{$module['name']}: bundled, nothing to download", true);
+            // re-download when --update, or when a pinned version differs from what is on disk
+            $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version']);
+            if (!$force && $module['source'] === null && $this->isOnDisk('modules', $module['name'])) {
+                $this->command->note("{$module['name']}: already present, nothing to download", true);
                 continue;
             }
+            $uri = $this->addonUri($module);
             if ($this->dryRun) {
                 $this->command->note("would download module '{$module['name']}' ({$uri})", true);
                 continue;
             }
-            // re-download when --update, or when a pinned version differs from what is on disk
-            $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version'] ?? null);
             try {
                 $this->run('module:download', fn($c) => $c->execute($uri, $force), false);
             } catch (ModuleExistsException) {
@@ -184,28 +184,23 @@ class BlueprintApplier
     }
 
     /**
-     * @param array{name:string,state:string,source:mixed,version:?string} $module
-     * @return string|null The module:download argument, or null for a bundled module
+     * The module:download / theme:download argument for an add-on entry: its source, or its name
+     * (resolved through omeka.org) when it has none. The version selects the omeka.org release or
+     * the tag of a git source; a ZIP URL already pins the release, so it wins.
+     *
+     * @param array{name:string,source:?string,version:?string} $addon
      */
-    private function moduleUri(array $module): ?string
+    private function addonUri(array $addon): string
     {
-        $source = $module['source'] ?? null;
-        if (is_array($source)) {
-            $type = $source['type'] ?? null;
-            if ($type === 'bundled') {
-                return null;
-            }
-            if ($type === 'url') {
-                return $source['url'] ?? null;
-            }
-            if ($type === 'omeka.org') {
-                $slug = $source['slug'] ?? $module['name'];
-                $version = $module['version'] ?? null;
-                return $version ? "{$slug}:{$version}" : $slug;
-            }
+        ['name' => $name, 'source' => $source, 'version' => $version] = $addon;
+        if ($source === null) {
+            return $version ? "{$name}:{$version}" : $name;
         }
-        $version = $module['version'] ?? null;
-        return $version ? "{$module['name']}:{$version}" : $module['name'];
+        $isGit = str_starts_with($source, 'gh:') || str_ends_with($source, '.git');
+        if ($version && $isGit && !str_contains($source, '#')) {
+            return "{$source}#{$version}";
+        }
+        return $source;
     }
 
     private function normalizeModule(mixed $module): array
@@ -242,46 +237,24 @@ class BlueprintApplier
     private function applyThemes(array $themes): void
     {
         foreach ($themes as $theme) {
-            $theme = is_string($theme)
-                ? ['name' => $theme, 'source' => null, 'version' => null]
-                : $theme;
-            $uri = $this->themeUri($theme);
-            if ($uri === null) {
-                $this->command->note("{$theme['name']}: bundled, nothing to download", true);
+            $theme = (is_string($theme) ? ['name' => $theme] : $theme) + ['name' => '', 'source' => null, 'version' => null];
+            $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'], $theme['version']);
+            // e.g. the default theme, which ships with the core
+            if (!$force && $theme['source'] === null && $this->isOnDisk('themes', $theme['name'])) {
+                $this->command->note("{$theme['name']}: already present, nothing to download", true);
                 continue;
             }
+            $uri = $this->addonUri($theme);
             if ($this->dryRun) {
                 $this->command->note("would download theme '{$theme['name']}' ({$uri})", true);
                 continue;
             }
-            $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'] ?? '', $theme['version'] ?? null);
             try {
                 $this->run('theme:download', fn($c) => $c->execute($uri, $force, false), false);
             } catch (ThemeExistsException) {
                 $this->command->note("{$theme['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }
-    }
-
-    private function themeUri(array $theme): ?string
-    {
-        $source = $theme['source'] ?? null;
-        if (is_array($source)) {
-            $type = $source['type'] ?? null;
-            if ($type === 'bundled') {
-                return null;
-            }
-            if ($type === 'url') {
-                return $source['url'] ?? null;
-            }
-            if ($type === 'omeka.org') {
-                $slug = $source['slug'] ?? $theme['name'];
-                $version = $theme['version'] ?? null;
-                return $version ? "{$slug}:{$version}" : $slug;
-            }
-        }
-        $version = $theme['version'] ?? null;
-        return $version ? "{$theme['name']}:{$version}" : ($theme['name'] ?? null);
     }
 
     // --- files -----------------------------------------------------------------------------------
@@ -352,17 +325,9 @@ class BlueprintApplier
                 continue;
             }
 
-            // normalise the RDF source to the canonical `source` key (so the importer emits no
-            // deprecation warning). The path itself was already resolved by the loader against the
-            // source that declared it, so it is used as-is here.
-            $rdfSource = $vocabulary['source'] ?? $vocabulary['file'] ?? $vocabulary['url'] ?? null;
-            if ($rdfSource !== null) {
-                unset($vocabulary['file'], $vocabulary['url']);
-                $vocabulary['source'] = $rdfSource;
-            }
-
             // a blueprint vocabulary entry is an importer config: hand it to the importer as a
-            // config file, so inline and $import-referenced configs follow one code path
+            // config file, so inline and $import-referenced configs follow one code path. Its
+            // `source` was already resolved by the loader against the source that declared it.
             $configFile = Path::createTempFile('bp-vocab-');
             file_put_contents(
                 $configFile,
@@ -488,6 +453,19 @@ class BlueprintApplier
             return false;
         }
         return $this->normalizeVersion($have) !== $this->normalizeVersion($want);
+    }
+
+    /** Whether a module/theme directory exists in the Omeka S installation. */
+    private function isOnDisk(string $dir, string $name): bool
+    {
+        if ($name === '') {
+            return false;
+        }
+        try {
+            return is_dir($this->command->resolveOmekaPath() . "/{$dir}/{$name}");
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
