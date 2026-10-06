@@ -53,10 +53,10 @@ Each part below is optional. The tool handles them in this order.
   You can also pin a `version`.
 
 - **`themes`** — the look of the site. Just list the theme names. `default` comes with Omeka, so
-  mark it as `bundled` (nothing to download).
+  there is nothing to download.
 
 - **`vocabularies`** — sets of standard terms (like schema.org) to import. Give a short `prefix`, the
-  `namespaceUri`, a `label` and the `url` of the vocabulary file.
+  `namespaceUri`, a `label` and the `source` (a path or URL) of the vocabulary file.
 
 - **`resourceTemplates`** — ready-made description forms. Point `source` at a template file.
 
@@ -88,16 +88,17 @@ blueprint and stays compatible with it — a Playground file still works here. T
 | module/theme `version` | Pick a specific version, not always the latest. |
 | module state `"download"` | Add a module's files without installing it. |
 | `$import` references | Reuse a shared list of modules/themes/etc. across files. |
+| `files` | Place files (e.g. a module config file) in the Omeka S installation. |
 
-A few Playground fields are only meaningful in the web-browser version of Omeka (`phpConstants`,
-`debug`, `login`, `landingPage`). They are allowed in the file but simply ignored here.
+Fields that only one tool understands, like the Playground's `landingPage` or `login`, go under a
+top-level `x-` key (`x-playground`, `x-omeka-s-cli`). Other tools ignore them.
 
 ## Full example
 
 ```jsonc
 {
     // Where the tool looks up the file format (optional, helps your editor).
-    "$schema": "https://raw.githubusercontent.com/GhentCDH/Omeka-S-Cli/main/assets/blueprints/omeka-s-cli.blueprint-schema.json",
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
 
     "meta": {
         "title": "My archive",
@@ -111,7 +112,7 @@ A few Playground fields are only meaningful in the web-browser version of Omeka 
     ],
 
     "themes": [
-        { "name": "default", "source": { "type": "bundled" } }
+        "default"
     ],
 
     "vocabularies": [
@@ -119,7 +120,7 @@ A few Playground fields are only meaningful in the web-browser version of Omeka 
             "prefix": "schema",
             "namespaceUri": "https://schema.org/",
             "label": "schema.org",
-            "url": "https://schema.org/version/latest/schemaorg-current-https.rdf"
+            "source": "https://schema.org/version/latest/schemaorg-current-https.rdf"
         }
     ],
 

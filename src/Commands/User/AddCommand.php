@@ -4,10 +4,9 @@ namespace OSC\Commands\User;
 use ErrorException;
 use InvalidArgumentException;
 use Omeka\Api\Representation\UserRepresentation;
-use OSC\Commands\AbstractCommand;
 use Omeka\Entity\User;
 
-class AddCommand extends AbstractCommand
+class AddCommand extends AbstractUserCommand
 {
     public function __construct()
     {
@@ -17,7 +16,7 @@ class AddCommand extends AbstractCommand
         $this->optionJson();
         $this->argument('<email>', 'Email address of the user');
         $this->argument('<name>', 'Display name of the user');
-        $this->argument('<role>', 'Role of the user (global_admin, site_admin, editor, reviewer, author, researcher)');
+        $this->argument('<role>', 'Role of the user (global_admin, site_admin, editor, reviewer, author, researcher, or a role added by a module)');
         $this->argument('[password]', 'Password for the user (optional)');
     }
 
@@ -31,11 +30,7 @@ class AddCommand extends AbstractCommand
             throw new InvalidArgumentException("Invalid email address: {$email}");
         }
 
-        // Validate role
-        $validRoles = ['global_admin', 'site_admin', 'editor', 'reviewer', 'author', 'researcher'];
-        if (!in_array($role, $validRoles, true)) {
-            throw new InvalidArgumentException("Invalid role: {$role}. Valid roles are: " . implode(', ', $validRoles));
-        }
+        $this->assertValidRole($role);
 
         // Check if user exists
         $userExists = $api->search('users', ['email' => $email])->getTotalResults() > 0;

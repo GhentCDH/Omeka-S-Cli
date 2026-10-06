@@ -100,14 +100,14 @@ A small blueprint (jsonc — comments and trailing commas allowed):
     ],
     "vocabularies": [
         { "prefix": "schema", "namespaceUri": "https://schema.org/", "label": "schema.org",
-          "url": "https://schema.org/version/latest/schemaorg-current-https.rdf" }
+          "source": "https://schema.org/version/latest/schemaorg-current-https.rdf" }
     ],
     "resourceTemplates": [ { "source": "../resource-template/base_resource.json" } ],
     "settings": { "installation_title": "Blueprint Demo" }
 }
 ```
 
-`blueprint:deploy` runs the phases in order (core → modules → themes → vocabularies → resource
+`blueprint:deploy` runs the phases in order (core → modules → themes → files → vocabularies → resource
 templates → users → settings), reusing the same commands documented above, and is idempotent —
 re-running it skips resources that already exist (pass `--update` to refresh them).
 

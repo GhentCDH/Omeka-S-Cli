@@ -13,7 +13,7 @@ use Throwable;
  * referential integrity that a schema alone cannot express (an item referencing an undeclared item
  * set, a site permission referencing an undeclared user).
  *
- * The schema is fetched from the shared `omeka-s-blueprints` repository (see SCHEMA_ID) and cached
+ * The schema is fetched from the shared `omeka-s-blueprints` project (see SCHEMA_SOURCE) and cached
  * for 24h under `$HOME/.cache/omeka-s-cli`. When the fetch fails (offline, network error, GitHub
  * down) it transparently falls back to a copy at `assets/blueprints/blueprint-schema.json`. That copy
  * is not committed: it is downloaded on demand (see `scripts/fetch-blueprint-schema.php`) — by the test
@@ -25,7 +25,17 @@ use Throwable;
  */
 class BlueprintValidator
 {
-    public const SCHEMA_ID = 'https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/main/assets/schema/blueprint-schema.json';
+    /**
+     * The schema's identity: the `$id` it declares, under which it is registered so its `$ref`s
+     * resolve. This is the floating v0 schema: the latest v0.x.y release, without breaking changes.
+     */
+    public const SCHEMA_ID = 'https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json';
+
+    /**
+     * Where the schema is downloaded from. Pinned to a commit of the shared repository until the v0
+     * schema is published at SCHEMA_ID; at that point this becomes SCHEMA_ID.
+     */
+    public const SCHEMA_SOURCE = 'https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json';
 
     /** Resolved schema content (from the source or its cache); false until resolved, null when unavailable */
     private string|false|null $schemaContent = false;
@@ -34,6 +44,7 @@ class BlueprintValidator
     private const PARTIAL_DEFS = [
         'modules'            => 'moduleList',
         'themes'             => 'themeList',
+        'files'              => 'fileList',
         'vocabularies'       => 'vocabularyList',
         'resourceTemplates'  => 'resourceTemplateList',
         'resource-templates' => 'resourceTemplateList',
@@ -48,11 +59,11 @@ class BlueprintValidator
      * Build a validator that loads the schema from the given source.
      *
      * @param string $schemaSource Where to load the schema from. Defaults to the shared repo URL
-     *                             (SCHEMA_ID); may be overridden with a local path (e.g. in tests) —
+     *                             (SCHEMA_SOURCE); may be overridden with a local path (e.g. in tests) —
      *                             ResourceFetcher handles both. URL sources are cached for 24h; local
      *                             sources are read fresh (uncached).
      */
-    public function __construct(private string $schemaSource = self::SCHEMA_ID)
+    public function __construct(private string $schemaSource = self::SCHEMA_SOURCE)
     {
     }
 
@@ -231,17 +242,11 @@ class BlueprintValidator
     }
 
     /**
-     * @return array<int, array> The blueprint's sites (from `sites`, else the singular `site`)
+     * @return array<int, array> The blueprint's sites
      */
     private function sites(array $blueprint): array
     {
-        if (isset($blueprint['sites']) && is_array($blueprint['sites'])) {
-            return $blueprint['sites'];
-        }
-        if (isset($blueprint['site']) && is_array($blueprint['site'])) {
-            return [$blueprint['site']];
-        }
-        return [];
+        return is_array($blueprint['sites'] ?? null) ? $blueprint['sites'] : [];
     }
 
     /**

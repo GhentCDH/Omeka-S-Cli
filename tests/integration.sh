@@ -588,6 +588,17 @@ assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI
 assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
 assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force
 
+# files: a relative source resolves against the blueprint, not the working directory
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/bp-files
+    echo 'hello' > /tmp/bp-files/hello.txt
+    printf '[ { "source": "./hello.txt", "destination": "files/blueprint/hello.txt" } ]' > /tmp/bp-files/files.jsonc
+    printf '{ "files": [ { "$import": "./files.jsonc" } ] }' > /tmp/bp-files/files.blueprint.json
+fi
+assert_success "blueprint:validate accepts a standalone files partial"     $CLI blueprint:validate /tmp/bp-files/files.jsonc --as files
+assert_success "blueprint:deploy places files in the Omeka S root"         $CLI blueprint:deploy /tmp/bp-files/files.blueprint.json --skip core --force
+assert_output_is "the file has the source content" "hello"                 cat /var/www/omeka-s/files/blueprint/hello.txt
+
 # export the live instance and check the result round-trips through validate
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc

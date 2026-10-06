@@ -94,8 +94,8 @@ class BlueprintExporter
             }
             $id = $theme->getId();
             if ($id === 'default') {
-                // ships with the core; nothing to download
-                $themes[] = ['name' => $id, 'source' => ['type' => 'bundled']];
+                // ships with the core: no source and no version, so deploy uses the one on disk
+                $themes[] = $id;
                 continue;
             }
             $entry = ['name' => $id];
@@ -123,8 +123,8 @@ class BlueprintExporter
                 'label' => $vocabulary->label(),
             ];
             $url = $sourceMap[strtolower($namespaceUri)] ?? null;
-            // an empty url keeps the entry schema-valid while marking it as needing a real source
-            $entry['url'] = $url ?? '';
+            // an empty source keeps the entry schema-valid while marking it as needing a real one
+            $entry['source'] = $url ?? '';
             if (!$url) {
                 $this->unresolvedVocabularies[] = $prefix;
             }
