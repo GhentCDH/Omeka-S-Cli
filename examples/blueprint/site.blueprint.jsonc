@@ -1,8 +1,13 @@
 {
-    "$schema": "https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/main/assets/schema/blueprint-schema.json",
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
     "meta": {
         "title": "Demo site",
         "description": "Example omeka-s-cli blueprint deploying a small environment."
+    },
+    // Used by the core phase only. The admin password comes from --admin-password (default: admin).
+    "install": {
+        "title": "Blueprint Demo",
+        "admin": { "name": "Blueprint Admin", "email": "admin@example.com" }
     },
     "modules": [
         // Pull in modules from a shared, reusable list.
@@ -14,14 +19,14 @@
     ],
     "themes": [
         // The default theme ships with the core, so there is nothing to download.
-        { "name": "default", "source": { "type": "bundled" } }
+        "default"
     ],
     "vocabularies": [
         {
             "prefix": "schema",
             "namespaceUri": "https://schema.org/",
             "label": "schema.org",
-            "url": "https://schema.org/version/latest/schemaorg-current-https.rdf"
+            "source": "https://schema.org/version/latest/schemaorg-current-https.rdf"
         }
     ],
     "resourceTemplates": [

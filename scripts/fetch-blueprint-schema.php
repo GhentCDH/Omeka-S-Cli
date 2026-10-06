@@ -4,7 +4,7 @@
  * Download the canonical blueprint schema into the local assets tree.
  *
  * The schema is not committed to the repository: it is a downloaded artifact. This script fetches it
- * from the shared repo (BlueprintValidator::SCHEMA_ID) into BlueprintValidator::schemaFile(), so it
+ * from the shared repo (BlueprintValidator::SCHEMA_SOURCE) into BlueprintValidator::schemaFile(), so it
  * can be bundled into the PHAR at build time and used as the offline fallback / by the test suite.
  *
  * Usage:
@@ -38,7 +38,7 @@ function osc_fetch_blueprint_schema(bool $force = false): void
         throw new Exception("Could not create schema directory: {$dir}");
     }
 
-    $schema = ResourceFetcher::fetch(BlueprintValidator::SCHEMA_ID);
+    $schema = ResourceFetcher::fetch(BlueprintValidator::SCHEMA_SOURCE);
     if (file_put_contents($dest, $schema) === false) {
         throw new Exception("Could not write schema to: {$dest}");
     }

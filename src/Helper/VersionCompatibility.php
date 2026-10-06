@@ -23,7 +23,10 @@ class VersionCompatibility
         $best = null;
         foreach ($versions as $version) {
             $constraint = $version->getOmekaVersionConstraint();
-            if ($constraint !== null && !Semver::satisfies($omekaVersion, $constraint)) {
+            if (empty($constraint)) {
+                continue;
+            }
+            if (!Semver::satisfies($omekaVersion, $constraint)) {
                 continue;
             }
             if ($best === null || Comparator::greaterThan($version->getVersionNumber(), $best->getVersionNumber())) {

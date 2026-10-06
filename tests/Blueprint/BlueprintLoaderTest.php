@@ -25,13 +25,29 @@ class BlueprintLoaderTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        array_map('unlink', glob($this->dir . '/*') ?: []);
-        @rmdir($this->dir);
+        $this->removeTree($this->dir);
+    }
+
+    private function removeTree(string $dir): void
+    {
+        foreach (glob($dir . '/*') ?: [] as $path) {
+            is_dir($path) ? $this->removeTree($path) : @unlink($path);
+        }
+        @rmdir($dir);
     }
 
     private function write(string $name, string $content): string
     {
         $path = $this->dir . '/' . $name;
+        file_put_contents($path, $content);
+        return $path;
+    }
+
+    /** Write a fixture at a (possibly nested) relative path, creating parent directories. */
+    private function writeIn(string $relPath, string $content): string
+    {
+        $path = $this->dir . '/' . $relPath;
+        @mkdir(dirname($path), 0777, true);
         file_put_contents($path, $content);
         return $path;
     }
@@ -180,5 +196,177 @@ class BlueprintLoaderTest extends TestCase
 
         // a duplicate that re-declares an identical value is a harmless no-op, not a warning
         $this->assertSame([], $loader->takeWarnings());
+    }
+
+    // ── vocabulary `source` resolution ───────────────────────────────────────────────────────────
+
+    /** @return array<string,string> A vocabulary entry with the given source field(s) merged in */
+    private function vocab(array $extra): array
+    {
+        return ['namespaceUri' => 'http://example.org/ns#', 'prefix' => 'ex', 'label' => 'Ex'] + $extra;
+    }
+
+    public function testInlineVocabularyRelativeSourceResolvesAgainstBlueprint(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'vocabularies' => [$this->vocab(['source' => 'schema.rdf'])],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+        $this->assertSame($this->dir . '/schema.rdf', $vocabs[0]['source']);
+    }
+
+    public function testInlineVocabularyAbsolutePathSourceUnchanged(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'vocabularies' => [$this->vocab(['source' => '/abs/schema.rdf'])],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+        $this->assertSame('/abs/schema.rdf', $vocabs[0]['source']);
+    }
+
+    public function testInlineVocabularyUrlSourceUnchanged(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'vocabularies' => [$this->vocab(['source' => 'https://example.org/schema.rdf'])],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+        $this->assertSame('https://example.org/schema.rdf', $vocabs[0]['source']);
+    }
+
+    public function testImportedVocabularyConfigRelativeSourceResolvesAgainstTheConfig(): void
+    {
+        // the config lives in a subdirectory; its relative source must resolve against THAT directory,
+        // not the top-level blueprint's directory
+        $this->writeIn('vocab/schema.jsonc', json_encode($this->vocab(['source' => 'schema.rdf'])));
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'vocabularies' => [['$import' => './vocab/schema.jsonc']],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+        $this->assertCount(1, $vocabs);
+        $this->assertSame($this->dir . '/vocab/schema.rdf', $vocabs[0]['source']);
+    }
+
+    public function testImportedVocabularyConfigAbsoluteSourceUnchanged(): void
+    {
+        $this->writeIn('vocab/schema.jsonc', json_encode($this->vocab(['source' => 'https://example.org/schema.rdf'])));
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'vocabularies' => [['$import' => './vocab/schema.jsonc']],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+        $this->assertSame('https://example.org/schema.rdf', $vocabs[0]['source']);
+    }
+
+    public function testImportedVocabularyConfigRelativeParentSourceResolvesAgainstTheConfig(): void
+    {
+        // config in a subdir pointing one level up (../rdf/x.rdf) resolves relative to the config
+        $this->writeIn('vocab/schema.jsonc', json_encode($this->vocab(['source' => '../rdf/schema.rdf'])));
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'vocabularies' => [['$import' => './vocab/schema.jsonc']],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+        $this->assertSame($this->dir . '/rdf/schema.rdf', $vocabs[0]['source']);
+    }
+
+    public function testNestedImportResolvesSourceAgainstInnermostConfig(): void
+    {
+        // site -> vocab/list.jsonc -> deep/schema.jsonc; the source resolves against deep/
+        $this->writeIn('vocab/deep/schema.jsonc', json_encode($this->vocab(['source' => 'schema.rdf'])));
+        $this->writeIn('vocab/list.jsonc', json_encode([['$import' => './deep/schema.jsonc']]));
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'vocabularies' => [['$import' => './vocab/list.jsonc']],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+        $this->assertSame($this->dir . '/vocab/deep/schema.rdf', $vocabs[0]['source']);
+    }
+
+    // ── resource-template `source` resolution (same two-level rule) ───────────────────────────────
+
+    public function testInlineResourceTemplateRelativeSourceResolvesAgainstBlueprint(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'resourceTemplates' => [['label' => 'T', 'source' => 'tpl.json']],
+        ]));
+
+        $templates = (new BlueprintLoader())->load($base)->resourceTemplates();
+        $this->assertSame($this->dir . '/tpl.json', $templates[0]['source']);
+    }
+
+    public function testImportedResourceTemplateConfigRelativeSourceResolvesAgainstTheConfig(): void
+    {
+        $this->writeIn('rt/base.jsonc', json_encode(['label' => 'T', 'source' => 'tpl.json']));
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'resourceTemplates' => [['$import' => './rt/base.jsonc']],
+        ]));
+
+        $templates = (new BlueprintLoader())->load($base)->resourceTemplates();
+        $this->assertCount(1, $templates);
+        $this->assertSame($this->dir . '/rt/tpl.json', $templates[0]['source']);
+    }
+
+    // ── file `source` resolution and de-duplication ──────────────────────────────────────────────
+
+    public function testInlineFileRelativeSourceResolvesAgainstBlueprint(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'files' => [['source' => './config/a.php', 'destination' => 'config/a.php']],
+        ]));
+
+        $files = (new BlueprintLoader())->load($base)->files();
+        $this->assertSame($this->dir . '/config/a.php', $files[0]['source']);
+    }
+
+    public function testImportedFileListRelativeSourceResolvesAgainstTheList(): void
+    {
+        $this->writeIn('files/list.jsonc', json_encode([['source' => 'a.php', 'destination' => 'config/a.php']]));
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'files' => [['$import' => './files/list.jsonc']],
+        ]));
+
+        $files = (new BlueprintLoader())->load($base)->files();
+        $this->assertSame($this->dir . '/files/a.php', $files[0]['source']);
+    }
+
+    public function testFileAbsoluteSourcesUnchangedAndRepoReferenceBecomesRawUrl(): void
+    {
+        $base = $this->writeIn('site.jsonc', json_encode([
+            'files' => [
+                ['source' => '/abs/a.php', 'destination' => 'config/a.php'],
+                ['source' => 'https://example.org/b.zip', 'destination' => 'files/b', 'extract' => true],
+                ['source' => 'gh:owner/repo@v1:config/c.php', 'destination' => 'config/c.php'],
+            ],
+        ]));
+
+        $sources = array_column((new BlueprintLoader())->load($base)->files(), 'source');
+        $this->assertSame([
+            '/abs/a.php',
+            'https://example.org/b.zip',
+            'https://raw.githubusercontent.com/owner/repo/v1/config/c.php',
+        ], $sources);
+    }
+
+    public function testFilesDeduplicateByDestination(): void
+    {
+        $this->write('files.jsonc', '[{ "source": "/abs/a.php", "destination": "config/a.php" }]');
+        $base = $this->write('base.jsonc', <<<JSONC
+        {
+            "files": [
+                { "\$import": "./files.jsonc" },
+                { "source": "/abs/b.php", "destination": "config/a.php" }
+            ]
+        }
+        JSONC);
+
+        $loader = new BlueprintLoader();
+        $files = $loader->load($base)->files();
+
+        $this->assertSame([['source' => '/abs/b.php', 'destination' => 'config/a.php']], $files);
+        $this->assertNotEmpty($loader->takeWarnings());
     }
 }

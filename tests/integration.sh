@@ -440,10 +440,14 @@ assert_fail    "the user is really gone"                                       $
 
 section "Vocabularies"
 assert_success "vocabulary:list returns results" $CLI vocabulary:list
-assert_success "add vocabulary schema.org using options" $CLI vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
+assert_success "add vocabulary schema.org using --source option" $CLI vocabulary:import --source "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
 assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
-assert_success "add vocabulary schema.org from local config" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/schema-dot-org.json
+assert_success "deprecated --url option still imports" $CLI vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
 assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
+assert_success "add vocabulary schema.org from local config (source url)" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/schema-dot-org.json
+assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
+assert_success "add vocabulary from local config with a RELATIVE source" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/example-local.json
+assert_success "delete the relative-source vocabulary" $CLI vocabulary:delete ex
 assert_success "add vocabulary person-name-vocabulary from remote config" $CLI vocabulary:import --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Vocabularies/refs/heads/main/person-name-vocabulary.json
 
 run "delete vocabulary person-name-vocabulary" $CLI vocabulary:delete pvn
@@ -675,10 +679,57 @@ assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI
 assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
 assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force
 
+# files: a relative source resolves against the blueprint, not the working directory
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/bp-files
+    echo 'hello' > /tmp/bp-files/hello.txt
+    printf '[ { "source": "./hello.txt", "destination": "files/blueprint/hello.txt" } ]' > /tmp/bp-files/files.jsonc
+    printf '{ "files": [ { "$import": "./files.jsonc" } ] }' > /tmp/bp-files/files.blueprint.json
+fi
+assert_success "blueprint:validate accepts a standalone files partial"     $CLI blueprint:validate /tmp/bp-files/files.jsonc --as files
+assert_success "blueprint:deploy places files in the Omeka S root"         $CLI blueprint:deploy /tmp/bp-files/files.blueprint.json --skip core --force
+assert_output_is "the file has the source content" "hello"                 cat /var/www/omeka-s/files/blueprint/hello.txt
+
+# files from URLs: a plain copy, and a ZIP whose single top-level directory is stripped on extract
+SPEC=https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    cat > /tmp/bp-files/remote.blueprint.json <<JSON
+{ "files": [
+    { "source": "$SPEC", "destination": "files/blueprint/schema.json" },
+    { "source": "https://github.com/omeka-s-contrib/omeka-s-blueprints/archive/refs/tags/v0.1.0.zip",
+      "destination": "files/blueprint-zip", "extract": true }
+] }
+JSON
+fi
+assert_success "blueprint:deploy places files from URLs"                   $CLI blueprint:deploy /tmp/bp-files/remote.blueprint.json --skip core --force
+assert_output_is "the copied URL has the source content" "$SPEC"           jq -r '.["$id"]' /var/www/omeka-s/files/blueprint/schema.json
+assert_success "the extracted ZIP lost its top-level directory"            test -f /var/www/omeka-s/files/blueprint-zip/assets/schema/blueprint-schema.json
+
+# a theme without a source that is already on disk (default ships with the core) is used as is;
+# --update re-downloads it from omeka.org
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    printf '{ "themes": ["default"] }' > /tmp/bp-files/theme.blueprint.json
+fi
+assert_output_contains "blueprint:deploy keeps a theme already on disk" "already present" \
+    $CLI blueprint:deploy /tmp/bp-files/theme.blueprint.json --skip core --force
+assert_output_contains "blueprint:deploy --update re-downloads it" "downloaded" \
+    $CLI blueprint:deploy /tmp/bp-files/theme.blueprint.json --skip core --force --update
+
 # export the live instance and check the result round-trips through validate
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
 assert_output_contains "the export captures an installed module" "Common"   $CLI blueprint:export
+
+# a full deploy (core phase included) started outside the Omeka S directory: it, and the processes
+# it continues in after the core install, must find the instance through --base-path alone, not by
+# searching the working directory. Resets the instance (database.ini is reused), so keep this last.
+assert_success "blueprint:deploy with the core phase works outside the Omeka S directory" \
+    bash -c "cd /tmp && $CLI blueprint:deploy $BP --base-path /var/www/omeka-s --force"
+assert_output_is "the deploy from outside the Omeka S directory applied its settings" '"Blueprint Demo"' \
+    bash -c "cd /tmp && $CLI config:get installation_title --base-path /var/www/omeka-s"
+# no --admin-* flags were passed, so the administrator comes from the blueprint's install.admin
+assert_output_contains "the core install took its admin from install.admin" "Blueprint Admin" \
+    bash -c "cd /tmp && $CLI user:list --base-path /var/www/omeka-s"
 
 # ── summary ──────────────────────────────────────────────────────────────────
 

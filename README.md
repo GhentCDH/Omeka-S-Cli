@@ -50,7 +50,7 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - List, show, activate, deactivate, and delete snippets
     - Export and import snippets using the canonical portable JSON format
 - Blueprints
-    - Deploy an environment from a single declarative blueprint file (modules, themes, vocabularies, resource templates, users, settings)
+    - Deploy an environment from a single declarative blueprint file (modules, themes, files, vocabularies, resource templates, users, settings)
 
 ### Automating Omeka S instance setup
 
@@ -68,7 +68,7 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
     - `module:install <module>` to install a module
     - `theme:download <theme>` to download a theme
 - Import vocabularies
-    - `vocabulary:import --url <url> --namespace-uri="<uri>" --prefix="<prefix>" --label="<label>"` to import a vocabulary from a URL (or `--file <path>`)
+    - `vocabulary:import --source <path-or-url> --namespace-uri="<uri>" --prefix="<prefix>" --label="<label>"` to import a vocabulary from a file or URL
     - `vocabulary:import --config <file>` to import a vocabulary from a JSON config file
 - Import resource templates
     - `resource-template:import <file>` to import resource templates
@@ -79,8 +79,8 @@ The Omeka-S-Cli tool can be used to automate the setup and configuration of new 
 ### Deploy from a blueprint
 
 Instead of scripting the steps above, you can describe the desired environment in a single
-declarative **blueprint** file and deploy it in one command. The format is a backward-compatible
-superset of the [Omeka S Playground](https://github.com/ateeducacion/omeka-s-playground) blueprint.
+declarative **blueprint** file and deploy it in one command. The format is the shared
+[Omeka S Blueprints](https://omeka-s-contrib.github.io/omeka-s-blueprints/) specification.
 
 ```bash
 # validate first (also validates a standalone list with --as)
@@ -104,20 +104,22 @@ A small blueprint (jsonc — comments and trailing commas allowed):
     ],
     "vocabularies": [
         { "prefix": "schema", "namespaceUri": "https://schema.org/", "label": "schema.org",
-          "url": "https://schema.org/version/latest/schemaorg-current-https.rdf" }
+          "source": "https://schema.org/version/latest/schemaorg-current-https.rdf" }
     ],
     "resourceTemplates": [ { "source": "../resource-template/base_resource.json" } ],
+    "files": [ { "source": "./cleanurl.config.php", "destination": "config/cleanurl.config.php" } ],
     "settings": { "installation_title": "Blueprint Demo" }
 }
 ```
 
-`blueprint:deploy` runs the phases in order (core → modules → themes → vocabularies → resource
+`blueprint:deploy` runs the phases in order (core → modules → themes → files → vocabularies → resource
 templates → users → settings), reusing the same commands documented above, and is idempotent —
 re-running it skips resources that already exist (pass `--update` to refresh them).
 
 It can also **build a site from scratch**: the core phase downloads and installs Omeka S, so one
-command goes from an empty server to a running site (database and admin details are passed as flags,
-never stored in the blueprint):
+command goes from an empty server to a running site. Database details are passed as flags only. The
+administrator can come from the blueprint's [`install.admin`](https://omeka-s-contrib.github.io/omeka-s-blueprints/reference/#install), and the
+`--admin-*` flags override it, so the password does not have to be stored in the blueprint:
 
 ```bash
 omeka-s-cli blueprint:deploy ./site.blueprint.jsonc --base-path /var/www/omeka-s \
@@ -127,9 +129,12 @@ omeka-s-cli blueprint:deploy ./site.blueprint.jsonc --base-path /var/www/omeka-s
 
 The database must already exist. Deploying onto an already-installed instance requires `--force`
 (with the core phase this **resets** it — wiping the database and reinstalling; use `--skip core
---force` to sync config without wiping). See [docs/blueprint.md](docs/blueprint.md) for the full
-reference, [docs/blueprint-guide.md](docs/blueprint-guide.md) for a plain-language guide, and
-[examples/blueprint/](examples/blueprint/) for a working example.
+--force` to sync config without wiping).
+
+The format itself is documented on the specification site: the [reference](https://omeka-s-contrib.github.io/omeka-s-blueprints/reference/) for
+every key, [examples](https://omeka-s-contrib.github.io/omeka-s-blueprints/examples/), and the [schema](https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/) URLs for editor validation.
+How omeka-s-cli applies a blueprint (phases, the core phase, export) is described in
+[docs/blueprint.md](docs/blueprint.md); [examples/blueprint/](examples/blueprint/) has a working example.
 
 ## Usage
 
@@ -213,15 +218,15 @@ omeka-s-cli gh:omeka-s-themes/freedom#v1.0.6
 ```
 
 ### Example: Import a vocabulary
-Directly from a URL (or a local file with `--file`):
+Directly from a URL or a local file:
 ```bash
-omeka-s-cli vocabulary:import --url "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
+omeka-s-cli vocabulary:import --source "https://schema.org/version/latest/schemaorg-current-https.rdf" --namespace-uri="https://schema.org/" --prefix="schema" --label="schema.org"
 ```
 
 Or from a JSON config file with the same fields. First create a JSON file:
 ```json
 {
-    "url": "https://schema.org/version/latest/schemaorg-current-https.rdf",
+    "source": "https://schema.org/version/latest/schemaorg-current-https.rdf",
     "label": "schema.org",
     "namespaceUri": "https://schema.org/",
     "prefix": "schema"

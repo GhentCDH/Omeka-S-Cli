@@ -2,52 +2,79 @@
 namespace OSC\Blueprint;
 
 use Exception;
+use Omeka\Module\Manager as ModuleManager;
 use OSC\Commands\AbstractCommand;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
+use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Path;
-use OSC\Helper\Reference\ReferenceResolver;
+use OSC\Helper\ResourceFetcher;
 
 /**
  * Apply a resolved blueprint to an Omeka S instance by driving the existing CLI commands in order:
- * modules, themes, vocabularies, resource templates, users, settings.
+ * modules, themes, files, vocabularies, resource templates, users, settings.
  *
- * The commands run in-process, sharing one Omeka bootstrap. Modules are a special case: every module
- * is downloaded first (a pure filesystem step that does not bootstrap Omeka), and only then are they
- * installed/enabled. That ordering matters — Omeka reads the modules directory when it boots, so a
- * module downloaded after boot would be invisible. Installing all downloads together lets the first
- * install trigger the boot with every new module already on disk (the same reason `module:download
- * -i` works).
+ * Most phases run in-process. Modules are special: every module is downloaded first (a filesystem step
+ * that needs no bootstrap), then each module is installed/enabled in its OWN fresh process. A module's
+ * services register only at a bootstrap where it is active, so a module that depends on another (e.g.
+ * on Common) must be installed in a process where that dependency is already active — which per-module
+ * processes guarantee, since each module is listed after the ones it depends on. Relative asset paths
+ * (file/vocabulary/resource-template sources) are already resolved by BlueprintLoader against the
+ * source that declared them, so the applier uses them as-is.
  */
 class BlueprintApplier
 {
-    /** Resolves repo-aware and relative asset references against the blueprint source. */
-    private ReferenceResolver $resolver;
+    /** Human-readable phase names for the per-phase status lines. */
+    private const PHASE_LABELS = [
+        'modules'           => 'Modules',
+        'themes'            => 'Themes',
+        'files'             => 'Files',
+        'vocabularies'      => 'Vocabularies',
+        'resourceTemplates' => 'Resource templates',
+        'users'             => 'Users',
+        'settings'          => 'Settings',
+    ];
 
     /**
-     * @param AbstractCommand       $command   The invoking command (for command lookup, output, verbosity)
-     * @param bool                  $dryRun    Report actions without performing them
-     * @param bool                  $update    Re-download/overwrite and update existing resources
-     * @param string[]              $skip      Phase names to skip
-     * @param string|null           $baseSource The blueprint source, to resolve relative asset paths
-     * @param ReferenceResolver|null $resolver  Reference resolver (defaults to the standard providers)
+     * @param AbstractCommand $command The invoking command (for command lookup, output, verbosity)
+     * @param bool            $dryRun  Report actions without performing them
+     * @param bool            $update  Re-download/overwrite and update existing resources
+     * @param string[]        $skip    Phases the user asked to skip (reported as skipped)
+     * @param string[]        $defer   Phases handled in another stage of a multi-process deploy (silent)
      */
     public function __construct(
         private AbstractCommand $command,
         private bool $dryRun = false,
         private bool $update = false,
         private array $skip = [],
-        private ?string $baseSource = null,
-        ?ReferenceResolver $resolver = null,
+        private array $defer = [],
     ) {
-        $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
     }
 
     public function apply(Blueprint $blueprint): void
     {
+        $this->applyModulesAndThemes($blueprint);
+        $this->applyConfiguration($blueprint);
+    }
+
+    /**
+     * The phases that add code and files to the instance: modules, themes and files. Files come last,
+     * so they can land inside a module or theme, and before configuration, which may read them.
+     */
+    public function applyModulesAndThemes(Blueprint $blueprint): void
+    {
         $this->runPhase('modules', $blueprint->modules(), fn($d) => $this->applyModules($d));
         $this->runPhase('themes', $blueprint->themes(), fn($d) => $this->applyThemes($d));
+        $this->runPhase('files', $blueprint->files(), fn($d) => $this->applyFiles($d));
+    }
+
+    /**
+     * The phases that configure the instance (and may need the modules' services): vocabularies,
+     * resource templates, users and settings.
+     */
+    public function applyConfiguration(Blueprint $blueprint): void
+    {
         $this->runPhase('vocabularies', $blueprint->vocabularies(), fn($d) => $this->applyVocabularies($d));
         $this->runPhase('resourceTemplates', $blueprint->resourceTemplates(), fn($d) => $this->applyResourceTemplates($d));
         $this->runPhase('users', $blueprint->users(), fn($d) => $this->applyUsers($d));
@@ -56,14 +83,21 @@ class BlueprintApplier
 
     private function runPhase(string $name, mixed $data, callable $run): void
     {
+        $label = self::PHASE_LABELS[$name] ?? $name;
+
+        // handled in another stage of a multi-process deploy: stay silent here, it is not skipped
+        if (in_array($name, $this->defer, true)) {
+            return;
+        }
         if (in_array($name, $this->skip, true)) {
-            $this->command->info("• {$name}: skipped", true);
+            $this->command->section($label, null, 'skipped (--skip)');
             return;
         }
         if (empty($data)) {
+            $this->command->section($label, null, 'nothing to do');
             return;
         }
-        $this->command->info("• {$name}", true);
+        $this->command->section($label);
         $run($data);
     }
 
@@ -73,70 +107,100 @@ class BlueprintApplier
     {
         $modules = array_map([$this, 'normalizeModule'], $modules);
 
-        // 1. download every module (bundled modules ship with core and are skipped)
+        // 1. download every module (one already on disk is used as is, whatever its source)
         foreach ($modules as $module) {
-            $uri = $this->moduleUri($module);
-            if ($uri === null) {
-                $this->command->info("  {$module['name']}: bundled, nothing to download", true);
-                continue;
-            }
-            if ($this->dryRun) {
-                $this->command->info("  would download module '{$module['name']}' ({$uri})", true);
-                continue;
-            }
             // re-download when --update, or when a pinned version differs from what is on disk
-            $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version'] ?? null);
+            $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version']);
+            if (!$force && $this->isOnDisk('modules', $module['name'])) {
+                $this->command->note("{$module['name']}: already present, nothing to download", true);
+                continue;
+            }
+            $uri = $this->addonUri($module);
+            if ($this->dryRun) {
+                $this->command->note("would download module '{$module['name']}' ({$uri})", true);
+                continue;
+            }
             try {
                 $this->run('module:download', fn($c) => $c->execute($uri, $force), false);
             } catch (ModuleExistsException) {
-                $this->command->info("  {$module['name']}: already at the required version, skipping (use --update to replace)", true);
+                $this->command->note("{$module['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }
 
-        // 2. install (state install|activate), in blueprint order (author lists dependencies first)
-        $installIds = $this->moduleNames($modules, ['install', 'activate']);
-        foreach ($installIds as $id) {
-            if ($this->dryRun) {
-                $this->command->info("  would install module '{$id}'", true);
-                continue;
+        // 2. install + enable each module in its OWN process, in blueprint order. A module's services
+        //    register only at a bootstrap where it is active, so a dependent (e.g. on Common) must be
+        //    installed in a fresh process where its dependency is already active. Blueprint order lists
+        //    dependencies first, so processing one module per process satisfies that.
+        if ($this->dryRun) {
+            foreach ($modules as $module) {
+                if ($module['name'] === '' || !in_array($module['state'], ['install', 'activate'], true)) {
+                    continue;
+                }
+                $this->command->note("would install module '{$module['name']}'", true);
+                if ($module['state'] === 'activate') {
+                    $this->command->note("would enable module '{$module['name']}'", true);
+                }
             }
-            $this->run('module:install', fn($c) => $c->execute($id));
+            return;
         }
 
-        // 3. enable (state activate), in blueprint order
-        $enableIds = $this->moduleNames($modules, ['activate']);
-        foreach ($enableIds as $id) {
-            if ($this->dryRun) {
-                $this->command->info("  would enable module '{$id}'", true);
+        // snapshot current states once, to skip modules already in their target state (cheap re-deploys)
+        $moduleApi = $this->command->getOmekaInstance(false)->getModuleApi();
+        foreach ($modules as $module) {
+            $name = $module['name'];
+            $state = $module['state'];
+            if ($name === '' || !in_array($state, ['install', 'activate'], true)) {
                 continue;
             }
-            $this->run('module:enable', fn($c) => $c->execute($id));
+
+            $onDisk = $moduleApi->getModule($name);
+            $isInstalled = $onDisk && in_array(
+                $onDisk->getState(),
+                [ModuleManager::STATE_ACTIVE, ModuleManager::STATE_NOT_ACTIVE],
+                true
+            );
+            $isActive = $onDisk && $onDisk->getState() === ModuleManager::STATE_ACTIVE;
+
+            if (!$isInstalled) {
+                // install also activates the module in Omeka S
+                $this->runModuleStep('module:install', $name);
+            } elseif ($state === 'activate' && !$isActive) {
+                // already installed but inactive: activate it
+                $this->runModuleStep('module:enable', $name);
+            }
         }
     }
 
     /**
-     * @param array{name:string,state:string,source:mixed,version:?string} $module
-     * @return string|null The module:download argument, or null for a bundled module
+     * Run a module operation in a fresh process, so the module's services are available to the modules
+     * processed after it. Throws when the child process fails.
      */
-    private function moduleUri(array $module): ?string
+    private function runModuleStep(string $command, string $id): void
     {
-        $source = $module['source'] ?? null;
-        if (is_array($source)) {
-            $type = $source['type'] ?? null;
-            if ($type === 'bundled') {
-                return null;
-            }
-            if ($type === 'url') {
-                return $source['url'] ?? null;
-            }
-            if ($type === 'omeka.org') {
-                $slug = $source['slug'] ?? $module['name'];
-                $version = $module['version'] ?? null;
-                return $version ? "{$slug}:{$version}" : $slug;
-            }
+        $exitCode = $this->command->runInNewProcess([$command, $id]);
+        if ($exitCode !== 0) {
+            throw new Exception("'{$command} {$id}' failed (exit code {$exitCode}).");
         }
-        $version = $module['version'] ?? null;
-        return $version ? "{$module['name']}:{$version}" : $module['name'];
+    }
+
+    /**
+     * The module:download / theme:download argument for an add-on entry: its source, or its name
+     * (resolved through omeka.org) when it has none. The version selects the omeka.org release or
+     * the tag of a git source; a ZIP URL already pins the release, so it wins.
+     *
+     * @param array{name:string,source:?string,version:?string} $addon
+     */
+    private function addonUri(array $addon): string
+    {
+        ['name' => $name, 'source' => $source, 'version' => $version] = $addon;
+        if ($source === null) {
+            return $version ? "{$name}:{$version}" : $name;
+        }
+        $isGit = str_starts_with($source, 'gh:') || str_ends_with($source, '.git');
+        if ($version && $isGit && !str_contains($source, '#')) {
+            return "{$source}#{$version}";
+        }
+        return $source;
     }
 
     private function normalizeModule(mixed $module): array
@@ -173,46 +237,76 @@ class BlueprintApplier
     private function applyThemes(array $themes): void
     {
         foreach ($themes as $theme) {
-            $theme = is_string($theme)
-                ? ['name' => $theme, 'source' => null, 'version' => null]
-                : $theme;
-            $uri = $this->themeUri($theme);
-            if ($uri === null) {
-                $this->command->info("  {$theme['name']}: bundled, nothing to download", true);
+            $theme = (is_string($theme) ? ['name' => $theme] : $theme) + ['name' => '', 'source' => null, 'version' => null];
+            $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'], $theme['version']);
+            // e.g. the default theme (ships with the core) or a mounted one
+            if (!$force && $this->isOnDisk('themes', $theme['name'])) {
+                $this->command->note("{$theme['name']}: already present, nothing to download", true);
                 continue;
             }
+            $uri = $this->addonUri($theme);
             if ($this->dryRun) {
-                $this->command->info("  would download theme '{$theme['name']}' ({$uri})", true);
+                $this->command->note("would download theme '{$theme['name']}' ({$uri})", true);
                 continue;
             }
-            $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'] ?? '', $theme['version'] ?? null);
             try {
                 $this->run('theme:download', fn($c) => $c->execute($uri, $force, false), false);
             } catch (ThemeExistsException) {
-                $this->command->info("  {$theme['name']}: already at the required version, skipping (use --update to replace)", true);
+                $this->command->note("{$theme['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }
     }
 
-    private function themeUri(array $theme): ?string
+    // --- files -----------------------------------------------------------------------------------
+
+    private function applyFiles(array $files): void
     {
-        $source = $theme['source'] ?? null;
-        if (is_array($source)) {
-            $type = $source['type'] ?? null;
-            if ($type === 'bundled') {
-                return null;
+        foreach ($files as $file) {
+            $destination = $this->safeDestination((string) ($file['destination'] ?? ''));
+            // $source was already resolved by the loader against the source that declared it
+            $source = (string) ($file['source'] ?? '');
+            $extract = (bool) ($file['extract'] ?? false);
+            if ($this->dryRun) {
+                $this->command->note('would ' . ($extract ? 'extract' : 'copy') . " '{$source}' to '{$destination}'", true);
+                continue;
             }
-            if ($type === 'url') {
-                return $source['url'] ?? null;
+            $target = $this->command->resolveOmekaPath() . '/' . $destination;
+            if ($extract) {
+                $tmp = (new ZipDownloader($source))->download();
+                try {
+                    // a single top-level directory is stripped, as with add-on archives
+                    $entries = array_values(array_diff(scandir($tmp) ?: [], ['.', '..']));
+                    $root = count($entries) === 1 && is_dir("{$tmp}/{$entries[0]}") ? "{$tmp}/{$entries[0]}" : $tmp;
+                    Path::copyFolder($root, $target);
+                } finally {
+                    Path::removeFolder($tmp);
+                }
+            } else {
+                $dir = dirname($target);
+                if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+                    throw new Exception("Could not create directory '{$dir}'.");
+                }
+                if (file_put_contents($target, ResourceFetcher::fetch($source)) === false) {
+                    throw new Exception("Could not write '{$target}'.");
+                }
             }
-            if ($type === 'omeka.org') {
-                $slug = $source['slug'] ?? $theme['name'];
-                $version = $theme['version'] ?? null;
-                return $version ? "{$slug}:{$version}" : $slug;
-            }
+            $this->command->ok("File '{$destination}' " . ($extract ? 'extracted' : 'written') . '.', true);
         }
-        $version = $theme['version'] ?? null;
-        return $version ? "{$theme['name']}:{$version}" : ($theme['name'] ?? null);
+    }
+
+    /**
+     * A files[].destination, checked to stay inside the Omeka S root: relative, without '..'
+     * segments. The schema enforces the same rule; this guards blueprints that skipped validation.
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function safeDestination(string $destination): string
+    {
+        $segments = explode('/', str_replace('\\', '/', $destination));
+        if ($destination === '' || $segments[0] === '' || preg_match('/^[A-Za-z]:/', $destination) || in_array('..', $segments, true)) {
+            throw new \InvalidArgumentException("Unsafe file destination '{$destination}': it must be a path inside the Omeka S root.");
+        }
+        return $destination;
     }
 
     // --- vocabularies ----------------------------------------------------------------------------
@@ -227,24 +321,20 @@ class BlueprintApplier
         foreach ($vocabularies as $vocabulary) {
             $label = $vocabulary['label'] ?? $vocabulary['prefix'] ?? '?';
             if ($this->dryRun) {
-                $this->command->info("  would import vocabulary '{$label}'", true);
+                $this->command->note("would import vocabulary '{$label}'", true);
                 continue;
             }
 
-            // a relative RDF file path resolves against the blueprint; url stays as-is
-            if (isset($vocabulary['file'])) {
-                $vocabulary['file'] = $this->resolveAssetPath($vocabulary['file']);
-            }
-
             // a blueprint vocabulary entry is an importer config: hand it to the importer as a
-            // config file, so inline and $import-referenced configs follow one code path
+            // config file, so inline and $import-referenced configs follow one code path. Its
+            // `source` was already resolved by the loader against the source that declared it.
             $configFile = Path::createTempFile('bp-vocab-');
             file_put_contents(
                 $configFile,
                 json_encode($vocabulary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
             );
             try {
-                $this->propagateVerbosity($cmd);
+                $this->propagateContext($cmd);
                 $cmd->execute($configFile, $this->update);
             } catch (WarningException $e) {
                 // e.g. the vocabulary already exists and --update was not requested
@@ -267,10 +357,10 @@ class BlueprintApplier
             }
             $label = $template['label'] ?? basename((string) $source);
             if ($this->dryRun) {
-                $this->command->info("  would import resource template '{$label}'", true);
+                $this->command->note("would import resource template '{$label}'", true);
                 continue;
             }
-            $source = $this->resolveAssetPath($source);
+            // $source was already resolved by the loader against the source that declared it
             $ignoreDeps = (bool) ($template['ignoreDeps'] ?? false);
             $this->run(
                 'resource-template:import',
@@ -295,7 +385,7 @@ class BlueprintApplier
             $isInactive = array_key_exists('isActive', $user) ? !$user['isActive'] : false;
 
             if ($this->dryRun) {
-                $this->command->info("  would create user '{$email}' ({$role})", true);
+                $this->command->note("would create user '{$email}' ({$role})", true);
                 continue;
             }
             // ignoreExisting = true keeps apply idempotent
@@ -309,7 +399,7 @@ class BlueprintApplier
     {
         foreach ($settings as $id => $value) {
             if ($this->dryRun) {
-                $this->command->info("  would set '{$id}'", true);
+                $this->command->note("would set '{$id}'", true);
                 continue;
             }
             // json_encode round-trips losslessly through config:set's convertStringToType()
@@ -325,7 +415,7 @@ class BlueprintApplier
         if (!$cmd instanceof AbstractCommand) {
             throw new Exception("Required command '{$name}' is not available.");
         }
-        $this->propagateVerbosity($cmd);
+        $this->propagateContext($cmd);
         if (!$catchWarnings) {
             $call($cmd);
             return;
@@ -334,25 +424,19 @@ class BlueprintApplier
             $call($cmd);
         } catch (WarningException $e) {
             // a non-fatal advisory (e.g. "already exists, use --update"): keep apply idempotent
-            $this->command->warn('  ' . $e->getMessage(), true);
+            $this->command->warn($e->getMessage(), true);
         }
-    }
-
-    private function propagateVerbosity(AbstractCommand $cmd): void
-    {
-        $cmd->primeValue('verbosity', $this->command->values()['verbosity'] ?? 1);
     }
 
     /**
-     * Resolve a relative asset path against the blueprint's location. URLs and absolute paths pass
-     * through unchanged.
+     * Hand the invoking command's context to a sub-command run in-process: its verbosity, and the
+     * Omeka S base path (so the sub-command works on the same instance, whatever the working
+     * directory, instead of relying on a path resolved earlier by another command).
      */
-    private function resolveAssetPath(?string $path): ?string
+    private function propagateContext(AbstractCommand $cmd): void
     {
-        if ($path === null || $path === '') {
-            return $path;
-        }
-        return $this->resolver->resolve($path, $this->baseSource);
+        $cmd->primeValue('verbosity', $this->command->values()['verbosity'] ?? 1);
+        $cmd->primeValue('basePath', $this->command->resolveOmekaPath());
     }
 
     /**
@@ -369,6 +453,19 @@ class BlueprintApplier
             return false;
         }
         return $this->normalizeVersion($have) !== $this->normalizeVersion($want);
+    }
+
+    /** Whether a module/theme directory exists in the Omeka S installation. */
+    private function isOnDisk(string $dir, string $name): bool
+    {
+        if ($name === '') {
+            return false;
+        }
+        try {
+            return is_dir($this->command->resolveOmekaPath() . "/{$dir}/{$name}");
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**

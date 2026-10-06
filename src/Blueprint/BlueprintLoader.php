@@ -16,15 +16,27 @@ use Otar\JSONC;
  * contains them. Circular references are detected and rejected.
  *
  * De-duplication: within a resolved list, entries sharing a natural identity (module/theme `name`,
- * vocabulary `prefix`, resource-template `label`, user `email`, item/item-set `title`) collapse to
- * the last occurrence, so a later inline entry — or a later import — overrides an earlier one. When
- * such an override actually changes the value, an advisory warning is recorded (see takeWarnings()),
- * so intentional layering keeps working while an accidental duplicate stays visible.
+ * file `destination`, vocabulary `prefix`, resource-template `label`, user `email`, item/item-set
+ * `title`) collapse to the last occurrence, so a later inline entry — or a later import — overrides
+ * an earlier one. When such an override actually changes the value, an advisory warning is recorded
+ * (see takeWarnings()), so intentional layering keeps working while an accidental duplicate stays
+ * visible.
  */
 class BlueprintLoader
 {
     /** Keys whose value is a list of items that may contain `$import` references. */
-    private const LIST_KEYS = ['modules', 'themes', 'vocabularies', 'resourceTemplates', 'users', 'itemSets', 'items'];
+    private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'itemSets', 'items'];
+
+    /**
+     * Per-list item fields that hold a relative asset reference. They are resolved against the source
+     * that declares the item — so a vocabulary pulled in via `$import` resolves its `source` against
+     * the imported config's location, not the top-level blueprint's.
+     */
+    private const ASSET_FIELDS = [
+        'files' => ['source'],
+        'vocabularies' => ['source'],
+        'resourceTemplates' => ['source'],
+    ];
 
     /** Absolute sources currently being resolved, to detect circular imports. */
     private array $visiting = [];
@@ -143,11 +155,13 @@ class BlueprintLoader
         $resolved = [];
         foreach ($list as $entry) {
             if (!$this->isReference($entry)) {
-                $resolved[] = $entry;
+                // an inline item is declared by `$source`, so its relative asset refs resolve against it
+                $resolved[] = $this->resolveItemAssets($entry, $source, $key);
                 continue;
             }
 
             $ref = $this->resolver->resolve($entry['$import'], $source);
+            // items pulled in by importList() were already asset-resolved against the imported source
             $imported = $this->importList($ref, $key);
             foreach ($imported as $item) {
                 $resolved[] = $item;
@@ -222,6 +236,28 @@ class BlueprintLoader
         return $merged;
     }
 
+    /**
+     * Resolve an inline item's relative asset fields (see ASSET_FIELDS) against the source that
+     * declares it. Repo-aware references become raw URLs; absolute paths and URLs pass through.
+     *
+     * @param mixed  $entry  The inline item
+     * @param string $source The source declaring the item (for relative resolution)
+     * @param string $key    The list key (selects which fields are asset references)
+     * @return mixed The item with its asset fields resolved
+     */
+    private function resolveItemAssets(mixed $entry, string $source, string $key): mixed
+    {
+        if (!is_array($entry)) {
+            return $entry;
+        }
+        foreach (self::ASSET_FIELDS[$key] ?? [] as $field) {
+            if (isset($entry[$field]) && is_string($entry[$field]) && trim($entry[$field]) !== '') {
+                $entry[$field] = $this->resolver->resolve($entry[$field], $source);
+            }
+        }
+        return $entry;
+    }
+
     private function isReference(mixed $entry): bool
     {
         return is_array($entry) && array_key_exists('$import', $entry);
@@ -278,6 +314,7 @@ class BlueprintLoader
         }
         $field = match ($key) {
             'modules', 'themes'   => $entry['name'] ?? '',
+            'files'               => $entry['destination'] ?? '',
             'vocabularies'        => $entry['prefix'] ?? '',
             'resourceTemplates'   => $entry['label'] ?? $entry['source'] ?? '',
             'users'               => $entry['email'] ?? '',
