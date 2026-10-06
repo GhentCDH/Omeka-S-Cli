@@ -35,7 +35,7 @@ class BlueprintValidator
      * Where the schema is downloaded from. Pinned to a commit of the shared repository until the v0
      * schema is published at SCHEMA_ID; at that point this becomes SCHEMA_ID.
      */
-    public const SCHEMA_SOURCE = 'https://raw.githubusercontent.com/omeka-s-contrib/omeka-s-blueprints/cbbdcdbbea08bdc3eb5f4131d580a1ae022ebbc7/assets/schema/blueprint-schema.json';
+    public const SCHEMA_SOURCE = 'https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json';
 
     /** Resolved schema content (from the source or its cache); false until resolved, null when unavailable */
     private string|false|null $schemaContent = false;
