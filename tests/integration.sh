@@ -599,6 +599,31 @@ assert_success "blueprint:validate accepts a standalone files partial"     $CLI 
 assert_success "blueprint:deploy places files in the Omeka S root"         $CLI blueprint:deploy /tmp/bp-files/files.blueprint.json --skip core --force
 assert_output_is "the file has the source content" "hello"                 cat /var/www/omeka-s/files/blueprint/hello.txt
 
+# files from URLs: a plain copy, and a ZIP whose single top-level directory is stripped on extract
+SPEC=https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    cat > /tmp/bp-files/remote.blueprint.json <<JSON
+{ "files": [
+    { "source": "$SPEC", "destination": "files/blueprint/schema.json" },
+    { "source": "https://github.com/omeka-s-contrib/omeka-s-blueprints/archive/refs/tags/v0.1.0.zip",
+      "destination": "files/blueprint-zip", "extract": true }
+] }
+JSON
+fi
+assert_success "blueprint:deploy places files from URLs"                   $CLI blueprint:deploy /tmp/bp-files/remote.blueprint.json --skip core --force
+assert_output_is "the copied URL has the source content" "$SPEC"           jq -r '.["$id"]' /var/www/omeka-s/files/blueprint/schema.json
+assert_success "the extracted ZIP lost its top-level directory"            test -f /var/www/omeka-s/files/blueprint-zip/assets/schema/blueprint-schema.json
+
+# a theme without a source that is already on disk (default ships with the core) is used as is;
+# --update re-downloads it from omeka.org
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    printf '{ "themes": ["default"] }' > /tmp/bp-files/theme.blueprint.json
+fi
+assert_output_contains "blueprint:deploy keeps a theme already on disk" "already present" \
+    $CLI blueprint:deploy /tmp/bp-files/theme.blueprint.json --skip core --force
+assert_output_contains "blueprint:deploy --update re-downloads it" "downloaded" \
+    $CLI blueprint:deploy /tmp/bp-files/theme.blueprint.json --skip core --force --update
+
 # export the live instance and check the result round-trips through validate
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
@@ -611,6 +636,9 @@ assert_success "blueprint:deploy with the core phase works outside the Omeka S d
     bash -c "cd /tmp && $CLI blueprint:deploy $BP --base-path /var/www/omeka-s --force"
 assert_output_is "the deploy from outside the Omeka S directory applied its settings" '"Blueprint Demo"' \
     bash -c "cd /tmp && $CLI config:get installation_title --base-path /var/www/omeka-s"
+# no --admin-* flags were passed, so the administrator comes from the blueprint's install.admin
+assert_output_contains "the core install took its admin from install.admin" "Blueprint Admin" \
+    bash -c "cd /tmp && $CLI user:list --base-path /var/www/omeka-s"
 
 # ── summary ──────────────────────────────────────────────────────────────────
 

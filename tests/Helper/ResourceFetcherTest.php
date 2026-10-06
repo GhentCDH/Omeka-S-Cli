@@ -97,7 +97,8 @@ class ResourceFetcherTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid URL');
 
-        ResourceFetcher::validate('not-a-valid-url');
+        // an http(s) scheme makes it a URL; a string without one is treated as a file path
+        ResourceFetcher::validate('https://not a valid url');
     }
 
     public function testFetchFromUnreachableUrlThrowsCatchableException(): void
