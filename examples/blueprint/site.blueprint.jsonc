@@ -4,6 +4,11 @@
         "title": "Demo site",
         "description": "Example omeka-s-cli blueprint deploying a small environment."
     },
+    // Used by the core phase only. The admin password comes from --admin-password (default: admin).
+    "install": {
+        "title": "Blueprint Demo",
+        "admin": { "name": "Blueprint Admin", "email": "admin@example.com" }
+    },
     "modules": [
         // Pull in modules from a shared, reusable list.
         { "$import": "./modules.extra.jsonc" },
