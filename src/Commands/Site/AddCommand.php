@@ -60,12 +60,15 @@ class AddCommand extends AbstractSiteCommand
             throw new InvalidArgumentException("A site {$what} already exists.{$hint}");
         }
 
+        // create site
         $site = $siteApi->create($config, $ownerId);
 
+        // set default site if requested
         if ($default) {
             $siteApi->setDefaultSite($site->id());
         }
 
+        // output the site in JSON if requested
         if ($json) {
             $this->outputFormatted($this->siteRow($site, $siteApi->getDefaultSiteId()), 'json');
         }
