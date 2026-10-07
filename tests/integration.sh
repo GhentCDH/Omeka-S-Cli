@@ -763,8 +763,18 @@ assert_success "blueprint:export writes a blueprint"                        bash
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
 assert_output_contains "the export captures an installed module" "Common"   $CLI blueprint:export
 assert_output_contains "the export captures a site" '"slug": "bp-site-a"'  $CLI blueprint:export
-assert_output_contains "the export declares the users its permissions name" '"email": "bp-site-editor@example.com"' \
-    $CLI blueprint:export
+# site permissions (and the users they name) are exported only with --include site-permissions
+run            "add a user without a site permission"                      $CLI user:add bp-no-site@example.com "No Site" researcher secret123 --ignore-existing
+assert_output_is "the default export has no users" "0"                     bash -c "$CLI blueprint:export | grep -v '^//' | jq '.users // [] | length'"
+assert_output_is "the default export has no site permissions" "0"          bash -c "$CLI blueprint:export | grep -v '^//' | jq '[.sites[] | select(.permissions)] | length'"
+assert_output_contains "--include site-permissions exports the permissions" '"permissions"' \
+    $CLI blueprint:export --include site-permissions
+assert_output_contains "--include site-permissions declares the users they name" '"email": "bp-site-editor@example.com"' \
+    $CLI blueprint:export --include site-permissions
+assert_output_is "--include site-permissions skips a user without one" "0" bash -c "$CLI blueprint:export --include site-permissions | grep -c bp-no-site@example.com"
+assert_success "an export with site permissions validates"                 bash -c "$CLI blueprint:export /tmp/exported-permissions.blueprint.jsonc --include site-permissions && $CLI blueprint:validate /tmp/exported-permissions.blueprint.jsonc"
+run            "remove the user without a site permission"                 $CLI user:delete bp-no-site@example.com
+assert_fail    "blueprint:export rejects an unknown --include part"        $CLI blueprint:export --include passwords
 assert_output_contains "the export marks the default site" '"setAsDefault": true' $CLI blueprint:export
 
 # a full deploy (core phase included) started outside the Omeka S directory: it, and the processes

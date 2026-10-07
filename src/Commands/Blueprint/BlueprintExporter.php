@@ -11,10 +11,11 @@ use Throwable;
 /**
  * Read a live Omeka S instance and build the blueprint that describes it.
  *
- * First cut: modules, themes, vocabularies and sites (with the users their permissions name).
- * Vocabulary sources are resolved best-effort against the GhentCDH vocabulary index (Omeka does not
- * store the RDF import source); a vocabulary that can not be resolved is emitted without a source,
- * and its prefix is collected so the command can note it. A helper for {@see ExportCommand}; it reads the instance and returns plain arrays, leaving all
+ * First cut: modules, themes, vocabularies and sites; the sites' user permissions, with the users they
+ * name, only when {@see ExportOptions} includes them. Vocabulary sources are resolved best-effort
+ * against the GhentCDH vocabulary index (Omeka does not store the RDF import source); a vocabulary that
+ * can not be resolved is emitted without a source, and its prefix is collected so the command can note
+ * it. A helper for {@see ExportCommand}; it reads the instance and returns plain arrays, leaving all
  * output/formatting to the command.
  */
 class BlueprintExporter
@@ -25,8 +26,11 @@ class BlueprintExporter
     /** @var string[] Prefixes of vocabularies whose source could not be resolved. */
     private array $unresolvedVocabularies = [];
 
-    public function __construct(private OmekaInstance $instance, private ?string $omekaVersion = null)
-    {
+    public function __construct(
+        private OmekaInstance $instance,
+        private ?string $omekaVersion = null,
+        private ExportOptions $options = new ExportOptions(),
+    ) {
     }
 
     /**
@@ -47,7 +51,7 @@ class BlueprintExporter
         if ($vocabularies = $this->exportVocabularies()) {
             $blueprint['vocabularies'] = $vocabularies;
         }
-        [$users, $sites] = $this->exportSites();
+        [$users, $sites] = $this->exportSites($this->options->includes(ExportOptions::SITE_PERMISSIONS));
         if ($users) {
             $blueprint['users'] = $users;
         }
@@ -142,12 +146,13 @@ class BlueprintExporter
     }
 
     /**
-     * Sites with their permissions, plus a minimal `users` entry for every user a permission names:
-     * a permission's user must be declared in the blueprint. Passwords are never exported.
+     * Every site; with $withPermissions also its user permissions, plus a minimal `users` entry for
+     * every user a permission names (a permission's user must be declared in the blueprint).
+     * Passwords are never exported.
      *
      * @return array{0: array, 1: array} [users, sites]
      */
-    private function exportSites(): array
+    private function exportSites(bool $withPermissions): array
     {
         // private sites are invisible to an anonymous identity
         $this->instance->elevatePrivileges();
@@ -168,19 +173,21 @@ class BlueprintExporter
                 $entry['setAsDefault'] = true;
             }
 
-            $permissions = [];
-            foreach ($siteApi->getPermissions($site) as $permission) {
-                $user = $permission['user'];
-                $permissions[] = ['user' => $user->email(), 'role' => $permission['role']];
-                $users[strtolower($user->email())] = [
-                    'email' => $user->email(),
-                    'username' => $user->name(),
-                    'role' => $user->role(),
-                    'isActive' => $user->isActive(),
-                ];
-            }
-            if ($permissions) {
-                $entry['permissions'] = $permissions;
+            if ($withPermissions) {
+                $permissions = [];
+                foreach ($siteApi->getPermissions($site) as $permission) {
+                    $user = $permission['user'];
+                    $permissions[] = ['user' => $user->email(), 'role' => $permission['role']];
+                    $users[strtolower($user->email())] = [
+                        'email' => $user->email(),
+                        'username' => $user->name(),
+                        'role' => $user->role(),
+                        'isActive' => $user->isActive(),
+                    ];
+                }
+                if ($permissions) {
+                    $entry['permissions'] = $permissions;
+                }
             }
             $sites[] = $entry;
         }
