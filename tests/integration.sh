@@ -712,6 +712,22 @@ assert_output_contains "blueprint:validate rejects an \$import leaving the root"
     $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json
 assert_success "blueprint:validate accepts it with a wider --root"         $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json --root /tmp/bp-files
 
+# a module from a local zip release, resolved against the blueprint
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/bp-files/zips
+    if [[ ! -f /tmp/bp-files/zips/CustomVocab.zip ]]; then
+        rm -rf /tmp/bp-files/zips/CustomVocab
+        git clone -q --depth 1 https://github.com/omeka-s-modules/CustomVocab.git /tmp/bp-files/zips/CustomVocab
+        (cd /tmp/bp-files/zips && zip -qr CustomVocab.zip CustomVocab)
+    fi
+    printf '{ "modules": [ { "name": "CustomVocab", "state": "download", "source": "./zips/CustomVocab.zip" } ] }' \
+        > /tmp/bp-files/zip.blueprint.json
+fi
+run            "remove a module left by an earlier run"                    $CLI module:delete CustomVocab --force --ignore-not-found
+assert_success "blueprint:deploy downloads a module from a local zip"      $CLI blueprint:deploy /tmp/bp-files/zip.blueprint.json --skip core --force
+assert_output_contains "the module is on disk, not installed" "not_installed"  $CLI module:status CustomVocab
+run            "delete the module from the local zip"                      $CLI module:delete CustomVocab --force
+
 # files from URLs: a plain copy, and a ZIP whose single top-level directory is stripped on extract
 SPEC=https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json
 if [[ $SECTION_SKIP -eq 0 ]]; then

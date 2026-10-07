@@ -517,4 +517,43 @@ class BlueprintLoaderTest extends TestCase
 
         $this->assertSame(['X', 'Common', 'Y'], (new BlueprintLoader())->load($base)->modules());
     }
+
+    // ── add-on `source`: local zip releases ─────────────────────────────────────────────────────
+
+    public function testModuleZipSourceResolvesAgainstTheDeclaringFile(): void
+    {
+        $this->writeIn('modules/list.jsonc', '[ { "name": "Common", "source": "./zips/Common-3.4.71.zip" } ]');
+        $base = $this->writeIn('base.jsonc', json_encode([
+            'modules' => [['$import' => './modules/list.jsonc']],
+            'themes' => [['name' => 'freedom', 'source' => 'themes/freedom.zip']],
+        ]));
+
+        $blueprint = (new BlueprintLoader())->load($base);
+        $this->assertSame($this->dir . '/modules/zips/Common-3.4.71.zip', $blueprint->modules()[0]['source']);
+        $this->assertSame($this->dir . '/themes/freedom.zip', $blueprint->themes()[0]['source']);
+    }
+
+    public function testNonPathAddonSourcesAreLeftAsIs(): void
+    {
+        $sources = [
+            'gh:Daniel-KM/Omeka-S-module-Common#3.4.71',
+            'https://github.com/Daniel-KM/Omeka-S-module-Log.git',
+            'git@github.com:Daniel-KM/Omeka-S-module-Log.git',
+            'https://example.org/AdvancedSearch-3.4.22.zip',
+        ];
+        $base = $this->write('base.jsonc', json_encode([
+            'modules' => array_map(fn($s, $i) => ['name' => "M{$i}", 'source' => $s], $sources, array_keys($sources)),
+        ]));
+
+        $this->assertSame($sources, array_column((new BlueprintLoader())->load($base)->modules(), 'source'));
+    }
+
+    public function testAbsoluteAddonSourceIsRejected(): void
+    {
+        $base = $this->write('base.jsonc', '{ "modules": [ { "name": "Common", "source": "/tmp/Common.zip" } ] }');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/absolute path/');
+        (new BlueprintLoader())->load($base);
+    }
 }

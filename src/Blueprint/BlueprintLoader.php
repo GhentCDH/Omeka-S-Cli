@@ -38,13 +38,24 @@ class BlueprintLoader
      * the imported config's location, not the top-level blueprint's.
      */
     private const ASSET_FIELDS = [
+        'modules' => ['source'],
+        'themes' => ['source'],
         'files' => ['source'],
         'vocabularies' => ['source'],
         'resourceTemplates' => ['source'],
     ];
 
+    /**
+     * Lists whose asset field may also hold a non-file reference (a git URL, gh:owner/repo) that the
+     * download commands interpret themselves: only a path-form value is resolved there.
+     */
+    private const ADDON_KEYS = ['modules', 'themes'];
+
     /** An absolute filesystem path (POSIX, UNC/backslash, Windows drive) or a file: URL. */
     private const ABSOLUTE_PATTERN = '#^(/|\\\\|[A-Za-z]:[\\\\/]|file:)#i';
+
+    /** A URI scheme (two characters or more, so a Windows drive letter is not one). */
+    private const SCHEME_PATTERN = '#^[A-Za-z][A-Za-z0-9+.-]+:#';
 
     /** Absolute sources currently being resolved, to detect circular imports. */
     private array $visiting = [];
@@ -335,7 +346,8 @@ class BlueprintLoader
 
     /**
      * Resolve an inline item's relative asset fields (see ASSET_FIELDS) against the source that
-     * declares it. Repo-aware references become raw URLs; URLs pass through.
+     * declares it. Repo-aware references become raw URLs; URLs pass through. For add-ons only a
+     * path-form source is resolved; a git URL or gh:owner/repo is left to the download commands.
      *
      * @param mixed  $entry  The inline item
      * @param string $source The source declaring the item (for relative resolution)
@@ -352,9 +364,25 @@ class BlueprintLoader
             if (!isset($entry[$field]) || !is_string($entry[$field]) || trim($entry[$field]) === '') {
                 continue;
             }
+            if (in_array($key, self::ADDON_KEYS, true) && !$this->isAddonPath($entry[$field])) {
+                continue;
+            }
             $entry[$field] = $this->reference($entry[$field], $source);
         }
         return $entry;
+    }
+
+    /**
+     * Whether an add-on source is a path (a local zip release) rather than a URL, a git address or a
+     * scheme-prefixed reference. An absolute path counts as a path, so reference() rejects it.
+     */
+    private function isAddonPath(string $value): bool
+    {
+        $value = trim($value);
+        if (preg_match(self::ABSOLUTE_PATTERN, $value) === 1) {
+            return true;
+        }
+        return preg_match(self::SCHEME_PATTERN, $value) !== 1 && !str_starts_with($value, 'git@');
     }
 
     private function isReference(mixed $entry): bool

@@ -119,7 +119,7 @@ re-running it skips resources that already exist (pass `--update` to refresh the
 Paths inside a blueprint are relative to the file that declares them, and must stay inside the
 blueprint's directory: absolute paths and `file:` URLs are rejected, and `--root <dir>` widens the
 allowed directory (e.g. `--root examples` for [examples/blueprint/](examples/blueprint/), which uses a
-resource template from `../resource-template`).
+resource template from `../resource-template`). A module or theme `source` may be a local zip release.
 
 It can also **build a site from scratch**: the core phase downloads and installs Omeka S, so one
 command goes from an empty server to a running site. Database details are passed as flags only. The
