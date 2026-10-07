@@ -6,4 +6,7 @@ return [
     new AddCommand(),
     new UpdateCommand(),
     new DeleteCommand(),
+    new ListPermissionsCommand(),
+    new SetPermissionCommand(),
+    new DeletePermissionCommand(),
 ];

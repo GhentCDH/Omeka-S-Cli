@@ -474,6 +474,31 @@ assert_success "site:update finds a site by its numeric slug"                  $
 assert_output_is "the numeric-slug site was updated" "Year Site Renamed"       bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"2024\") | .title'"
 assert_success "delete the numeric-slug site"                                  $CLI site:delete 2024
 
+# permissions: o:site_permission replaces the whole list, so changing one must keep the others
+assert_success "create a user for the permission checks"                       $CLI user:add site-editor@example.com "Site Editor" editor secret123
+assert_success "site:list-permissions lists the creating admin"                $CLI site:list-permissions it-site
+assert_success "grant the user a site role"                                    $CLI site:set-permission it-site site-editor@example.com editor
+assert_output_is "the permission is listed" "editor"                           bash -c "$CLI site:list-permissions it-site --json | jq -r '.[] | select(.email==\"site-editor@example.com\") | .role'"
+assert_output_contains "granting the same role again only warns" "already"     $CLI site:set-permission it-site site-editor@example.com editor
+assert_success "change the user's site role"                                   $CLI site:set-permission it-site site-editor@example.com admin
+assert_output_is "the role was really changed" "admin"                         bash -c "$CLI site:list-permissions it-site --json | jq -r '.[] | select(.email==\"site-editor@example.com\") | .role'"
+assert_output_is "the creating admin kept its permission" "2"                  bash -c "$CLI site:list-permissions it-site --json | jq 'length'"
+assert_fail    "site:set-permission rejects an invalid role"                   $CLI site:set-permission it-site site-editor@example.com owner
+assert_fail    "site:set-permission on a missing user fails"                   $CLI site:set-permission it-site ghost@example.com viewer
+assert_fail    "site:set-permission on a missing site fails"                   $CLI site:set-permission ghost-site site-editor@example.com viewer
+assert_success "delete the user's permission"                                  $CLI site:delete-permission it-site site-editor@example.com
+assert_output_is "only the creating admin is left" "1"                         bash -c "$CLI site:list-permissions it-site --json | jq 'length'"
+assert_fail    "deleting a permission that is gone fails"                      $CLI site:delete-permission it-site site-editor@example.com
+assert_success "site:delete-permission --ignore-not-found skips a missing permission" $CLI site:delete-permission it-site site-editor@example.com --ignore-not-found
+assert_success "site:delete-permission --ignore-not-found skips a missing site"       $CLI site:delete-permission ghost-site site-editor@example.com --ignore-not-found
+
+# --owner: the owner becomes the only site admin (instead of the elevated global admin)
+assert_success "create a site with an explicit owner"                          $CLI site:add "Owned Site" --slug it-owned --owner site-editor@example.com
+assert_output_is "the owner is set" "site-editor@example.com"                  bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-owned\") | .owner'"
+assert_output_is "the owner is the only permission" "site-editor@example.com:admin" bash -c "$CLI site:list-permissions it-owned --json | jq -r '.[] | \"\\(.email):\\(.role)\"'"
+assert_success "delete the owned site"                                         $CLI site:delete it-owned
+run            "remove the permission test user"                               $CLI user:delete site-editor@example.com
+
 # --ignore-not-found: skip a missing site, but never a mistake in the command itself
 assert_success "site:update --ignore-not-found skips a missing site"           $CLI site:update ghost-site --title "Ghost" --ignore-not-found
 assert_output_is "the skip prints nothing with --json" ""                      bash -c "$CLI site:update ghost-site --title Ghost --ignore-not-found --json"
