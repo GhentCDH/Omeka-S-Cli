@@ -425,14 +425,15 @@ class BlueprintApplier
                 $this->createSite($site, $title, $slug, $label);
                 $current = [];
             } else {
-                $this->updateSite($site, $existing->slug(), $label);
+                $this->updateSite($site, (string) $existing->id(), $label);
                 $current = $siteApi->getPermissionMap($existing);
             }
 
-            // the site:* commands identify the site by slug; without one, Omeka derived it from the title
-            $ref = $existing?->slug() ?? $slug;
+            // pass the site:* commands the id of the site matched here: a slug of digits may also be
+            // another site's id. A created site is read back (without a slug, Omeka derived one).
+            $ref = $existing?->id();
             if ($ref === null && !$this->dryRun) {
-                $ref = $siteApi->findSiteByTitle($title)?->slug();
+                $ref = ($slug !== null ? $siteApi->findSiteBySlug($slug) : $siteApi->findSiteByTitle($title))?->id();
             }
             $this->applySitePermissions($site['permissions'] ?? [], (string) $ref, $label, $current);
         }
@@ -459,7 +460,7 @@ class BlueprintApplier
     }
 
     /** With --update, bring an existing site's fields in line with the blueprint. */
-    private function updateSite(array $site, string $existingSlug, string $label): void
+    private function updateSite(array $site, string $existingId, string $label): void
     {
         if (!$this->update) {
             $this->command->warn("site '{$label}' already exists, skipping (use --update to update it).", true);
@@ -471,7 +472,7 @@ class BlueprintApplier
         }
         $isPublic = (bool) ($site['isPublic'] ?? true);
         $this->run('site:update', fn($c) => $c->execute(
-            $existingSlug,
+            $existingId,
             $site['title'],
             null,
             $site['summary'] ?? '',
@@ -488,7 +489,7 @@ class BlueprintApplier
 
     /**
      * @param array                $permissions The blueprint permissions of the site
-     * @param string               $ref         Slug the site:* commands identify the site by
+     * @param string               $ref         Id the site:* commands identify the site by
      * @param string               $label       The site, for messages
      * @param array<string,string> $current     Lower-cased email => role the site has now
      */

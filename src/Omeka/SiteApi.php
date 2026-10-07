@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Omeka;
 
+use InvalidArgumentException;
 use Laminas\ServiceManager\ServiceManager;
 use Omeka\Api\Exception\NotFoundException;
 use Omeka\Api\Manager as ApiManager;
@@ -35,19 +36,29 @@ class SiteApi
     }
 
     /**
-     * Find a site by id or slug. A numeric value is tried as an id first, then as a slug (a slug may
-     * consist of digits only).
+     * Find a site by id or slug. A slug may consist of digits only, so a value of digits is tried both
+     * as an id and as a slug; when those are two different sites, the value is ambiguous.
+     *
+     * @throws InvalidArgumentException If the value is one site's id and another site's slug
      */
     public function findSite(string $idOrSlug): ?SiteRepresentation
     {
-        if (is_numeric($idOrSlug)) {
-            try {
-                return $this->api()->read('sites', (int) $idOrSlug)->getContent();
-            } catch (NotFoundException) {
-                // not an id: try it as a slug
-            }
+        $bySlug = $this->findSiteBySlug($idOrSlug);
+        if (!ctype_digit($idOrSlug)) {
+            return $bySlug;
         }
-        return $this->findSiteBySlug($idOrSlug);
+        try {
+            $byId = $this->api()->read('sites', (int) $idOrSlug)->getContent();
+        } catch (NotFoundException) {
+            return $bySlug;
+        }
+        if ($bySlug && $bySlug->id() !== $byId->id()) {
+            throw new InvalidArgumentException(
+                "'{$idOrSlug}' is ambiguous: it is the id of site '{$byId->slug()}' and the slug of site "
+                . "{$bySlug->id()}. Use site '{$byId->slug()}' or site {$bySlug->id()} instead."
+            );
+        }
+        return $byId;
     }
 
     public function findSiteBySlug(string $slug): ?SiteRepresentation

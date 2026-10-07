@@ -474,6 +474,17 @@ assert_success "site:update finds a site by its numeric slug"                  $
 assert_output_is "the numeric-slug site was updated" "Year Site Renamed"       bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"2024\") | .title'"
 assert_success "delete the numeric-slug site"                                  $CLI site:delete 2024
 
+# a numeric slug equal to another site's id is ambiguous: refuse, rather than act on the wrong site
+IT_SITE_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    IT_SITE_ID=$($CLI site:list --json | jq -r '.[] | select(.slug=="it-site") | .id')
+fi
+run            "remove a site left by an earlier run"                          bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Colliding Site\") | .id' | xargs -r -n1 $CLI site:delete"
+assert_success "create a site whose slug is another site's id"                 $CLI site:add "Colliding Site" --slug "$IT_SITE_ID"
+assert_fail    "site:update refuses an id that is also another site's slug"    $CLI site:update "$IT_SITE_ID" --title "Wrong Site"
+assert_output_is "the site with that id was not touched" "Renamed Site"        bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .title'"
+run            "delete the colliding site"                                     bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Colliding Site\") | .id' | xargs -r -n1 $CLI site:delete"
+
 # permissions: o:site_permission replaces the whole list, so changing one must keep the others
 assert_success "create a user for the permission checks"                       $CLI user:add site-editor@example.com "Site Editor" editor secret123
 assert_success "site:list-permissions lists the creating admin"                $CLI site:list-permissions it-site
@@ -729,6 +740,23 @@ assert_output_is "the re-run did not duplicate the slug-less site" "1"     bash 
 assert_success "blueprint:deploy --update reconciles the sites"            $CLI blueprint:deploy /tmp/bp-files/sites-update.blueprint.json --skip core --force --update
 assert_output_is "--update made site B public" "true"                      bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .is_public'"
 assert_output_is "--update changed the role" "admin"                       bash -c "$CLI site:list-permissions bp-site-a --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+
+# a blueprint site whose slug is another site's id: the applier must act on the site it matched,
+# not on the site with that id
+BP_SITE_A_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    BP_SITE_A_ID=$($CLI site:list --json | jq -r '.[] | select(.slug=="bp-site-a") | .id')
+    cat > /tmp/bp-files/sites-collide.blueprint.json <<JSON
+{ "users": [ { "email": "bp-site-editor@example.com", "role": "editor" } ],
+  "sites": [ { "title": "Blueprint Collide", "slug": "$BP_SITE_A_ID",
+               "permissions": [ { "user": "bp-site-editor@example.com", "role": "viewer" } ] } ] }
+JSON
+fi
+run            "remove a site left by an earlier run"                      bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Collide\") | .id' | xargs -r -n1 $CLI site:delete"
+assert_success "blueprint:deploy a site whose slug is another site's id"   $CLI blueprint:deploy /tmp/bp-files/sites-collide.blueprint.json --skip core --force
+assert_output_is "the permission went to the matched site" "viewer"        bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Collide\") | .id' | xargs -I{} $CLI site:list-permissions {} --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+assert_output_is "the site with that id kept its role" "admin"             bash -c "$CLI site:list-permissions bp-site-a --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+run            "delete the colliding site"                                 bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Collide\") | .id' | xargs -r -n1 $CLI site:delete"
 
 # export the live instance and check the result round-trips through validate
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
