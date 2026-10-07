@@ -436,6 +436,55 @@ assert_success "user:update-password --ignore-not-found on an existing user"   $
 assert_success "user:delete --ignore-not-found deletes an existing user"       $CLI user:delete ignore@example.com --ignore-not-found
 assert_fail    "the user is really gone"                                       $CLI user:exists ignore@example.com
 
+# ── sites ────────────────────────────────────────────────────────────────────
+
+section "Sites"
+
+run            "remove a site left by an earlier run"                          $CLI site:delete it-site --ignore-not-found
+run            "remove a site left by an earlier run"                          $CLI site:delete 2024 --ignore-not-found
+run            "remove a site left by an earlier run"                          $CLI site:delete it-owned --ignore-not-found
+run            "remove a user left by an earlier run"                          $CLI user:delete site-editor@example.com --ignore-not-found
+
+assert_success "site:list returns results"                                     $CLI site:list
+assert_success "create a site"                                                 $CLI site:add "Integration Site" --slug it-site --summary "A test site"
+assert_output_is "the site got the default theme" "default"                    bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .theme'"
+assert_output_is "the site is public" "true"                                   bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_public'"
+assert_fail    "creating a site with an existing slug fails"                   $CLI site:add "Other Site" --slug it-site
+assert_success "site:add --ignore-existing skips an existing slug"             $CLI site:add "Other Site" --slug it-site --ignore-existing
+assert_fail    "site:add rejects an invalid slug"                              $CLI site:add "Bad Site" --slug "bad slug"
+assert_fail    "site:add rejects a theme that is not installed"                $CLI site:add "Bad Site" --slug it-bad --theme no-such-theme
+
+assert_success "update the site title"                                         $CLI site:update it-site --title "Renamed Site"
+assert_output_contains "site:update --json shows the new title" "Renamed Site" bash -c "$CLI site:update it-site --title 'Renamed Site' --json"
+# a partial update keeps the pages Omeka created with the site (a full update would delete them)
+assert_output_is "the update kept the site's welcome page" "1"                 bash -c "curl -s 'http://localhost/api/sites?slug=it-site' | jq '.[0][\"o:page\"] | length'"
+assert_success "a theme in other casing is accepted"                           $CLI site:update it-site --theme Default
+assert_output_is "the theme is stored as its real id" "default"                bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .theme'"
+assert_success "make the site private"                                         $CLI site:update it-site --private
+assert_output_is "the site is private" "false"                                 bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_public'"
+assert_fail    "site:update rejects --public with --private"                   $CLI site:update it-site --public --private
+assert_fail    "site:update rejects an invalid slug"                           $CLI site:update it-site --slug "bad slug"
+assert_success "make it the default site"                                      $CLI site:update it-site --default
+assert_output_is "the site is the default" "true"                              bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_default'"
+assert_fail    "update a nonexistent site fails"                               $CLI site:update no-such-site --title "Foo"
+
+# a numeric slug still finds its site (tried as an id first, then as a slug)
+assert_success "create a site with a numeric slug"                             $CLI site:add "Year Site" --slug 2024
+assert_success "site:update finds a site by its numeric slug"                  $CLI site:update 2024 --title "Year Site Renamed"
+assert_output_is "the numeric-slug site was updated" "Year Site Renamed"       bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"2024\") | .title'"
+assert_success "delete the numeric-slug site"                                  $CLI site:delete 2024
+
+# --ignore-not-found: skip a missing site, but never a mistake in the command itself
+assert_success "site:update --ignore-not-found skips a missing site"           $CLI site:update ghost-site --title "Ghost" --ignore-not-found
+assert_output_is "the skip prints nothing with --json" ""                      bash -c "$CLI site:update ghost-site --title Ghost --ignore-not-found --json"
+assert_fail    "--ignore-not-found still rejects an invalid slug"              $CLI site:update ghost-site --slug "bad slug" --ignore-not-found
+assert_success "site:delete --ignore-not-found skips a missing site"           $CLI site:delete ghost-site --ignore-not-found
+
+assert_success "delete the site"                                               $CLI site:delete it-site
+assert_output_is "the site is really gone" ""                                  bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .slug'"
+assert_fail    "deleting the default site cleared default_site"                $CLI config:get default_site
+assert_fail    "delete a nonexistent site fails"                               $CLI site:delete it-site
+
 # ── vocabularies ─────────────────────────────────────────────────────────────
 
 section "Vocabularies"

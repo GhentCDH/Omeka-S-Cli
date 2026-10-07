@@ -12,6 +12,7 @@ class OmekaInstance
     protected ?Application $application;
     protected ?ModuleApi $moduleApi;
     protected ?ThemeApi $themeApi;
+    protected ?SiteApi $siteApi;
 
     private string $path;
 
@@ -39,6 +40,7 @@ class OmekaInstance
             // init apis
             $this->themeApi = new ThemeApi($this->getServiceManager());
             $this->moduleApi = new ModuleApi($this->getServiceManager());
+            $this->siteApi = new SiteApi($this->getServiceManager());
 
             // restore current working directory
             if ($cwd) {
@@ -87,6 +89,11 @@ class OmekaInstance
     public function getModuleApi(): ModuleApi
     {
         return $this->moduleApi;
+    }
+
+    public function getSiteApi(): SiteApi
+    {
+        return $this->siteApi;
     }
 
     public function elevatePrivileges(): void
