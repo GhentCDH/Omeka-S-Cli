@@ -216,14 +216,15 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame($this->dir . '/schema.rdf', $vocabs[0]['source']);
     }
 
-    public function testInlineVocabularyAbsolutePathSourceUnchanged(): void
+    public function testInlineVocabularyAbsolutePathSourceIsRejected(): void
     {
         $base = $this->writeIn('site.jsonc', json_encode([
             'vocabularies' => [$this->vocab(['source' => '/abs/schema.rdf'])],
         ]));
 
-        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
-        $this->assertSame('/abs/schema.rdf', $vocabs[0]['source']);
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/absolute path/');
+        (new BlueprintLoader())->load($base);
     }
 
     public function testInlineVocabularyUrlSourceUnchanged(): void
@@ -333,11 +334,10 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame($this->dir . '/files/a.php', $files[0]['source']);
     }
 
-    public function testFileAbsoluteSourcesUnchangedAndRepoReferenceBecomesRawUrl(): void
+    public function testFileUrlSourceUnchangedAndRepoReferenceBecomesRawUrl(): void
     {
         $base = $this->writeIn('site.jsonc', json_encode([
             'files' => [
-                ['source' => '/abs/a.php', 'destination' => 'config/a.php'],
                 ['source' => 'https://example.org/b.zip', 'destination' => 'files/b', 'extract' => true],
                 ['source' => 'gh:owner/repo@v1:config/c.php', 'destination' => 'config/c.php'],
             ],
@@ -345,7 +345,6 @@ class BlueprintLoaderTest extends TestCase
 
         $sources = array_column((new BlueprintLoader())->load($base)->files(), 'source');
         $this->assertSame([
-            '/abs/a.php',
             'https://example.org/b.zip',
             'https://raw.githubusercontent.com/owner/repo/v1/config/c.php',
         ], $sources);
@@ -353,12 +352,12 @@ class BlueprintLoaderTest extends TestCase
 
     public function testFilesDeduplicateByDestination(): void
     {
-        $this->write('files.jsonc', '[{ "source": "/abs/a.php", "destination": "config/a.php" }]');
+        $this->write('files.jsonc', '[{ "source": "a.php", "destination": "config/a.php" }]');
         $base = $this->write('base.jsonc', <<<JSONC
         {
             "files": [
                 { "\$import": "./files.jsonc" },
-                { "source": "/abs/b.php", "destination": "config/a.php" }
+                { "source": "b.php", "destination": "config/a.php" }
             ]
         }
         JSONC);
@@ -366,7 +365,7 @@ class BlueprintLoaderTest extends TestCase
         $loader = new BlueprintLoader();
         $files = $loader->load($base)->files();
 
-        $this->assertSame([['source' => '/abs/b.php', 'destination' => 'config/a.php']], $files);
+        $this->assertSame([['source' => $this->dir . '/b.php', 'destination' => 'config/a.php']], $files);
         $this->assertNotEmpty($loader->takeWarnings());
     }
 
@@ -395,6 +394,86 @@ class BlueprintLoaderTest extends TestCase
         $this->assertCount(2, $warnings);
         $this->assertStringContainsString("sites: 'site-b'", $warnings[0]);
         $this->assertStringContainsString("sites: 'site a'", $warnings[1]);
+    }
+
+    // ── references: absolute paths, file: URLs and the blueprint root ───────────────────────────
+
+    public function testAbsoluteImportIsRejected(): void
+    {
+        $this->write('more.jsonc', '["B"]');
+        $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => $this->dir . '/more.jsonc']]]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/absolute path/');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testFileUrlImportIsRejected(): void
+    {
+        $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => 'file:///etc/passwd']]]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/file: URL/');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testAbsoluteSettingsImportIsRejected(): void
+    {
+        $this->write('s.jsonc', '{ "a": 1 }');
+        $base = $this->write('base.jsonc', json_encode(['settings' => [['$import' => $this->dir . '/s.jsonc']]]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/absolute path/');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testRelativeImportEscapingTheRootIsRejected(): void
+    {
+        $this->writeIn('shared/modules.jsonc', '["B"]');
+        $base = $this->writeIn('site/base.jsonc', '{ "modules": [ { "$import": "../shared/modules.jsonc" } ] }');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/outside the blueprint root/');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testWiderRootAllowsAnEscapingImport(): void
+    {
+        $this->writeIn('shared/modules.jsonc', '["B"]');
+        $base = $this->writeIn('site/base.jsonc', '{ "modules": [ "A", { "$import": "../shared/modules.jsonc" } ] }');
+
+        $modules = (new BlueprintLoader(null, $this->dir))->load($base)->modules();
+        $this->assertSame(['A', 'B'], $modules);
+    }
+
+    public function testUpwardImportInsideTheRootIsAllowed(): void
+    {
+        // vocab/deep/x.jsonc -> ../shared.jsonc stays inside the blueprint's directory
+        $this->writeIn('vocab/shared.jsonc', '["B"]');
+        $this->writeIn('vocab/deep/list.jsonc', '[ { "$import": "../shared.jsonc" } ]');
+        $base = $this->writeIn('base.jsonc', '{ "modules": [ { "$import": "./vocab/deep/list.jsonc" } ] }');
+
+        $this->assertSame(['B'], (new BlueprintLoader())->load($base)->modules());
+    }
+
+    public function testSourceEscapingTheRootIsRejected(): void
+    {
+        $base = $this->writeIn('site/base.jsonc', json_encode([
+            'files' => [['source' => '../../../../../../etc/passwd', 'destination' => 'files/x']],
+        ]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/outside the blueprint root/');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testMissingRootIsRejected(): void
+    {
+        $base = $this->write('base.jsonc', '{ "modules": ["A"] }');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/not a directory/');
+        (new BlueprintLoader(null, $this->dir . '/missing'))->load($base);
     }
 
     // ── import cycles and settings imports ──────────────────────────────────────────────────────

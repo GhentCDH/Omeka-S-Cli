@@ -46,6 +46,7 @@ class DeployCommand extends AbstractBlueprintCommand
         // internal: phases already applied by an earlier stage of a multi-process deploy; kept silent
         // rather than reported as skipped. Set automatically when the deploy re-executes itself.
         $this->option('--defer', 'Internal: phases already applied by a previous deploy stage');
+        $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
         $this->optionDryRun();
 
         // Core phase: database connection (secrets come from flags, never the blueprint)
@@ -81,6 +82,7 @@ class DeployCommand extends AbstractBlueprintCommand
         ?string $adminName = null,
         ?string $adminEmail = null,
         ?string $adminPassword = null,
+        ?string $root = null,
     ): void {
         $skipPhases = $this->parsePhases($skip);
         $deferPhases = $this->parsePhases($defer);
@@ -92,7 +94,7 @@ class DeployCommand extends AbstractBlueprintCommand
         if (!$isContinuation) {
             $this->note("Loading blueprint from '{$source}' ...", true);
         }
-        $loader = new BlueprintLoader();
+        $loader = new BlueprintLoader(null, $root);
         $blueprint = $loader->load($source);
         $loaderWarnings = $loader->takeWarnings();
         if (!$isContinuation) {
@@ -152,7 +154,7 @@ class DeployCommand extends AbstractBlueprintCommand
                 $core->run($blueprint, $targetPath, $database, $admin, $force);
 
                 // core is installed now: run the remaining phases in a fresh process so it is seen
-                $this->reExecRemaining($source, $skipPhases, $this->mergeSkip($deferPhases, ['core']), $update, 'Core installed');
+                $this->reExecRemaining($source, $root, $skipPhases, $this->mergeSkip($deferPhases, ['core']), $update, 'Core installed');
                 return;
             }
         } elseif (!$dryRun && !$coreDeferred) {
@@ -177,7 +179,7 @@ class DeployCommand extends AbstractBlueprintCommand
 
             // stage 2: the deferred phases, now that the modules are active
             $stage2Defer = $this->mergeSkip($deferPhases, self::IN_PROCESS_PHASES);
-            $this->reExecRemaining($source, $skipPhases, $stage2Defer, $update, 'Modules ready');
+            $this->reExecRemaining($source, $root, $skipPhases, $stage2Defer, $update, 'Modules ready');
             return;
         }
 
@@ -223,12 +225,13 @@ class DeployCommand extends AbstractBlueprintCommand
     /**
      * Re-run deploy for the remaining phases in a fresh process (so just-installed core/modules are
      * active there). Phases already done are passed as --defer (silent), the user's --skip is carried
-     * through, and $reason explains the reload.
+     * through, and $reason explains the reload. The blueprint root is carried too, so the new process
+     * accepts the same references.
      *
      * @param string[] $skip
      * @param string[] $defer
      */
-    private function reExecRemaining(string $source, array $skip, array $defer, bool $update, string $reason): void
+    private function reExecRemaining(string $source, ?string $root, array $skip, array $defer, bool $update, string $reason): void
     {
         if (!array_diff(self::PHASES, $skip, $defer)) {
             $this->ok('Blueprint deployed.', true);
@@ -245,6 +248,10 @@ class DeployCommand extends AbstractBlueprintCommand
         }
         if ($update) {
             $arguments[] = '--update';
+        }
+        if ($root !== null) {
+            $arguments[] = '--root';
+            $arguments[] = $root;
         }
         $this->debug("{$reason}, continuing in a new process ...", true);
         $exitCode = $this->runInNewProcess($arguments);

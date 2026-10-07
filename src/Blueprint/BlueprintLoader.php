@@ -15,6 +15,11 @@ use Otar\JSONC;
  * contain further `$import` entries). Referenced sources are resolved relative to the file/URL that
  * contains them. Circular references are detected and rejected.
  *
+ * References written in a blueprint (`$import` and the asset fields) must be URLs, repo-aware
+ * references or relative paths: absolute paths and `file:` URLs are rejected, and a relative path
+ * that resolves outside the blueprint root (by default the top-level blueprint's directory) is
+ * rejected too, so a blueprint can never reach an arbitrary file on the local filesystem.
+ *
  * De-duplication: within a resolved list, entries sharing a natural identity (module/theme `name`,
  * file `destination`, vocabulary `prefix`, resource-template `label`, user `email`, item/item-set
  * `title`) collapse to the last occurrence, so a later inline entry — or a later import — overrides
@@ -38,6 +43,9 @@ class BlueprintLoader
         'resourceTemplates' => ['source'],
     ];
 
+    /** An absolute filesystem path (POSIX, UNC/backslash, Windows drive) or a file: URL. */
+    private const ABSOLUTE_PATTERN = '#^(/|\\\\|[A-Za-z]:[\\\\/]|file:)#i';
+
     /** Absolute sources currently being resolved, to detect circular imports. */
     private array $visiting = [];
 
@@ -47,7 +55,15 @@ class BlueprintLoader
     /** Resolves repo-aware and relative references (`$import`) into fetchable paths/URLs. */
     private ReferenceResolver $resolver;
 
-    public function __construct(?ReferenceResolver $resolver = null)
+    /** Local directory every local reference must stay inside, for the current load (null: none). */
+    private ?string $root = null;
+
+    /**
+     * @param ReferenceResolver|null $resolver Resolver for repo-aware and relative references
+     * @param string|null            $rootOverride Directory local references must stay inside; defaults
+     *                                             to the directory of the top-level blueprint
+     */
+    public function __construct(?ReferenceResolver $resolver = null, private ?string $rootOverride = null)
     {
         $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
     }
@@ -57,7 +73,7 @@ class BlueprintLoader
      *
      * @param string $source Path or URL to the blueprint (a repo-aware reference is accepted too)
      * @return Blueprint The normalized, import-resolved blueprint
-     * @throws Exception On fetch/parse errors or circular imports
+     * @throws Exception On fetch/parse errors, circular imports or a reference outside the root
      */
     public function load(string $source): Blueprint
     {
@@ -109,12 +125,32 @@ class BlueprintLoader
         });
     }
 
-    /** Reset the per-load state and resolve the top-level source. */
+    /**
+     * Reset the per-load state and resolve the top-level source. The top-level source is given by the
+     * user, not written in a blueprint, so it may be absolute; it sets the default blueprint root.
+     */
     private function begin(string $source): string
     {
         $this->warnings = [];
         $this->visiting = [];
-        return $this->resolver->resolve($source);
+        $source = $this->resolver->resolve($source);
+
+        if (ResourceFetcher::isFile($source)) {
+            // an absolute top-level path makes every local reference below it absolute too
+            $source = realpath($source) ?: $source;
+        }
+
+        $this->root = null;
+        if ($this->rootOverride !== null) {
+            $root = realpath($this->rootOverride);
+            if ($root === false || !is_dir($root)) {
+                throw new Exception("Blueprint root '{$this->rootOverride}' is not a directory.");
+            }
+            $this->root = $root;
+        } elseif (ResourceFetcher::isFile($source)) {
+            $this->root = dirname($source);
+        }
+        return $source;
     }
 
     /** Decode jsonc content that must be a JSON object (not a list); $source is used for errors only. */
@@ -223,8 +259,8 @@ class BlueprintLoader
     }
 
     /**
-     * The single path for an `$import`: resolve the reference against the source that contains it,
-     * guard against cycles, then fetch, decode and hand the data to $resolve.
+     * The single path for an `$import`: check and resolve the reference against the source that
+     * contains it, guard against cycles, then fetch, decode and hand the data to $resolve.
      *
      * @param mixed    $raw     The `$import` value
      * @param string   $base    The source containing the reference
@@ -236,7 +272,7 @@ class BlueprintLoader
         if (!is_string($raw) || trim($raw) === '') {
             throw new Exception("An \$import in '{$base}' must be a non-empty string.");
         }
-        $ref = $this->resolver->resolve($raw, $base);
+        $ref = $this->reference($raw, $base);
         return $this->guarded($ref, fn() => $resolve($this->decode(ResourceFetcher::fetch($ref)), $ref));
     }
 
@@ -261,13 +297,51 @@ class BlueprintLoader
     }
 
     /**
+     * Turn a reference written in a blueprint into a fetchable path or URL: reject absolute paths and
+     * file: URLs, resolve it against the source that contains it, and require a local result to stay
+     * inside the blueprint root. A URL result needs no check: a relative reference in a remote file
+     * always resolves to a URL.
+     *
+     * @throws Exception
+     */
+    private function reference(string $raw, string $base): string
+    {
+        $raw = trim($raw);
+        if (preg_match(self::ABSOLUTE_PATTERN, $raw) === 1) {
+            throw new Exception(
+                "Reference '{$raw}' in '{$base}' is an absolute path or file: URL; use a relative path or a URL."
+            );
+        }
+
+        $ref = $this->resolver->resolve($raw, $base);
+        if (ResourceFetcher::isUrl($ref)) {
+            return $ref;
+        }
+        if ($this->root === null || !$this->isInside($ref, $this->root)) {
+            $root = $this->root ?? '(none: the blueprint is not a local file)';
+            throw new Exception(
+                "Reference '{$raw}' in '{$base}' resolves outside the blueprint root {$root}; use --root to widen it."
+            );
+        }
+        return $ref;
+    }
+
+    /** Whether a local path lies inside $root; an existing path is compared by its real path (symlinks). */
+    private function isInside(string $path, string $root): bool
+    {
+        $path = realpath($path) ?: $path;
+        return $path === $root || str_starts_with($path, rtrim($root, '/') . '/');
+    }
+
+    /**
      * Resolve an inline item's relative asset fields (see ASSET_FIELDS) against the source that
-     * declares it. Repo-aware references become raw URLs; absolute paths and URLs pass through.
+     * declares it. Repo-aware references become raw URLs; URLs pass through.
      *
      * @param mixed  $entry  The inline item
      * @param string $source The source declaring the item (for relative resolution)
      * @param string $key    The list key (selects which fields are asset references)
      * @return mixed The item with its asset fields resolved
+     * @throws Exception
      */
     private function resolveItemAssets(mixed $entry, string $source, string $key): mixed
     {
@@ -275,9 +349,10 @@ class BlueprintLoader
             return $entry;
         }
         foreach (self::ASSET_FIELDS[$key] ?? [] as $field) {
-            if (isset($entry[$field]) && is_string($entry[$field]) && trim($entry[$field]) !== '') {
-                $entry[$field] = $this->resolver->resolve($entry[$field], $source);
+            if (!isset($entry[$field]) || !is_string($entry[$field]) || trim($entry[$field]) === '') {
+                continue;
             }
+            $entry[$field] = $this->reference($entry[$field], $source);
         }
         return $entry;
     }

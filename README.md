@@ -106,7 +106,7 @@ A small blueprint (jsonc — comments and trailing commas allowed):
         { "prefix": "schema", "namespaceUri": "https://schema.org/", "label": "schema.org",
           "source": "https://schema.org/version/latest/schemaorg-current-https.rdf" }
     ],
-    "resourceTemplates": [ { "source": "../resource-template/base_resource.json" } ],
+    "resourceTemplates": [ { "source": "./templates/base_resource.json" } ],
     "files": [ { "source": "./cleanurl.config.php", "destination": "config/cleanurl.config.php" } ],
     "settings": { "installation_title": "Blueprint Demo" }
 }
@@ -115,6 +115,11 @@ A small blueprint (jsonc — comments and trailing commas allowed):
 `blueprint:deploy` runs the phases in order (core → modules → themes → files → vocabularies → resource
 templates → users → sites → settings), reusing the same commands documented above, and is idempotent —
 re-running it skips resources that already exist (pass `--update` to refresh them).
+
+Paths inside a blueprint are relative to the file that declares them, and must stay inside the
+blueprint's directory: absolute paths and `file:` URLs are rejected, and `--root <dir>` widens the
+allowed directory (e.g. `--root examples` for [examples/blueprint/](examples/blueprint/), which uses a
+resource template from `../resource-template`).
 
 It can also **build a site from scratch**: the core phase downloads and installs Omeka S, so one
 command goes from an empty server to a running site. Database details are passed as flags only. The
