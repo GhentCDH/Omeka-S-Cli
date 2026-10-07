@@ -4,6 +4,7 @@ namespace OSC\Blueprint;
 use Exception;
 use OSC\Cache;
 use OSC\Helper\ResourceFetcher;
+use OSC\Helper\SiteConfig;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Validator;
 use Throwable;
@@ -56,6 +57,14 @@ class BlueprintValidator
     ];
 
     /**
+     * Partial types whose list has no $def in the schema (yet): each entry is validated against the
+     * item $def instead. Proposed upstream as a `siteList` def.
+     */
+    private const PARTIAL_ITEM_DEFS = [
+        'sites' => 'site',
+    ];
+
+    /**
      * Build a validator that loads the schema from the given source.
      *
      * @param string $schemaSource Where to load the schema from. Defaults to the shared repo URL
@@ -91,12 +100,36 @@ class BlueprintValidator
      */
     public function validatePartial(mixed $data, string $type): array
     {
+        if (isset(self::PARTIAL_ITEM_DEFS[$type])) {
+            return $this->validateItems($data, $type, self::PARTIAL_ITEM_DEFS[$type]);
+        }
         $def = self::PARTIAL_DEFS[$type] ?? null;
         if ($def === null) {
-            $known = implode(', ', array_keys(self::PARTIAL_DEFS));
+            $known = implode(', ', array_keys(self::PARTIAL_DEFS + self::PARTIAL_ITEM_DEFS));
             throw new Exception("Unknown partial type '{$type}'. Known types: {$known}.");
         }
         return $this->validateAgainst($data, self::SCHEMA_ID . '#/$defs/' . $def);
+    }
+
+    /**
+     * Validate a list partial entry by entry against an item $def, prefixing each error path with the
+     * entry's index.
+     *
+     * @return string[]
+     */
+    private function validateItems(mixed $data, string $type, string $itemDef): array
+    {
+        if (!is_array($data) || !array_is_list($data)) {
+            return ["/: must be a list of {$type}"];
+        }
+        $errors = [];
+        foreach ($data as $i => $entry) {
+            foreach ($this->validateAgainst($entry, self::SCHEMA_ID . '#/$defs/' . $itemDef) as $error) {
+                // "/: msg" (the entry itself) becomes "/1: msg"; "/title: msg" becomes "/1/title: msg"
+                $errors[] = '/' . $i . (str_starts_with($error, '/:') ? substr($error, 1) : $error);
+            }
+        }
+        return $errors;
     }
 
     public function schemaFile(): string
@@ -222,14 +255,37 @@ class BlueprintValidator
             }
         }
 
+        // a permission may name a blueprint user or the install admin (who exists once core is installed)
         $userEmails = [];
         foreach (($blueprint['users'] ?? []) as $user) {
             if (is_array($user) && isset($user['email'])) {
                 $userEmails[] = strtolower($user['email']);
             }
         }
+        $adminEmail = $blueprint['install']['admin']['email'] ?? null;
+        if (is_string($adminEmail)) {
+            $userEmails[] = strtolower($adminEmail);
+        }
+
+        // 'default' ships with the core, so it is always declared
+        $themeNames = [strtolower(SiteConfig::DEFAULT_THEME)];
+        foreach (($blueprint['themes'] ?? []) as $theme) {
+            $name = is_string($theme) ? $theme : (is_array($theme) ? ($theme['name'] ?? null) : null);
+            if (is_string($name)) {
+                $themeNames[] = strtolower($name);
+            }
+        }
+
         foreach ($this->sites($blueprint) as $s => $site) {
             $label = $site['title'] ?? $site['slug'] ?? $s;
+            $slug = $site['slug'] ?? null;
+            if (is_string($slug) && !SiteConfig::isValidSlug($slug)) {
+                $errors[] = "site '{$label}': invalid slug '{$slug}' (only letters, digits, '_' and '-' are allowed).";
+            }
+            $theme = $site['theme'] ?? null;
+            if (is_string($theme) && !in_array(strtolower($theme), $themeNames, true)) {
+                $errors[] = "site '{$label}': theme '{$theme}' is not declared in themes.";
+            }
             foreach (($site['permissions'] ?? []) as $permission) {
                 $user = strtolower((string) ($permission['user'] ?? ''));
                 if ($user !== '' && !in_array($user, $userEmails, true)) {
