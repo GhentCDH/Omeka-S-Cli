@@ -4,15 +4,17 @@ namespace OSC\Commands\Blueprint;
 use Omeka\Module\Manager as ModuleManager;
 use Omeka\Site\Theme\Manager as ThemeManager;
 use OSC\Helper\ResourceFetcher;
+use OSC\Helper\SiteConfig;
 use OSC\Omeka\OmekaInstance;
 use Throwable;
 
 /**
  * Read a live Omeka S instance and build the blueprint that describes it.
  *
- * First cut: modules, themes and vocabularies. Vocabulary sources are resolved best-effort against
- * the GhentCDH vocabulary index (Omeka does not store the RDF import source); a vocabulary that can
- * not be resolved is emitted without a source, and its prefix is collected so the command can note
+ * First cut: modules, themes, vocabularies and sites; the sites' user permissions, with the users they
+ * name, only when {@see ExportOptions} includes them. Vocabulary sources are resolved best-effort
+ * against the GhentCDH vocabulary index (Omeka does not store the RDF import source); a vocabulary that
+ * can not be resolved is emitted without a source, and its prefix is collected so the command can note
  * it. A helper for {@see ExportCommand}; it reads the instance and returns plain arrays, leaving all
  * output/formatting to the command.
  */
@@ -24,8 +26,11 @@ class BlueprintExporter
     /** @var string[] Prefixes of vocabularies whose source could not be resolved. */
     private array $unresolvedVocabularies = [];
 
-    public function __construct(private OmekaInstance $instance, private ?string $omekaVersion = null)
-    {
+    public function __construct(
+        private OmekaInstance $instance,
+        private ?string $omekaVersion = null,
+        private ExportOptions $options = new ExportOptions(),
+    ) {
     }
 
     /**
@@ -45,6 +50,13 @@ class BlueprintExporter
         }
         if ($vocabularies = $this->exportVocabularies()) {
             $blueprint['vocabularies'] = $vocabularies;
+        }
+        [$users, $sites] = $this->exportSites($this->options->includes(ExportOptions::SITE_PERMISSIONS));
+        if ($users) {
+            $blueprint['users'] = $users;
+        }
+        if ($sites) {
+            $blueprint['sites'] = $sites;
         }
         return $blueprint;
     }
@@ -131,6 +143,56 @@ class BlueprintExporter
             $vocabularies[] = $entry;
         }
         return $vocabularies;
+    }
+
+    /**
+     * Every site; with $withPermissions also its user permissions, plus a minimal `users` entry for
+     * every user a permission names (a permission's user must be declared in the blueprint).
+     * Passwords are never exported.
+     *
+     * @return array{0: array, 1: array} [users, sites]
+     */
+    private function exportSites(bool $withPermissions): array
+    {
+        // private sites are invisible to an anonymous identity
+        $this->instance->elevatePrivileges();
+        $siteApi = $this->instance->getSiteApi();
+        $defaultSiteId = $siteApi->getDefaultSiteId();
+
+        $users = [];
+        $sites = [];
+        foreach ($siteApi->getSites() as $site) {
+            $entry = SiteConfig::fromArray([
+                'title' => $site->title(),
+                'slug' => $site->slug(),
+                'summary' => $site->summary(),
+                'theme' => $site->theme(),
+                'isPublic' => $site->isPublic(),
+            ])->toArray();
+            if ($site->id() === $defaultSiteId) {
+                $entry['setAsDefault'] = true;
+            }
+
+            if ($withPermissions) {
+                $permissions = [];
+                foreach ($siteApi->getPermissions($site) as $permission) {
+                    $user = $permission['user'];
+                    $permissions[] = ['user' => $user->email(), 'role' => $permission['role']];
+                    $users[strtolower($user->email())] = [
+                        'email' => $user->email(),
+                        'username' => $user->name(),
+                        'role' => $user->role(),
+                        'isActive' => $user->isActive(),
+                    ];
+                }
+                if ($permissions) {
+                    $entry['permissions'] = $permissions;
+                }
+            }
+            $sites[] = $entry;
+        }
+
+        return [array_values($users), $sites];
     }
 
 }

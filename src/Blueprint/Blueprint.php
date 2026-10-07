@@ -55,6 +55,12 @@ class Blueprint
         return $this->data['users'] ?? [];
     }
 
+    /** @return array<int,mixed> */
+    public function sites(): array
+    {
+        return $this->data['sites'] ?? [];
+    }
+
     /** @return array<string,mixed> */
     public function settings(): array
     {

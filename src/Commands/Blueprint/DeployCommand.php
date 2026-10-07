@@ -13,7 +13,7 @@ use OSC\Helper\UserConfig;
 class DeployCommand extends AbstractBlueprintCommand
 {
     /** All phases, in deploy order. */
-    private const PHASES = ['core', 'modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'settings'];
+    private const PHASES = ['core', 'modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'sites', 'settings'];
 
     /** Phases handled in the current process (no active-module services required). */
     private const IN_PROCESS_PHASES = ['modules', 'themes', 'files'];
@@ -25,8 +25,8 @@ class DeployCommand extends AbstractBlueprintCommand
     private const STAGES = [
         1 => ['title' => 'Install core, modules, themes and files', 'phases' => ['core', 'modules', 'themes', 'files']],
         2 => [
-            'title'  => 'Configure vocabularies, resource templates, users and settings',
-            'phases' => ['vocabularies', 'resourceTemplates', 'users', 'settings'],
+            'title'  => 'Configure vocabularies, resource templates, users, sites and settings',
+            'phases' => ['vocabularies', 'resourceTemplates', 'users', 'sites', 'settings'],
         ],
     ];
 
@@ -41,7 +41,7 @@ class DeployCommand extends AbstractBlueprintCommand
         $this->option('-f --force', 'Allow deploying onto an installed instance (resets it when the core phase runs)', 'boolval', false);
         $this->option(
             '--skip',
-            'Comma-separated phases to skip (core, modules, themes, files, vocabularies, resourceTemplates, users, settings)'
+            'Comma-separated phases to skip (core, modules, themes, files, vocabularies, resourceTemplates, users, sites, settings)'
         );
         // internal: phases already applied by an earlier stage of a multi-process deploy; kept silent
         // rather than reported as skipped. Set automatically when the deploy re-executes itself.

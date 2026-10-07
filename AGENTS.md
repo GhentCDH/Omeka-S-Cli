@@ -7,13 +7,13 @@
 ## Big-Picture Architecture
 - Command layer: each domain has `src/Commands/<Domain>/Index.php` that returns instantiated command classes.
 - Shared command behavior is centralized in `src/Commands/AbstractCommand.php` (global options, output formatting, Omeka path detection/bootstrap).
-- Omeka bridge is `src/Omeka/*`: `OmekaInstance` bootstraps Omeka runtime, then `ModuleApi` / `ThemeApi` wrap Omeka services.
+- Omeka bridge is `src/Omeka/*`: `OmekaInstance` bootstraps Omeka runtime, then `ModuleApi` / `ThemeApi` / `SiteApi` wrap Omeka services (`SiteApi` encodes the site pitfalls: partial updates, whole-list permission writes, `default_site`).
 - Remote metadata layer is `src/Manager/*/Manager.php` + `src/Repository/**` (official `omeka.org` + Daniel-KM CSV for modules).
 - Download layer is `src/Downloader/GitDownloader.php` and `src/Downloader/ZipDownloader.php`.
 - Repository results are cached via `src/Cache.php` into `$HOME/.cache/omeka-s-cli` using `src/Cache/FileCache.php`.
 - Blueprint layer (declarative deploy): `blueprint:validate|deploy|export` in `src/Commands/Blueprint/`; core in `src/Blueprint/`: `BlueprintLoader` -> `BlueprintValidator` (opis/json-schema against the fetched schema) -> `BlueprintApplier`. The applier orchestrates existing commands (`module:download`, `theme:download`, `user:add`, `config:set`, ...) by name rather than calling Omeka services directly.
 - Settings export/import (`config:get|set|list|export|import`) is backed by `src/Settings/` (`SettingsExport`/`SettingsImport`, `SettingsScope`, `SettingType`, `SettingsSerializer`).
-- Other command domains: `Vocabulary`, `CustomVocabulary`, `ResourceTemplates`, `Dummy` (Faker-based item generation), `User`, `Config`, `Core`, `Cli`.
+- Other command domains: `Vocabulary`, `CustomVocabulary`, `ResourceTemplates`, `Dummy` (Faker-based item generation), `User`, `Site`, `Config`, `Core`, `Cli`.
 
 ## Important Data Flows
 - Module download/update (`src/Commands/Module/DownloadCommand.php`): parse user input with `src/Helper/ResourceUriParser.php` -> resolve candidate versions via manager/repositories -> filter by Omeka compatibility (`src/Helper/VersionCompatibility.php`) -> download/unpack -> install into Omeka `modules/`.
@@ -52,7 +52,7 @@
 - One file / one test: `vendor/bin/phpunit tests/Helper/SlugTest.php`, `vendor/bin/phpunit --filter testMethodName`. If the host has no PHP, run inside the container: `docker exec -w /app/omeka-s-cli omeka-s-cli-app-1 vendor/bin/phpunit ...`.
 - `phpunit.xml` is strict (`requireCoverageMetadata`, `failOnRisky`, `failOnWarning`, `beStrictAboutOutputDuringTests`): every test class needs `#[CoversClass(...)]`, and any stray output fails the run. Test namespace is `Tests\<Dir>` (e.g. `Tests\Blueprint`).
 - `tests/bootstrap.php` downloads the blueprint JSON schema on first run (needs network once per checkout; the schema is not committed).
-- Integration tests: `tests/integration.sh` drives the CLI against a live Omeka in the dev container; select subsets with `--section <name>` (and `--skip <name>`). Sections (case-insensitive): Setup, Core, Modules, Themes, Users, Vocabularies, "Custom vocabularies", "Resource templates", Configuration, "Dummy data", Blueprints.
+- Integration tests: `tests/integration.sh` drives the CLI against a live Omeka in the dev container; select subsets with `--section <name>` (and `--skip <name>`). Sections (case-insensitive): Setup, Core, Modules, Themes, Users, Sites, Vocabularies, "Custom vocabularies", "Resource templates", Configuration, "Dummy data", Blueprints.
 - IMPORTANT: run integration tests against a freshly built PHAR — `box compile`, then `tests/integration.sh --phar`. Scoping (see Packaging Notes) only takes effect in the PHAR, so a source-only run can pass while the shipped PHAR fails.
 
 ## Packaging Notes

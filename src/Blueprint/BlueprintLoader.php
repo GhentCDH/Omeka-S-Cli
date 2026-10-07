@@ -25,7 +25,7 @@ use Otar\JSONC;
 class BlueprintLoader
 {
     /** Keys whose value is a list of items that may contain `$import` references. */
-    private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'itemSets', 'items'];
+    private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'sites', 'itemSets', 'items'];
 
     /**
      * Per-list item fields that hold a relative asset reference. They are resolved against the source
@@ -318,6 +318,7 @@ class BlueprintLoader
             'vocabularies'        => $entry['prefix'] ?? '',
             'resourceTemplates'   => $entry['label'] ?? $entry['source'] ?? '',
             'users'               => $entry['email'] ?? '',
+            'sites'               => $entry['slug'] ?? $entry['title'] ?? '',
             'itemSets', 'items'   => $entry['title'] ?? '',
             default               => '',
         };

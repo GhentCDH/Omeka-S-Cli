@@ -369,4 +369,31 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame([['source' => '/abs/b.php', 'destination' => 'config/a.php']], $files);
         $this->assertNotEmpty($loader->takeWarnings());
     }
+
+    public function testSitesResolveImportsAndDeduplicateBySlugOrTitle(): void
+    {
+        $this->write('sites.jsonc', '[{ "title": "Site B", "slug": "site-b" }]');
+        $base = $this->write('base.jsonc', <<<JSONC
+        {
+            "sites": [
+                { "title": "Site A" },
+                { "\$import": "./sites.jsonc" },
+                { "title": "Site B, renamed", "slug": "site-b" },
+                { "title": "site a", "isPublic": false }
+            ]
+        }
+        JSONC);
+
+        $loader = new BlueprintLoader();
+        $sites = $loader->load($base)->sites();
+
+        $this->assertSame(
+            [['title' => 'Site B, renamed', 'slug' => 'site-b'], ['title' => 'site a', 'isPublic' => false]],
+            $sites
+        );
+        $warnings = $loader->takeWarnings();
+        $this->assertCount(2, $warnings);
+        $this->assertStringContainsString("sites: 'site-b'", $warnings[0]);
+        $this->assertStringContainsString("sites: 'site a'", $warnings[1]);
+    }
 }
