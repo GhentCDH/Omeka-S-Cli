@@ -18,13 +18,14 @@ class DownloadCommand extends AbstractThemeCommand
     public function __construct()
     {
         parent::__construct('theme:download', 'Download theme');
-        $this->argument('<theme>', 'Theme URI (syntax: theme-id:version, zip-release-url, git-url#version|tag|branch)', null);
+        $this->argument('<theme>', 'Theme URI (syntax: theme-id:version, zip-release-url, zip-file, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force theme overwrite', 'boolval', false);
         $this->option('-b --backup', 'Backup current theme before download (delete otherwise)', 'boolval', false);
         $this->usage(
             'theme:download freedom<eol>' .
             'theme:download freedom:1.0.7<eol>' .
             'theme:download https://github.com/omeka-s-themes/freedom/releases/download/v1.0.7/freedom-v1.0.7.zip<eol>' .
+            'theme:download ./freedom-v1.0.7.zip<eol>' .
             'theme:download https://github.com/omeka-s-themes/freedom.git#v1.0.7<eol>' .
             'theme:download gh:omeka-s-themes/freedom#v1.0.7'
         );
@@ -51,6 +52,7 @@ class DownloadCommand extends AbstractThemeCommand
                 $downloader = new GitDownloader($gitUrl, $themeUri->getVersion());
                 break;
             case ResourceUriType::ZipUrl:
+            case ResourceUriType::ZipFile:
                 $downloader = new ZipDownloader($themeUri->getId());
                 break;
             case ResourceUriType::IdVersion:

@@ -6,5 +6,6 @@ enum ResourceUriType {
     case GitRepo;
     case GitHubRepo;
     case ZipUrl;
+    case ZipFile;
     case IdVersion;
 }

@@ -245,6 +245,17 @@ assert_fail    "module:delete customvocab (can't delete installed module)"   $CL
 assert_success "module:delete customvocab --force"  $CLI module:delete customvocab --force
 assert_fail "module:status customvocab (module must not be found)"    $CLI module:status customvocab
 
+# a local zip release (built from the git repository, as a release zip would be)
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf /tmp/osc-zips && mkdir -p /tmp/osc-zips
+    git clone -q --depth 1 https://github.com/omeka-s-modules/CustomVocab.git /tmp/osc-zips/CustomVocab
+    (cd /tmp/osc-zips && zip -qr CustomVocab.zip CustomVocab)
+fi
+assert_success "module:download customvocab (from a local zip release)"   $CLI module:download /tmp/osc-zips/CustomVocab.zip
+assert_output_contains "module:status customvocab is 'not_installed'" "not_installed"   $CLI module:status customvocab
+assert_fail    "module:download from a missing local zip fails"           $CLI module:download /tmp/osc-zips/Missing.zip
+assert_success "module:delete customvocab (downloaded from a local zip)"  $CLI module:delete customvocab
+
 assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate
 assert_success    "module:enable AdvancedResourceTemplate"   $CLI module:enable AdvancedResourceTemplate
 assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate
@@ -657,8 +668,12 @@ assert_fail    "dummy:create-items with invalid config must fail"   $CLI dummy:c
 section "Blueprints"
 
 BP=/app/omeka-s-cli/examples/blueprint/site.blueprint.jsonc
+# the example's resource template lives in ../resource-template, outside the blueprint's directory
+BP_ROOT=(--root /app/omeka-s-cli/examples)
 
-assert_success "blueprint:validate accepts the example blueprint"          $CLI blueprint:validate "$BP"
+assert_output_contains "blueprint:validate rejects a reference outside the blueprint root" "outside the blueprint root" \
+    $CLI blueprint:validate "$BP"
+assert_success "blueprint:validate accepts the example blueprint with --root" $CLI blueprint:validate "$BP" "${BP_ROOT[@]}"
 assert_success "blueprint:validate accepts a standalone module partial"    $CLI blueprint:validate /app/omeka-s-cli/examples/blueprint/modules.extra.jsonc --as modules
 
 if [[ $SECTION_SKIP -eq 0 ]]; then
@@ -666,12 +681,12 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
 fi
 assert_fail    "blueprint:validate rejects an invalid blueprint"           $CLI blueprint:validate /tmp/bad.blueprint.json
 
-assert_success "blueprint:deploy --dry-run makes no changes"               $CLI blueprint:deploy "$BP" --dry-run
+assert_success "blueprint:deploy --dry-run makes no changes"               $CLI blueprint:deploy "$BP" --dry-run "${BP_ROOT[@]}"
 # the suite's instance is already installed, so a deploy that includes the core phase must refuse
-assert_fail    "blueprint:deploy onto an installed instance needs --force"  $CLI blueprint:deploy "$BP" --skip core
-assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI blueprint:deploy "$BP" --skip core --force
+assert_fail    "blueprint:deploy onto an installed instance needs --force"  $CLI blueprint:deploy "$BP" --skip core "${BP_ROOT[@]}"
+assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI blueprint:deploy "$BP" --skip core --force "${BP_ROOT[@]}"
 assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
-assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force
+assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force "${BP_ROOT[@]}"
 
 # files: a relative source resolves against the blueprint, not the working directory
 if [[ $SECTION_SKIP -eq 0 ]]; then
@@ -683,6 +698,35 @@ fi
 assert_success "blueprint:validate accepts a standalone files partial"     $CLI blueprint:validate /tmp/bp-files/files.jsonc --as files
 assert_success "blueprint:deploy places files in the Omeka S root"         $CLI blueprint:deploy /tmp/bp-files/files.blueprint.json --skip core --force
 assert_output_is "the file has the source content" "hello"                 cat /var/www/omeka-s/files/blueprint/hello.txt
+
+# references: absolute paths are rejected, ../ may not leave the blueprint root unless --root widens it
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/bp-files/site
+    printf '{ "files": [ { "source": "/tmp/bp-files/hello.txt", "destination": "files/blueprint/abs.txt" } ] }' \
+        > /tmp/bp-files/absolute.blueprint.json
+    printf '{ "files": [ { "$import": "../files.jsonc" } ] }' > /tmp/bp-files/site/escape.blueprint.json
+fi
+assert_output_contains "blueprint:validate rejects an absolute source path" "absolute path" \
+    $CLI blueprint:validate /tmp/bp-files/absolute.blueprint.json
+assert_output_contains "blueprint:validate rejects an \$import leaving the root" "outside the blueprint root" \
+    $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json
+assert_success "blueprint:validate accepts it with a wider --root"         $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json --root /tmp/bp-files
+
+# a module from a local zip release, resolved against the blueprint
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/bp-files/zips
+    if [[ ! -f /tmp/bp-files/zips/CustomVocab.zip ]]; then
+        rm -rf /tmp/bp-files/zips/CustomVocab
+        git clone -q --depth 1 https://github.com/omeka-s-modules/CustomVocab.git /tmp/bp-files/zips/CustomVocab
+        (cd /tmp/bp-files/zips && zip -qr CustomVocab.zip CustomVocab)
+    fi
+    printf '{ "modules": [ { "name": "CustomVocab", "state": "download", "source": "./zips/CustomVocab.zip" } ] }' \
+        > /tmp/bp-files/zip.blueprint.json
+fi
+run            "remove a module left by an earlier run"                    $CLI module:delete CustomVocab --force --ignore-not-found
+assert_success "blueprint:deploy downloads a module from a local zip"      $CLI blueprint:deploy /tmp/bp-files/zip.blueprint.json --skip core --force
+assert_output_contains "the module is on disk, not installed" "not_installed"  $CLI module:status CustomVocab
+run            "delete the module from the local zip"                      $CLI module:delete CustomVocab --force
 
 # files from URLs: a plain copy, and a ZIP whose single top-level directory is stripped on extract
 SPEC=https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json
@@ -781,7 +825,7 @@ assert_output_contains "the export marks the default site" '"setAsDefault": true
 # it continues in after the core install, must find the instance through --base-path alone, not by
 # searching the working directory. Resets the instance (database.ini is reused), so keep this last.
 assert_success "blueprint:deploy with the core phase works outside the Omeka S directory" \
-    bash -c "cd /tmp && $CLI blueprint:deploy $BP --base-path /var/www/omeka-s --force"
+    bash -c "cd /tmp && $CLI blueprint:deploy $BP ${BP_ROOT[*]} --base-path /var/www/omeka-s --force"
 assert_output_is "the deploy from outside the Omeka S directory applied its settings" '"Blueprint Demo"' \
     bash -c "cd /tmp && $CLI config:get installation_title --base-path /var/www/omeka-s"
 # no --admin-* flags were passed, so the administrator comes from the blueprint's install.admin

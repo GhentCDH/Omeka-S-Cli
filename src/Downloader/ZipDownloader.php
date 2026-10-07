@@ -4,6 +4,7 @@ namespace OSC\Downloader;
 
 use Exception;
 use OSC\Helper\Path;
+use OSC\Helper\ResourceFetcher;
 use ZipArchive;
 
 class ZipDownloader implements DownloaderInterface {
@@ -18,6 +19,11 @@ class ZipDownloader implements DownloaderInterface {
     }
     public function download(): string
     {
+        // a local zip release: fail with a clear message instead of a failed read
+        if (!ResourceFetcher::isUrl($this->url) && !is_file($this->url)) {
+            throw new Exception("Zip file not found: '{$this->url}'");
+        }
+
         $tmpZipDestinationPath = Path::createTempFolder('omeka-s-cli.');
         $tmpZipFilePath = Path::createTempFile('omeka-s-cli.');
 

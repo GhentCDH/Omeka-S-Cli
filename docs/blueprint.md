@@ -24,19 +24,19 @@ Validation is **strict**: an unknown key on a known object is rejected, which ca
 ## Commands
 
 ```
-blueprint:validate <source> [--as <type>] [--json]
-blueprint:deploy   <source> [--dry-run] [--update] [--force] [--skip <phases>]
+blueprint:validate <source> [--as <type>] [--json] [--root <dir>]
+blueprint:deploy   <source> [--dry-run] [--update] [--force] [--skip <phases>] [--root <dir>]
                             [--base-path <path>]
                             [--db-host <h>] [--db-port <p>] [--db-name <n>] [--db-user <u>] [--db-password <pw>]
                             [--admin-name <n>] [--admin-email <e>] [--admin-password <pw>]
-blueprint:export   [output]
+blueprint:export   [output] [--include <parts>]
 ```
 
 - **`blueprint:validate`** checks a blueprint against the schema and runs referential checks (an item
   referencing an undeclared item set, a site permission referencing an undeclared user). Exits
   non-zero on failure. `--as <type>` validates a standalone [partial](#partials-and-import) list
-  (`modules`, `themes`, `files`, `vocabularies`, `resourceTemplates`, `settings`, `users`, `items`,
-  `itemSets`) instead of a full blueprint.
+  (`modules`, `themes`, `files`, `vocabularies`, `resourceTemplates`, `settings`, `users`, `sites`,
+  `items`, `itemSets`) instead of a full blueprint.
 - **`blueprint:deploy`** validates, then runs the phases in order. `--dry-run` prints the ordered
   actions without changing anything. `--update` re-downloads/updates resources that already exist.
   `--skip` takes a comma-separated list of phases to skip. `--force` is required to act on an
@@ -45,10 +45,13 @@ blueprint:export   [output]
   `install.admin`.
 
 - **`blueprint:export`** reads the live instance and writes a blueprint capturing it. With an
-  `[output]` path it writes a file, otherwise it prints to stdout. See [Export](#export).
+  `[output]` path it writes a file, otherwise it prints to stdout. `--include` adds optional parts
+  (`site-permissions`). See [Export](#export).
 
 Deploy is **idempotent**: a resource that already exists is skipped (with a note) unless `--update`
-is given. Both `validate` and `deploy` accept a local path or a URL as `<source>`.
+is given. Both `validate` and `deploy` accept a local path or a URL as `<source>`, and `--root <dir>`
+to widen the directory local references must stay inside (see
+[Local references stay inside the blueprint root](#local-references-stay-inside-the-blueprint-root)).
 
 ## Export
 
@@ -58,10 +61,21 @@ elsewhere.
 ```bash
 blueprint:export ./snapshot.blueprint.jsonc   # write a file
 blueprint:export                              # or print to stdout
+blueprint:export ./snapshot.blueprint.jsonc --include site-permissions   # also site permissions
 ```
 
 The first cut exports **modules** (name + version + state), **themes** (name + version; `default`
-without a version, since it ships with the core) and **vocabularies**, as jsonc with a header comment.
+without a version, since it ships with the core), **vocabularies**, and **sites** (title, slug,
+summary, theme, visibility and `setAsDefault`). The output is jsonc with a header comment.
+
+`--include` takes a comma-separated list of optional parts:
+
+| Part | Adds |
+|------|------|
+| `site-permissions` | each site's `permissions`, plus a minimal `users` entry (email, username, role, isActive; never a password) for every user they name |
+
+A permission must name a user the blueprint declares, so only the users with a site permission are
+exported; other users are not exported yet.
 
 - Omeka's built-in vocabularies (`dcterms`, `dctype`) are skipped.
 - Omeka does not store where a vocabulary's RDF was imported from, so the source is resolved
@@ -69,7 +83,7 @@ without a version, since it ships with the core) and **vocabularies**, as jsonc 
   written with an empty `"source": ""` and listed in the header comment — fill in its `source`
   before deploying it.
 
-Not yet exported: settings, users, resource templates (and the `--split`/`--output-dir`/
+Not yet exported: settings, users without a site permission, resource templates (and the `--split`/`--output-dir`/
 `--resolve-urls` output options). See [blueprint-roadmap.md](blueprint-roadmap.md).
 
 ## Phases (deploy order)
@@ -83,10 +97,12 @@ Not yet exported: settings, users, resource templates (and the `--split`/`--outp
 | vocabularies | `vocabularies` | `vocabulary:import` |
 | resource templates | `resourceTemplates` | `resource-template:import` |
 | users | `users` | `user:add` |
+| sites | `sites` | `site:add` / `site:update` (`--update`) + `site:set-permission` |
 | settings | `settings` | `config:set` |
 
 Vocabularies run before resource templates so the properties/classes a template references already
 exist, and settings run last so a module writing its defaults at install time cannot overwrite them.
+Sites run after users, because a site permission names a user.
 
 A module's services only register at an Omeka bootstrap where that module is active, so deploy runs in
 several processes automatically: each module is installed/enabled in its **own** fresh process (in
@@ -151,6 +167,7 @@ reference.
     { "name": "Log", "state": "download" },             // downloaded but not installed
     { "name": "AdvancedSearch", "version": "3.4.51" },  // pin a version
     { "name": "Foo", "source": "https://example.org/Foo-1.0.0.zip" },  // from a zip release
+    { "name": "Baz", "source": "./zips/Baz-2.0.0.zip" },                // from a local zip release
     { "name": "Bar", "source": "gh:owner/Bar", "version": "1.2.0" },  // a git tag
     { "$import": "./modules.extra.jsonc" }
 ]
@@ -159,13 +176,14 @@ reference.
 - **`name`** (required in object form) — the module id (its directory name).
 - **`state`** — `download` (place files only), `install`, or `activate` (install **and** enable).
   Defaults to `activate`.
-- **`source`** — where to get the module: a zip release URL, a git repository URL
+- **`source`** — where to get the module: a zip release URL, a local zip release (a relative path,
+  resolved against the file that declares the entry), a git repository URL
   (`https://…/repo.git`, `git@host:owner/repo.git`) or `gh:owner/repo` — anything `module:download`
   accepts. Without a source, `name` is resolved through the omeka.org catalogs. Either way, a module
   already in `modules/` (e.g. mounted for development) is used as is, unless `--update` is given or
   a pinned `version` differs from the one on disk.
 - **`version`** — the release to use: `module:download name:version` without a source, or the tag
-  (`#version`) of a git source. A zip URL already pins the release, so it wins.
+  (`#version`) of a git source. A zip (URL or local file) already pins the release, so it wins.
 
 Modules are installed and enabled in the order you list them, so declare a module **before** the
 ones that depend on it (e.g. `Common` first). If the order is wrong, Omeka reports a clear
@@ -226,7 +244,7 @@ for labels/comments). A relative `source` is resolved against the file that decl
 
 ```jsonc
 "resourceTemplates": [
-    { "source": "../resource-template/base_resource.json", "label": "My Template", "ignoreDeps": false }
+    { "source": "./templates/base_resource.json", "label": "My Template", "ignoreDeps": false }
 ]
 ```
 
@@ -250,6 +268,28 @@ left untouched). Valid roles: `global_admin`, `site_admin`, `editor`, `reviewer`
 > blueprint), a user `password` has no external-reference or secrets mechanism yet. Treat any
 > blueprint containing user passwords as a secret in its own right — keep it out of shared version
 > control, or omit `password` and set it out of band.
+
+### `sites`
+
+```jsonc
+"sites": [
+    { "title": "My Archive", "slug": "archive", "theme": "foundation", "setAsDefault": true,
+      "permissions": [ { "user": "editor@example.org", "role": "editor" } ] },
+    { "title": "Staging", "isPublic": false }
+]
+```
+
+`title` is required. `slug` may only contain letters, digits, `_` and `-`; without one Omeka derives it
+from the title, and the title identifies the site on a re-run. `theme` defaults to `default` and must
+be declared in `themes` (`default` always counts). New sites add newly created items automatically,
+as in the Omeka admin.
+
+An existing site (same slug, else same title) is skipped; `--update` brings its title, summary, theme,
+visibility and `setAsDefault` in line with the blueprint. `permissions` name users by e-mail; the user
+must be declared in `users` or be `install.admin`. A permission's `role` (`viewer`, `editor`, `admin`)
+defaults to `viewer`. Missing permissions are always added; a different role is changed only with
+`--update`; permissions are never removed. The administrator the CLI runs as becomes owner and site
+admin of every site it creates.
 
 ### `settings`
 
@@ -285,8 +325,8 @@ are accepted but not acted on. `preferredVersions.omeka` is read by the core pha
 
 ### Not yet applied
 
-`items`, `itemSets` and `sites` are part of the schema and are validated, but applying them (creating
-sites and content) is a later milestone.
+`items` and `itemSets` are part of the schema and are validated, but applying them (creating content)
+is a later milestone.
 
 ## Partials and `$import`
 
@@ -301,24 +341,36 @@ place by the items of the referenced list. This keeps a shared list under the ke
 ]
 ```
 
-References resolve relative to the file that contains them, may nest, and are rejected if circular.
+References resolve relative to the file that contains them, may nest, and are rejected if circular
+(in `settings` too, and including an import of the top-level blueprint itself).
 Within a resolved list, entries sharing a natural identity (module/theme `name`, file `destination`,
-vocabulary `prefix`, resource-template `label`, user `email`, item/item-set `title`) collapse to the
-**last** occurrence,
-so a later inline entry overrides an imported one — this is what makes *layering* work (import a
-shared base list, then override a single entry locally). When an override actually changes a value,
-`deploy` and `validate` print an advisory warning so an *accidental* duplicate is still noticed;
-re-declaring an identical value is silent.
+vocabulary `namespaceUri`, resource-template `label` (else `source`), user `email`, site `slug` (else
+`title`), item/item-set `title`) collapse into the **first** occurrence: a later entry is
+*shallow-merged* into it, and the entry keeps its first position. So a later inline entry updates an
+imported one — this is what makes *layering* work (import a shared base list, then override a single
+field locally) — without changing the order, which matters for modules (dependencies first):
+
+```jsonc
+"modules": [
+    { "$import": "./modules.base.jsonc" },              // declares Common (state install), then AdvancedSearch
+    { "name": "Common", "version": "3.4.72" }          // Common keeps its place and state; only the version changes
+]
+```
+
+The merge is shallow: a field given by the later entry replaces the earlier value as a whole (e.g. a
+site's `permissions` list). When a merge actually changes a value, `deploy` and `validate` print an
+advisory warning so an *accidental* duplicate is still noticed; re-declaring an identical value is
+silent.
 
 ### Reference forms
 
 The blueprint source (the argument to `blueprint:deploy` / `blueprint:validate`), every `$import`,
-and asset paths (`files[].source`, `vocabularies[].source`, `resourceTemplates[].source`) all accept
-the same reference forms:
+and asset paths (`files[].source`, `vocabularies[].source`, `resourceTemplates[].source`, and a
+local zip in `modules[]`/`themes[].source`) all accept the same reference forms:
 
 | Form | Example |
 | --- | --- |
-| Local path | `./modules.extra.jsonc`, `/abs/path/site.blueprint.jsonc` |
+| Local path (relative) | `./modules.extra.jsonc`, `../shared/base.jsonc` |
 | Any URL | `https://example.org/site.blueprint.jsonc` |
 | GitHub raw URL | `https://raw.githubusercontent.com/owner/repo/main/site.blueprint.jsonc` |
 | GitHub browser URL | `https://github.com/owner/repo/blob/main/site.blueprint.jsonc` |
@@ -335,6 +387,27 @@ Because references resolve relative to the file that contains them, a blueprint 
 can reference its neighbours by filename only (`modules.extra.jsonc`) or by a repo-relative path
 (`../shared/base.jsonc`) — the parent (`..`) segments are normalized and stay within the repo. Only
 public files are supported (no auth tokens yet).
+
+#### Local references stay inside the blueprint root
+
+A blueprint must not be able to read arbitrary files from the machine it is deployed on. So, inside a
+blueprint (every `$import` and asset path):
+
+- **absolute paths** (`/etc/…`, `C:\…`) and **`file:` URLs** are rejected;
+- a relative path that resolves **outside the blueprint root** is rejected. The root is the directory
+  of the top-level blueprint; `../` is fine as long as it stays inside it.
+
+Widen the root with `--root <dir>` (on `blueprint:validate` and `blueprint:deploy`), e.g. when a
+blueprint shares fragments with a sibling directory:
+
+```bash
+# examples/blueprint/site.blueprint.jsonc references ../resource-template/base_resource.json
+omeka-s-cli blueprint:validate examples/blueprint/site.blueprint.jsonc --root examples
+```
+
+The path given on the command line is not a reference written in a blueprint, so it may be absolute.
+A blueprint fetched from a URL resolves its relative references to URLs, so it never reaches the local
+filesystem.
 
 ## jsonc
 
