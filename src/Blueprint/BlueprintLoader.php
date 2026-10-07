@@ -21,11 +21,11 @@ use Otar\JSONC;
  * rejected too, so a blueprint can never reach an arbitrary file on the local filesystem.
  *
  * De-duplication: within a resolved list, entries sharing a natural identity (module/theme `name`,
- * file `destination`, vocabulary `prefix`, resource-template `label`, user `email`, item/item-set
- * `title`) collapse to the last occurrence, so a later inline entry — or a later import — overrides
- * an earlier one. When such an override actually changes the value, an advisory warning is recorded
- * (see takeWarnings()), so intentional layering keeps working while an accidental duplicate stays
- * visible.
+ * file `destination`, vocabulary `prefix`, resource-template `label`, user `email`, site
+ * `slug`, item/item-set `title`) collapse into the first occurrence: a later entry is shallow-merged
+ * into it and the entry keeps its first position (so module install order is stable). When such a
+ * merge actually changes the value, an advisory warning is recorded (see takeWarnings()), so
+ * intentional layering keeps working while an accidental duplicate stays visible.
  */
 class BlueprintLoader
 {
@@ -98,7 +98,7 @@ class BlueprintLoader
     /**
      * Advisory messages collected during the most recent load()/loadPartial(), then cleared.
      *
-     * Currently: a notice that a later entry (often from an $import) overrode an earlier one with a
+     * Currently: a notice that a later entry (often from an $import) updated an earlier one with a
      * different value. A duplicate that re-declares an identical value is not reported.
      *
      * @return string[]
@@ -396,7 +396,9 @@ class BlueprintLoader
     }
 
     /**
-     * Collapse entries with the same natural identity, keeping the last occurrence.
+     * Collapse entries with the same natural identity into the first occurrence: a later entry is
+     * shallow-merged into it, and the entry keeps its first position. Entries without an identity keep
+     * their place.
      *
      * @param array  $list
      * @param string $key
@@ -404,24 +406,47 @@ class BlueprintLoader
      */
     private function dedupe(array $list, string $key): array
     {
-        $keyed = [];
-        $loose = [];
+        $result = [];
+        $positions = []; // identity => index in $result
         foreach ($list as $entry) {
             $id = $this->identity($entry, $key);
             if ($id === '') {
-                $loose[] = $entry;
+                $result[] = $entry;
                 continue;
             }
-            // a later entry with the same identity but a different value overrides the earlier one;
-            // record it so an accidental duplicate is visible while intentional layering still works
-            if (array_key_exists($id, $keyed) && $keyed[$id] != $entry) {
-                $label = $this->identityLabel($entry, $key);
-                $this->warnings[] = "{$key}: '{$label}' is declared more than once; the later definition overrides the earlier one.";
+            if (!array_key_exists($id, $positions)) {
+                $positions[$id] = count($result);
+                $result[] = $entry;
+                continue;
             }
-            unset($keyed[$id]); // drop earlier occurrence so the last one keeps last position
-            $keyed[$id] = $entry;
+
+            $position = $positions[$id];
+            [$earlier, $merged] = $this->merge($result[$position], $entry);
+            // a later entry that changes the value updates the earlier one; record it so an accidental
+            // duplicate is visible while intentional layering still works
+            if ($merged != $earlier) {
+                $label = $this->identityLabel($entry, $key);
+                $this->warnings[] = "{$key}: '{$label}' is declared more than once; the later definition updates the earlier one.";
+            }
+            $result[$position] = $merged;
         }
-        return array_merge(array_values($keyed), $loose);
+        return $result;
+    }
+
+    /**
+     * Shallow-merge a later duplicate into an earlier one. A bare string (module/theme name) is
+     * normalized to `['name' => ...]` when the other side is an object; two strings keep the later one.
+     *
+     * @return array{0:mixed,1:mixed} The (normalized) earlier entry and the merged entry
+     */
+    private function merge(mixed $earlier, mixed $later): array
+    {
+        if (!is_array($earlier) && !is_array($later)) {
+            return [$earlier, $later];
+        }
+        $earlier = is_array($earlier) ? $earlier : ['name' => $earlier];
+        $later = is_array($later) ? $later : ['name' => $later];
+        return [$earlier, array_merge($earlier, $later)];
     }
 
     private function identity(mixed $entry, string $key): string

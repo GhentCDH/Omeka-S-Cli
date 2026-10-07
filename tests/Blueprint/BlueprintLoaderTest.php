@@ -52,7 +52,7 @@ class BlueprintLoaderTest extends TestCase
         return $path;
     }
 
-    public function testResolvesImportUnderTheKeyAndDeduplicatesLastWins(): void
+    public function testResolvesImportUnderTheKeyAndMergesDuplicatesIntoTheFirst(): void
     {
         $this->write('more.jsonc', '["B", { "name": "C" }]');
         $base = $this->write('base.jsonc', <<<JSONC
@@ -66,19 +66,12 @@ class BlueprintLoaderTest extends TestCase
         JSONC);
 
         $blueprint = (new BlueprintLoader())->load($base);
-        $modules = $blueprint->modules();
 
-        // A (deduped to the last, object form), B, C
-        $this->assertCount(3, $modules);
-
-        $byName = [];
-        foreach ($modules as $m) {
-            $byName[is_string($m) ? $m : $m['name']] = $m;
-        }
-        $this->assertArrayHasKey('A', $byName);
-        $this->assertArrayHasKey('B', $byName);
-        $this->assertArrayHasKey('C', $byName);
-        $this->assertSame(['name' => 'A', 'state' => 'install'], $byName['A']);
+        // A keeps its first position; the later object form is merged into the bare name
+        $this->assertSame(
+            [['name' => 'A', 'state' => 'install'], 'B', ['name' => 'C']],
+            $blueprint->modules()
+        );
     }
 
     public function testSettingsListMergesMapsAndImportsInOrder(): void
@@ -386,14 +379,58 @@ class BlueprintLoaderTest extends TestCase
         $loader = new BlueprintLoader();
         $sites = $loader->load($base)->sites();
 
+        // each site keeps its first position, with the later definition merged into it
         $this->assertSame(
-            [['title' => 'Site B, renamed', 'slug' => 'site-b'], ['title' => 'site a', 'isPublic' => false]],
+            [['title' => 'site a', 'isPublic' => false], ['title' => 'Site B, renamed', 'slug' => 'site-b']],
             $sites
         );
         $warnings = $loader->takeWarnings();
         $this->assertCount(2, $warnings);
         $this->assertStringContainsString("sites: 'site-b'", $warnings[0]);
         $this->assertStringContainsString("sites: 'site a'", $warnings[1]);
+    }
+
+    // ── de-duplication: first position, shallow merge ───────────────────────────────────────────
+
+    public function testDuplicateModuleKeepsItsPositionAndMergesFields(): void
+    {
+        $this->write('override.jsonc', '[{ "name": "Common", "version": "3.4.72" }]');
+        $base = $this->write('base.jsonc', <<<JSONC
+        {
+            "modules": [
+                { "name": "Common", "state": "install", "version": "3.4.71" },
+                "AdvancedSearch",
+                { "\$import": "./override.jsonc" }
+            ]
+        }
+        JSONC);
+
+        $loader = new BlueprintLoader();
+        $modules = $loader->load($base)->modules();
+
+        // Common stays before the module that depends on it; version updated, state kept
+        $this->assertSame(
+            [['name' => 'Common', 'state' => 'install', 'version' => '3.4.72'], 'AdvancedSearch'],
+            $modules
+        );
+        $this->assertCount(1, $loader->takeWarnings());
+    }
+
+    public function testBareNameAfterObjectDoesNotChangeOrWarn(): void
+    {
+        $base = $this->write('base.jsonc', '{ "modules": [ { "name": "Log", "state": "download" }, "Log" ] }');
+
+        $loader = new BlueprintLoader();
+        $this->assertSame([['name' => 'Log', 'state' => 'download']], $loader->load($base)->modules());
+        $this->assertSame([], $loader->takeWarnings());
+    }
+
+    public function testEntriesWithoutIdentityKeepTheirPosition(): void
+    {
+        $base = $this->write('base.jsonc', '{ "users": [ { "role": "editor" }, { "email": "a@x.org" }, { "role": "author" } ] }');
+
+        $users = (new BlueprintLoader())->load($base)->users();
+        $this->assertSame([['role' => 'editor'], ['email' => 'a@x.org'], ['role' => 'author']], $users);
     }
 
     // ── references: absolute paths, file: URLs and the blueprint root ───────────────────────────
@@ -509,13 +546,13 @@ class BlueprintLoaderTest extends TestCase
 
     public function testDiamondImportIsNotCircular(): void
     {
-        // the same file imported from two branches is not a cycle; its entries collapse
+        // the same file imported from two branches is not a cycle; its entries merge
         $this->write('common.jsonc', '["Common"]');
         $this->write('x.jsonc', '[ { "$import": "./common.jsonc" }, "X" ]');
         $this->write('y.jsonc', '[ { "$import": "./common.jsonc" }, "Y" ]');
         $base = $this->write('base.jsonc', '{ "modules": [ { "$import": "./x.jsonc" }, { "$import": "./y.jsonc" } ] }');
 
-        $this->assertSame(['X', 'Common', 'Y'], (new BlueprintLoader())->load($base)->modules());
+        $this->assertSame(['Common', 'X', 'Y'], (new BlueprintLoader())->load($base)->modules());
     }
 
     // ── add-on `source`: local zip releases ─────────────────────────────────────────────────────
