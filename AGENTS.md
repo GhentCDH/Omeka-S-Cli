@@ -11,6 +11,9 @@
 - Remote metadata layer is `src/Manager/*/Manager.php` + `src/Repository/**` (official `omeka.org` + Daniel-KM CSV for modules).
 - Download layer is `src/Downloader/GitDownloader.php` and `src/Downloader/ZipDownloader.php`.
 - Repository results are cached via `src/Cache.php` into `$HOME/.cache/omeka-s-cli` using `src/Cache/FileCache.php`.
+- Blueprint layer (declarative deploy): `blueprint:validate|deploy|export` in `src/Commands/Blueprint/`; core in `src/Blueprint/`: `BlueprintLoader` -> `BlueprintValidator` (opis/json-schema against the fetched schema) -> `BlueprintApplier`. The applier orchestrates existing commands (`module:download`, `theme:download`, `user:add`, `config:set`, ...) by name rather than calling Omeka services directly.
+- Settings export/import (`config:get|set|list|export|import`) is backed by `src/Settings/` (`SettingsExport`/`SettingsImport`, `SettingsScope`, `SettingType`, `SettingsSerializer`).
+- Other command domains: `Vocabulary`, `CustomVocabulary`, `ResourceTemplates`, `Dummy` (Faker-based item generation), `User`, `Config`, `Core`, `Cli`.
 
 ## Important Data Flows
 - Module download/update (`src/Commands/Module/DownloadCommand.php`): parse user input with `src/Helper/ResourceUriParser.php` -> resolve candidate versions via manager/repositories -> filter by Omeka compatibility (`src/Helper/VersionCompatibility.php`) -> download/unpack -> install into Omeka `modules/`.
@@ -23,6 +26,11 @@
 - Non-fatal situations should use `WarningException` (handled in `src/Cli/Application.php` as warning + exit code 0).
 - Output rule: errors always print (even under `--quiet`); `--quiet`/`--json` silence info and warnings, including benign `WarningException` notices. Exit code is the contract. A command that must skip a missing resource under `--ignore-not-found` throws `IgnoredNotFoundException` (a silent marker; the note is emitted verbosity-aware beforehand) so the call site needs no null check.
 - Reuse existing commands for orchestration (example: `module:update` invokes `module:download` and `module:upgrade`).
+- When a command takes a structured set of fields (CLI options, a JSON config file, and/or a blueprint section), model it as a config value object in `src/Helper/<Name>Config.php` instead of passing loose arrays. Examples: `VocabularyConfig`, `UserConfig`, `DatabaseConfig`. The pattern:
+  - A private constructor plus named factories (`fromArray()`, `fromValues()`, `fromOmekaPath()`), or a public constructor for trivial cases (`UserConfig`). Validation lives there and throws `InvalidArgumentException` with a user-facing message.
+  - Pure value object, no IO: callers resolve relative paths and fetch sources first (`DatabaseConfig::fromOmekaPath()` is the deliberate exception, since it reads `database.ini`).
+  - Output methods for each consumer, e.g. `toImporterOptions()` (the Omeka API shape), `toArray()` (the canonical config shape, null/default-filtered, used for export and `create-import-config`), `getDsn()`, `writeIniFile()`.
+  - One source of truth for every entry point, so field names, defaults and deprecated aliases stay consistent: `VocabularyConfig` backs all `vocabulary:*` commands (via `VocabularyImporterTrait`), which the blueprint path invokes; `DatabaseConfig` is shared by `config:create-db-ini` and `blueprint:deploy`; `UserConfig` carries the admin account for `blueprint:deploy`'s core install.
 
 ## External Integrations
 - Omeka version API: `https://api.omeka.org/latest-version-s`.
@@ -35,11 +43,16 @@
 - Run CLI: `php bin/omeka-s-cli --help`
 - Lint/fix: `composer lint` / `composer fix`
 - Build PHAR: `composer build` (fetches the blueprint schema, then `box compile`; configured by `box.json` + `scoper.inc.php`). Box lives in `vendor-bin/box` (bamarni/composer-bin-plugin, installed by `composer install`) since its deps conflict with Omeka's, so a local `composer install --no-dev` removes it (Box excludes dev packages from the PHAR anyway). CI installs `--no-dev` and gets the latest Box from `setup-php`.
-- Optional container dev setup is defined in `compose.yml` and `Dockerfile`.
+- Optional container dev setup is defined in `compose.yaml` and `Dockerfile`.
+- Dev container: compose services `app` (container `omeka-s-cli-app-1`, repo mounted at `/app/omeka-s-cli`, Omeka at `/var/www/omeka-s`) and `db` (MariaDB). Run the CLI there with `docker exec -w /var/www/omeka-s omeka-s-cli-app-1 php /app/omeka-s-cli/bin/omeka-s-cli <cmd>`.
+- Design notes and roadmaps for in-progress features live in `docs/*.md`.
 
 ## Testing
 - Unit tests: `vendor/bin/phpunit` (config `phpunit.xml`, tests under `tests/`). These run against unscoped source.
-- Integration tests: `tests/integration.sh` drives the CLI against a live Omeka in the dev container; select subsets with `--section <name>` (and `--skip <name>`).
+- One file / one test: `vendor/bin/phpunit tests/Helper/SlugTest.php`, `vendor/bin/phpunit --filter testMethodName`. If the host has no PHP, run inside the container: `docker exec -w /app/omeka-s-cli omeka-s-cli-app-1 vendor/bin/phpunit ...`.
+- `phpunit.xml` is strict (`requireCoverageMetadata`, `failOnRisky`, `failOnWarning`, `beStrictAboutOutputDuringTests`): every test class needs `#[CoversClass(...)]`, and any stray output fails the run. Test namespace is `Tests\<Dir>` (e.g. `Tests\Blueprint`).
+- `tests/bootstrap.php` downloads the blueprint JSON schema on first run (needs network once per checkout; the schema is not committed).
+- Integration tests: `tests/integration.sh` drives the CLI against a live Omeka in the dev container; select subsets with `--section <name>` (and `--skip <name>`). Sections (case-insensitive): Setup, Core, Modules, Themes, Users, Vocabularies, "Custom vocabularies", "Resource templates", Configuration, "Dummy data", Blueprints.
 - IMPORTANT: run integration tests against a freshly built PHAR — `box compile`, then `tests/integration.sh --phar`. Scoping (see Packaging Notes) only takes effect in the PHAR, so a source-only run can pass while the shipped PHAR fails.
 
 ## Packaging Notes
