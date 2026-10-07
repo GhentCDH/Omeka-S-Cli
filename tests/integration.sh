@@ -245,6 +245,17 @@ assert_fail    "module:delete customvocab (can't delete installed module)"   $CL
 assert_success "module:delete customvocab --force"  $CLI module:delete customvocab --force
 assert_fail "module:status customvocab (module must not be found)"    $CLI module:status customvocab
 
+# a local zip release (built from the git repository, as a release zip would be)
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf /tmp/osc-zips && mkdir -p /tmp/osc-zips
+    git clone -q --depth 1 https://github.com/omeka-s-modules/CustomVocab.git /tmp/osc-zips/CustomVocab
+    (cd /tmp/osc-zips && zip -qr CustomVocab.zip CustomVocab)
+fi
+assert_success "module:download customvocab (from a local zip release)"   $CLI module:download /tmp/osc-zips/CustomVocab.zip
+assert_output_contains "module:status customvocab is 'not_installed'" "not_installed"   $CLI module:status customvocab
+assert_fail    "module:download from a missing local zip fails"           $CLI module:download /tmp/osc-zips/Missing.zip
+assert_success "module:delete customvocab (downloaded from a local zip)"  $CLI module:delete customvocab
+
 assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate
 assert_success    "module:enable AdvancedResourceTemplate"   $CLI module:enable AdvancedResourceTemplate
 assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate

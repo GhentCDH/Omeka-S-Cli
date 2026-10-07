@@ -188,6 +188,12 @@ The official Omeka S module repository does not always have all versions availab
 omeka-s-cli module:download https://github.com/Daniel-KM/Omeka-S-module-Common/releases/download/3.4.65/Common-3.4.65.zip
 ```
 
+A zip release on disk works too (`theme:download` accepts the same forms):
+
+```
+omeka-s-cli module:download ./Common-3.4.65.zip
+```
+
 ### Example: Download a module from a git repository
 
 ```

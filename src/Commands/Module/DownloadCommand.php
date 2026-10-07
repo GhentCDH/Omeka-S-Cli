@@ -18,7 +18,7 @@ class DownloadCommand extends AbstractModuleCommand
     public function __construct()
     {
         parent::__construct('module:download', 'Download module');
-        $this->argument('<module>', 'Module URI (syntax: module-id:version, zip-release-url, git-url#version|tag|branch)', null);
+        $this->argument('<module>', 'Module URI (syntax: module-id:version, zip-release-url, zip-file, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force module download', 'boolval', false);
         $this->option('-b --backup', 'Backup current module before download (delete otherwise)', 'boolval', false);
         $this->option('-i --install', 'Install module after download', 'boolval', false);
@@ -27,6 +27,7 @@ class DownloadCommand extends AbstractModuleCommand
             'module:download common<eol>' .
             'module:download common:3.4.71<eol>' .
             'module:download https://github.com/Daniel-KM/Omeka-S-module-AdvancedSearch/releases/download/3.4.22/AdvancedSearch-3.4.22.zip<eol>' .
+            'module:download ./AdvancedSearch-3.4.22.zip<eol>' .
             'module:download https://github.com/Daniel-KM/Omeka-S-module-AdvancedSearch.git#3.4.22<eol>' .
             'module:download gh:Daniel-KM/Omeka-S-module-AdvancedSearch#3.4.22'
         );
@@ -53,6 +54,7 @@ class DownloadCommand extends AbstractModuleCommand
                 $downloader = new GitDownloader($gitUrl, $moduleUri->getVersion());
                 break;
             case ResourceUriType::ZipUrl:
+            case ResourceUriType::ZipFile:
                 $downloader = new ZipDownloader($moduleUri->getId());
                 break;
             case ResourceUriType::IdVersion:
