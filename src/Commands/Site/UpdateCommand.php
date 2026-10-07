@@ -45,10 +45,6 @@ class UpdateCommand extends AbstractSiteCommand
             throw new InvalidArgumentException("Cannot use --assign-new-items and --stop-assigning-new-items together.");
         }
 
-        // fetch site
-        $siteApi = $this->siteApi();
-        $siteRepresentation = $this->requireSite($site, $ignoreNotFound);
-
         // prepare data for update
         $data = SiteConfig::forUpdate([
             'title' => $title,
@@ -58,6 +54,10 @@ class UpdateCommand extends AbstractSiteCommand
             'isPublic' => $public || $private ? (bool) $public : null,
             'assignNewItems' => $assignNewItems || $stopAssigningNewItems ? (bool) $assignNewItems : null,
         ])->toApiPatch();
+
+        // fetch site
+        $siteApi = $this->siteApi();
+        $siteRepresentation = $this->requireSite($site, $ignoreNotFound);
 
         // update site
         if ($data) {
