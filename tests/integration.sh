@@ -734,6 +734,10 @@ assert_output_is "--update changed the role" "admin"                       bash 
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
 assert_output_contains "the export captures an installed module" "Common"   $CLI blueprint:export
+assert_output_contains "the export captures a site" '"slug": "bp-site-a"'  $CLI blueprint:export
+assert_output_contains "the export declares the users its permissions name" '"email": "bp-site-editor@example.com"' \
+    $CLI blueprint:export
+assert_output_contains "the export marks the default site" '"setAsDefault": true' $CLI blueprint:export
 
 # a full deploy (core phase included) started outside the Omeka S directory: it, and the processes
 # it continues in after the core install, must find the instance through --base-path alone, not by
