@@ -5,7 +5,6 @@ use InvalidArgumentException;
 use Omeka\Api\Representation\SiteRepresentation;
 use OSC\Commands\User\AbstractUserCommand;
 use OSC\Exceptions\NotFoundException;
-use OSC\Helper\SiteConfig;
 use OSC\Omeka\SiteApi;
 
 /**
@@ -56,16 +55,6 @@ abstract class AbstractSiteCommand extends AbstractUserCommand
             return $themeApi->getTheme($theme, true)->getId();
         } catch (NotFoundException) {
             throw new InvalidArgumentException("Theme not found: {$theme}. Download it first with 'theme:download {$theme}'.");
-        }
-    }
-
-    /** @throws InvalidArgumentException If the slug has characters Omeka does not accept */
-    protected function assertValidSlug(string $slug): void
-    {
-        if (!SiteConfig::isValidSlug($slug)) {
-            throw new InvalidArgumentException(
-                "Invalid slug '{$slug}'. A slug may only contain letters, digits, underscores and hyphens."
-            );
         }
     }
 

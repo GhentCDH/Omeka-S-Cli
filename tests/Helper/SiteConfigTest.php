@@ -2,6 +2,7 @@
 namespace Tests\Helper;
 
 use InvalidArgumentException;
+use LogicException;
 use OSC\Helper\SiteConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -114,5 +115,69 @@ class SiteConfigTest extends TestCase
             'theme' => 'foundation',
             'isPublic' => false,
         ], $config->toArray());
+    }
+
+    public function testForUpdateEmitsOnlyTheGivenFields(): void
+    {
+        $this->assertSame(['o:is_public' => false], SiteConfig::forUpdate(['isPublic' => false])->toApiPatch());
+        $this->assertSame([], SiteConfig::forUpdate([])->toApiPatch());
+    }
+
+    public function testForUpdateMapsEveryField(): void
+    {
+        $config = SiteConfig::forUpdate([
+            'title' => ' Renamed ',
+            'slug' => 'renamed',
+            'summary' => 'About it',
+            'theme' => 'foundation',
+            'isPublic' => true,
+            'assignNewItems' => false,
+        ]);
+
+        $this->assertSame([
+            'o:title' => 'Renamed',
+            'o:slug' => 'renamed',
+            'o:summary' => 'About it',
+            'o:theme' => 'foundation',
+            'o:is_public' => true,
+            'o:assign_new_items' => false,
+        ], $config->toApiPatch());
+    }
+
+    public function testForUpdateKeepsAnEmptySummaryToClearIt(): void
+    {
+        $this->assertSame(['o:summary' => ''], SiteConfig::forUpdate(['summary' => '  '])->toApiPatch());
+    }
+
+    public function testForUpdateRejectsABlankTitle(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A site must have a title.');
+        SiteConfig::forUpdate(['title' => '   ']);
+    }
+
+    public function testForUpdateRejectsAnInvalidOrEmptySlug(): void
+    {
+        foreach (['bad slug', ''] as $slug) {
+            try {
+                SiteConfig::forUpdate(['slug' => $slug]);
+                $this->fail("Slug '{$slug}' should be rejected.");
+            } catch (InvalidArgumentException $e) {
+                $this->assertStringContainsString("Invalid slug '{$slug}'", $e->getMessage());
+            }
+        }
+    }
+
+    public function testForUpdateRejectsABlankTheme(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A site must have a theme.');
+        SiteConfig::forUpdate(['theme' => ' ']);
+    }
+
+    public function testAnUpdateHasNoCreatePayload(): void
+    {
+        $this->expectException(LogicException::class);
+        SiteConfig::forUpdate(['title' => 'X'])->toApiPayload();
     }
 }

@@ -2,6 +2,7 @@
 namespace OSC\Commands\Site;
 
 use InvalidArgumentException;
+use OSC\Helper\SiteConfig;
 
 class UpdateCommand extends AbstractSiteCommand
 {
@@ -43,32 +44,15 @@ class UpdateCommand extends AbstractSiteCommand
         if ($assignNewItems && $stopAssigningNewItems) {
             throw new InvalidArgumentException("Cannot use --assign-new-items and --stop-assigning-new-items together.");
         }
-        if ($title !== null && trim($title) === '') {
-            throw new InvalidArgumentException("A site must have a title.");
-        }
-        if ($slug !== null) {
-            $this->assertValidSlug($slug);
-        }
 
-        $data = [];
-        if ($title !== null) {
-            $data['o:title'] = $title;
-        }
-        if ($slug !== null) {
-            $data['o:slug'] = $slug;
-        }
-        if ($summary !== null) {
-            $data['o:summary'] = $summary;
-        }
-        if ($theme !== null) {
-            $data['o:theme'] = $this->resolveTheme($theme);
-        }
-        if ($public || $private) {
-            $data['o:is_public'] = (bool) $public;
-        }
-        if ($assignNewItems || $stopAssigningNewItems) {
-            $data['o:assign_new_items'] = (bool) $assignNewItems;
-        }
+        $data = SiteConfig::forUpdate([
+            'title' => $title,
+            'slug' => $slug,
+            'summary' => $summary,
+            'theme' => $theme !== null ? $this->resolveTheme($theme) : null,
+            'isPublic' => $public || $private ? (bool) $public : null,
+            'assignNewItems' => $assignNewItems || $stopAssigningNewItems ? (bool) $assignNewItems : null,
+        ])->toApiPatch();
 
         $siteApi = $this->siteApi();
         $siteRepresentation = $this->requireSite($site, $ignoreNotFound);
