@@ -21,7 +21,7 @@ use Otar\JSONC;
  * rejected too, so a blueprint can never reach an arbitrary file on the local filesystem.
  *
  * De-duplication: within a resolved list, entries sharing a natural identity (module/theme `name`,
- * file `destination`, vocabulary `prefix`, resource-template `label`, user `email`, site
+ * file `destination`, vocabulary `namespaceUri`, resource-template `label`, user `email`, site
  * `slug`, item/item-set `title`) collapse into the first occurrence: a later entry is shallow-merged
  * into it and the entry keeps its first position (so module install order is stable). When such a
  * merge actually changes the value, an advisory warning is recorded (see takeWarnings()), so
@@ -467,7 +467,7 @@ class BlueprintLoader
         $field = match ($key) {
             'modules', 'themes'   => $entry['name'] ?? '',
             'files'               => $entry['destination'] ?? '',
-            'vocabularies'        => $entry['prefix'] ?? '',
+            'vocabularies'        => $entry['namespaceUri'] ?? '',
             'resourceTemplates'   => $entry['label'] ?? $entry['source'] ?? '',
             'users'               => $entry['email'] ?? '',
             'sites'               => $entry['slug'] ?? $entry['title'] ?? '',

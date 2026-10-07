@@ -433,6 +433,23 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame([['role' => 'editor'], ['email' => 'a@x.org'], ['role' => 'author']], $users);
     }
 
+    public function testVocabulariesDeduplicateByNamespaceUri(): void
+    {
+        $base = $this->write('base.jsonc', json_encode([
+            'vocabularies' => [
+                ['namespaceUri' => 'http://a.org/#', 'prefix' => 'ex', 'label' => 'A', 'source' => 'https://a.org/a.rdf'],
+                ['namespaceUri' => 'http://b.org/#', 'prefix' => 'ex', 'label' => 'B', 'source' => 'https://b.org/b.rdf'],
+                ['namespaceUri' => 'http://a.org/#', 'prefix' => 'a', 'label' => 'A2', 'source' => 'https://a.org/a.rdf'],
+            ],
+        ]));
+
+        $vocabs = (new BlueprintLoader())->load($base)->vocabularies();
+
+        // the same prefix with different namespaces stays two vocabularies; the same namespace merges
+        $this->assertSame(['A2', 'B'], array_column($vocabs, 'label'));
+        $this->assertSame(['a', 'ex'], array_column($vocabs, 'prefix'));
+    }
+
     // ── references: absolute paths, file: URLs and the blueprint root ───────────────────────────
 
     public function testAbsoluteImportIsRejected(): void
