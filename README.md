@@ -45,12 +45,16 @@ Omeka-S-Cli is a command line tool to manage Omeka S instances.
     - List all users
     - Add, delete, update, set password, enable or disable a user
     - Manage API keys for a user
+- Site
+    - List all sites
+    - Add, update or delete a site
+    - List, set or delete a user's permission on a site
 - Manage code snippets
     - Manage custom PHP snippets via the [CodeSnippets](https://github.com/ateeducacion/omeka-s-CodeSnippets) module
     - List, show, activate, deactivate, and delete snippets
     - Export and import snippets using the canonical portable JSON format
 - Blueprints
-    - Deploy an environment from a single declarative blueprint file (modules, themes, files, vocabularies, resource templates, users, settings)
+    - Deploy an environment from a single declarative blueprint file (modules, themes, files, vocabularies, resource templates, users, sites, settings)
 
 ### Automating Omeka S instance setup
 
@@ -106,15 +110,20 @@ A small blueprint (jsonc — comments and trailing commas allowed):
         { "prefix": "schema", "namespaceUri": "https://schema.org/", "label": "schema.org",
           "source": "https://schema.org/version/latest/schemaorg-current-https.rdf" }
     ],
-    "resourceTemplates": [ { "source": "../resource-template/base_resource.json" } ],
+    "resourceTemplates": [ { "source": "./templates/base_resource.json" } ],
     "files": [ { "source": "./cleanurl.config.php", "destination": "config/cleanurl.config.php" } ],
     "settings": { "installation_title": "Blueprint Demo" }
 }
 ```
 
 `blueprint:deploy` runs the phases in order (core → modules → themes → files → vocabularies → resource
-templates → users → settings), reusing the same commands documented above, and is idempotent —
+templates → users → sites → settings), reusing the same commands documented above, and is idempotent —
 re-running it skips resources that already exist (pass `--update` to refresh them).
+
+Paths inside a blueprint are relative to the file that declares them, and must stay inside the
+blueprint's directory: absolute paths and `file:` URLs are rejected, and `--root <dir>` widens the
+allowed directory (e.g. `--root examples` for [examples/blueprint/](examples/blueprint/), which uses a
+resource template from `../resource-template`). A module or theme `source` may be a local zip release.
 
 It can also **build a site from scratch**: the core phase downloads and installs Omeka S, so one
 command goes from an empty server to a running site. Database details are passed as flags only. The
@@ -181,6 +190,12 @@ The official Omeka S module repository does not always have all versions availab
 
 ```
 omeka-s-cli module:download https://github.com/Daniel-KM/Omeka-S-module-Common/releases/download/3.4.65/Common-3.4.65.zip
+```
+
+A zip release on disk works too (`theme:download` accepts the same forms):
+
+```
+omeka-s-cli module:download ./Common-3.4.65.zip
 ```
 
 ### Example: Download a module from a git repository

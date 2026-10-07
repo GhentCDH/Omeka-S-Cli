@@ -2,10 +2,13 @@
 namespace Tests\Blueprint;
 
 use OSC\Blueprint\BlueprintValidator;
+use OSC\Helper\SiteConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlueprintValidator::class)]
+#[UsesClass(SiteConfig::class)]
 class BlueprintValidatorTest extends TestCase
 {
     /**
@@ -217,5 +220,73 @@ class BlueprintValidatorTest extends TestCase
         $validator = new BlueprintValidator('/nonexistent/blueprint-schema.json');
         $this->assertSame([], $validator->validateBlueprint(['modules' => ['Common']]));
         $this->assertNotEmpty($validator->validateBlueprint(['modulez' => []]));
+    }
+
+    public function testInstallAdminCountsAsADeclaredUserForSitePermissions(): void
+    {
+        $errors = $this->validator()->validateBlueprint([
+            'install' => ['admin' => ['email' => 'Admin@Example.org']],
+            'sites' => [[
+                'title' => 'X',
+                'permissions' => [['user' => 'admin@example.org', 'role' => 'admin']],
+            ]],
+        ]);
+        $this->assertSame([], $errors);
+    }
+
+    public function testRejectsAnInvalidSiteSlug(): void
+    {
+        $errors = $this->validator()->validateBlueprint([
+            'sites' => [['title' => 'X', 'slug' => 'bad slug']],
+        ]);
+        $this->assertContains("site 'X': invalid slug 'bad slug' (only letters, digits, '_' and '-' are allowed).", $errors);
+    }
+
+    public function testRejectsASiteThemeThatIsNotDeclared(): void
+    {
+        $errors = $this->validator()->validateBlueprint([
+            'themes' => ['default'],
+            'sites' => [['title' => 'X', 'theme' => 'foundation']],
+        ]);
+        $this->assertContains("site 'X': theme 'foundation' is not declared in themes.", $errors);
+    }
+
+    public function testAcceptsADeclaredSiteThemeInAnyCasing(): void
+    {
+        $errors = $this->validator()->validateBlueprint([
+            'themes' => [['name' => 'foundation']],
+            'sites' => [['title' => 'X', 'theme' => 'Foundation']],
+        ]);
+        $this->assertSame([], $errors);
+    }
+
+    public function testTheDefaultThemeIsImplicitlyDeclared(): void
+    {
+        $errors = $this->validator()->validateBlueprint([
+            'sites' => [['title' => 'X', 'theme' => 'default'], ['title' => 'Y']],
+        ]);
+        $this->assertSame([], $errors);
+    }
+
+    public function testValidatesAStandaloneSitesPartial(): void
+    {
+        $this->assertSame([], $this->validator()->validatePartial([
+            ['title' => 'A', 'slug' => 'a', 'isPublic' => false],
+            ['title' => 'B'],
+        ], 'sites'));
+
+        $errors = $this->validator()->validatePartial([
+            ['title' => 'A'],
+            ['slug' => 'no-title', 'colour' => 'red'],
+        ], 'sites');
+        $this->assertNotEmpty($errors);
+        foreach ($errors as $error) {
+            $this->assertStringStartsWith('/1', $error);
+        }
+    }
+
+    public function testASitesPartialMustBeAList(): void
+    {
+        $this->assertSame(['/: must be a list of sites'], $this->validator()->validatePartial(['title' => 'A'], 'sites'));
     }
 }

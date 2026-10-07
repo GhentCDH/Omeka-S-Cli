@@ -14,10 +14,11 @@ class ValidateCommand extends AbstractBlueprintCommand
         $this->option(
             '--as',
             'Validate a standalone partial list instead of a full blueprint '
-            . '(modules, themes, files, vocabularies, resourceTemplates, settings, users, items, itemSets)'
+            . '(modules, themes, files, vocabularies, resourceTemplates, settings, users, sites, items, itemSets)'
         );
         $this->optionJson();
         $this->option('--refresh', 'Re-download the canonical blueprint schema', 'boolval', false);
+        $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
         $this->usage(
             'blueprint:validate ./site.blueprint.jsonc<eol/>'
             . 'blueprint:validate ./modules.jsonc --as modules<eol/>'
@@ -26,9 +27,9 @@ class ValidateCommand extends AbstractBlueprintCommand
         );
     }
 
-    public function execute(string $source, ?string $as = null, ?bool $json = false, ?bool $refresh = false): void
+    public function execute(string $source, ?string $as = null, ?bool $json = false, ?bool $refresh = false, ?string $root = null): void
     {
-        $loader = new BlueprintLoader();
+        $loader = new BlueprintLoader(null, $root);
         $validator = new BlueprintValidator();
 
         if ($refresh) {

@@ -245,6 +245,17 @@ assert_fail    "module:delete customvocab (can't delete installed module)"   $CL
 assert_success "module:delete customvocab --force"  $CLI module:delete customvocab --force
 assert_fail "module:status customvocab (module must not be found)"    $CLI module:status customvocab
 
+# a local zip release (built from the git repository, as a release zip would be)
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf /tmp/osc-zips && mkdir -p /tmp/osc-zips
+    git clone -q --depth 1 https://github.com/omeka-s-modules/CustomVocab.git /tmp/osc-zips/CustomVocab
+    (cd /tmp/osc-zips && zip -qr CustomVocab.zip CustomVocab)
+fi
+assert_success "module:download customvocab (from a local zip release)"   $CLI module:download /tmp/osc-zips/CustomVocab.zip
+assert_output_contains "module:status customvocab is 'not_installed'" "not_installed"   $CLI module:status customvocab
+assert_fail    "module:download from a missing local zip fails"           $CLI module:download /tmp/osc-zips/Missing.zip
+assert_success "module:delete customvocab (downloaded from a local zip)"  $CLI module:delete customvocab
+
 assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate
 assert_success    "module:enable AdvancedResourceTemplate"   $CLI module:enable AdvancedResourceTemplate
 assert_success    "module:disable AdvancedResourceTemplate"   $CLI module:disable AdvancedResourceTemplate
@@ -435,6 +446,91 @@ assert_output_is "the user is really active" "true"                            b
 assert_success "user:update-password --ignore-not-found on an existing user"   $CLI user:update-password ignore@example.com newsecret123 --ignore-not-found
 assert_success "user:delete --ignore-not-found deletes an existing user"       $CLI user:delete ignore@example.com --ignore-not-found
 assert_fail    "the user is really gone"                                       $CLI user:exists ignore@example.com
+
+# ── sites ────────────────────────────────────────────────────────────────────
+
+section "Sites"
+
+run            "remove a site left by an earlier run"                          $CLI site:delete it-site --ignore-not-found
+run            "remove a site left by an earlier run"                          $CLI site:delete 2024 --ignore-not-found
+run            "remove a site left by an earlier run"                          $CLI site:delete it-owned --ignore-not-found
+run            "remove a user left by an earlier run"                          $CLI user:delete site-editor@example.com --ignore-not-found
+
+assert_success "site:list returns results"                                     $CLI site:list
+assert_success "create a site"                                                 $CLI site:add "Integration Site" --slug it-site --summary "A test site"
+assert_output_is "the site got the default theme" "default"                    bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .theme'"
+assert_output_is "the site is public" "true"                                   bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_public'"
+assert_fail    "creating a site with an existing slug fails"                   $CLI site:add "Other Site" --slug it-site
+assert_success "site:add --ignore-existing skips an existing slug"             $CLI site:add "Other Site" --slug it-site --ignore-existing
+assert_fail    "site:add rejects an invalid slug"                              $CLI site:add "Bad Site" --slug "bad slug"
+assert_fail    "site:add rejects a theme that is not installed"                $CLI site:add "Bad Site" --slug it-bad --theme no-such-theme
+
+assert_success "update the site title"                                         $CLI site:update it-site --title "Renamed Site"
+assert_output_contains "site:update --json shows the new title" "Renamed Site" bash -c "$CLI site:update it-site --title 'Renamed Site' --json"
+# a partial update keeps the pages Omeka created with the site (a full update would delete them)
+assert_output_is "the update kept the site's welcome page" "1"                 bash -c "curl -s 'http://localhost/api/sites?slug=it-site' | jq '.[0][\"o:page\"] | length'"
+assert_success "a theme in other casing is accepted"                           $CLI site:update it-site --theme Default
+assert_output_is "the theme is stored as its real id" "default"                bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .theme'"
+assert_success "make the site private"                                         $CLI site:update it-site --private
+assert_output_is "the site is private" "false"                                 bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_public'"
+assert_fail    "site:update rejects --public with --private"                   $CLI site:update it-site --public --private
+assert_fail    "site:update rejects an invalid slug"                           $CLI site:update it-site --slug "bad slug"
+assert_success "make it the default site"                                      $CLI site:update it-site --default
+assert_output_is "the site is the default" "true"                              bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_default'"
+assert_fail    "update a nonexistent site fails"                               $CLI site:update no-such-site --title "Foo"
+
+# a numeric slug still finds its site (tried as an id first, then as a slug)
+assert_success "create a site with a numeric slug"                             $CLI site:add "Year Site" --slug 2024
+assert_success "site:update finds a site by its numeric slug"                  $CLI site:update 2024 --title "Year Site Renamed"
+assert_output_is "the numeric-slug site was updated" "Year Site Renamed"       bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"2024\") | .title'"
+assert_success "delete the numeric-slug site"                                  $CLI site:delete 2024
+
+# a numeric slug equal to another site's id is ambiguous: refuse, rather than act on the wrong site
+IT_SITE_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    IT_SITE_ID=$($CLI site:list --json | jq -r '.[] | select(.slug=="it-site") | .id')
+fi
+run            "remove a site left by an earlier run"                          bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Colliding Site\") | .id' | xargs -r -n1 $CLI site:delete"
+assert_success "create a site whose slug is another site's id"                 $CLI site:add "Colliding Site" --slug "$IT_SITE_ID"
+assert_fail    "site:update refuses an id that is also another site's slug"    $CLI site:update "$IT_SITE_ID" --title "Wrong Site"
+assert_output_is "the site with that id was not touched" "Renamed Site"        bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .title'"
+run            "delete the colliding site"                                     bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Colliding Site\") | .id' | xargs -r -n1 $CLI site:delete"
+
+# permissions: o:site_permission replaces the whole list, so changing one must keep the others
+assert_success "create a user for the permission checks"                       $CLI user:add site-editor@example.com "Site Editor" editor secret123
+assert_success "site:list-permissions lists the creating admin"                $CLI site:list-permissions it-site
+assert_success "grant the user a site role"                                    $CLI site:set-permission it-site site-editor@example.com editor
+assert_output_is "the permission is listed" "editor"                           bash -c "$CLI site:list-permissions it-site --json | jq -r '.[] | select(.email==\"site-editor@example.com\") | .role'"
+assert_output_contains "granting the same role again only warns" "already"     $CLI site:set-permission it-site site-editor@example.com editor
+assert_success "change the user's site role"                                   $CLI site:set-permission it-site site-editor@example.com admin
+assert_output_is "the role was really changed" "admin"                         bash -c "$CLI site:list-permissions it-site --json | jq -r '.[] | select(.email==\"site-editor@example.com\") | .role'"
+assert_output_is "the creating admin kept its permission" "2"                  bash -c "$CLI site:list-permissions it-site --json | jq 'length'"
+assert_fail    "site:set-permission rejects an invalid role"                   $CLI site:set-permission it-site site-editor@example.com owner
+assert_fail    "site:set-permission on a missing user fails"                   $CLI site:set-permission it-site ghost@example.com viewer
+assert_fail    "site:set-permission on a missing site fails"                   $CLI site:set-permission ghost-site site-editor@example.com viewer
+assert_success "delete the user's permission"                                  $CLI site:delete-permission it-site site-editor@example.com
+assert_output_is "only the creating admin is left" "1"                         bash -c "$CLI site:list-permissions it-site --json | jq 'length'"
+assert_fail    "deleting a permission that is gone fails"                      $CLI site:delete-permission it-site site-editor@example.com
+assert_success "site:delete-permission --ignore-not-found skips a missing permission" $CLI site:delete-permission it-site site-editor@example.com --ignore-not-found
+assert_success "site:delete-permission --ignore-not-found skips a missing site"       $CLI site:delete-permission ghost-site site-editor@example.com --ignore-not-found
+
+# --owner: the owner becomes the only site admin (instead of the elevated global admin)
+assert_success "create a site with an explicit owner"                          $CLI site:add "Owned Site" --slug it-owned --owner site-editor@example.com
+assert_output_is "the owner is set" "site-editor@example.com"                  bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-owned\") | .owner'"
+assert_output_is "the owner is the only permission" "site-editor@example.com:admin" bash -c "$CLI site:list-permissions it-owned --json | jq -r '.[] | \"\\(.email):\\(.role)\"'"
+assert_success "delete the owned site"                                         $CLI site:delete it-owned
+run            "remove the permission test user"                               $CLI user:delete site-editor@example.com
+
+# --ignore-not-found: skip a missing site, but never a mistake in the command itself
+assert_success "site:update --ignore-not-found skips a missing site"           $CLI site:update ghost-site --title "Ghost" --ignore-not-found
+assert_output_is "the skip prints nothing with --json" ""                      bash -c "$CLI site:update ghost-site --title Ghost --ignore-not-found --json"
+assert_fail    "--ignore-not-found still rejects an invalid slug"              $CLI site:update ghost-site --slug "bad slug" --ignore-not-found
+assert_success "site:delete --ignore-not-found skips a missing site"           $CLI site:delete ghost-site --ignore-not-found
+
+assert_success "delete the site"                                               $CLI site:delete it-site
+assert_output_is "the site is really gone" ""                                  bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .slug'"
+assert_fail    "deleting the default site cleared default_site"                $CLI config:get default_site
+assert_fail    "delete a nonexistent site fails"                               $CLI site:delete it-site
 
 # ── vocabularies ─────────────────────────────────────────────────────────────
 
@@ -663,8 +759,12 @@ assert_fail    "dummy:create-items with invalid config must fail"   $CLI dummy:c
 section "Blueprints"
 
 BP=/app/omeka-s-cli/examples/blueprint/site.blueprint.jsonc
+# the example's resource template lives in ../resource-template, outside the blueprint's directory
+BP_ROOT=(--root /app/omeka-s-cli/examples)
 
-assert_success "blueprint:validate accepts the example blueprint"          $CLI blueprint:validate "$BP"
+assert_output_contains "blueprint:validate rejects a reference outside the blueprint root" "outside the blueprint root" \
+    $CLI blueprint:validate "$BP"
+assert_success "blueprint:validate accepts the example blueprint with --root" $CLI blueprint:validate "$BP" "${BP_ROOT[@]}"
 assert_success "blueprint:validate accepts a standalone module partial"    $CLI blueprint:validate /app/omeka-s-cli/examples/blueprint/modules.extra.jsonc --as modules
 
 if [[ $SECTION_SKIP -eq 0 ]]; then
@@ -672,12 +772,12 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
 fi
 assert_fail    "blueprint:validate rejects an invalid blueprint"           $CLI blueprint:validate /tmp/bad.blueprint.json
 
-assert_success "blueprint:deploy --dry-run makes no changes"               $CLI blueprint:deploy "$BP" --dry-run
+assert_success "blueprint:deploy --dry-run makes no changes"               $CLI blueprint:deploy "$BP" --dry-run "${BP_ROOT[@]}"
 # the suite's instance is already installed, so a deploy that includes the core phase must refuse
-assert_fail    "blueprint:deploy onto an installed instance needs --force"  $CLI blueprint:deploy "$BP" --skip core
-assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI blueprint:deploy "$BP" --skip core --force
+assert_fail    "blueprint:deploy onto an installed instance needs --force"  $CLI blueprint:deploy "$BP" --skip core "${BP_ROOT[@]}"
+assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI blueprint:deploy "$BP" --skip core --force "${BP_ROOT[@]}"
 assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
-assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force
+assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force "${BP_ROOT[@]}"
 
 # files: a relative source resolves against the blueprint, not the working directory
 if [[ $SECTION_SKIP -eq 0 ]]; then
@@ -689,6 +789,35 @@ fi
 assert_success "blueprint:validate accepts a standalone files partial"     $CLI blueprint:validate /tmp/bp-files/files.jsonc --as files
 assert_success "blueprint:deploy places files in the Omeka S root"         $CLI blueprint:deploy /tmp/bp-files/files.blueprint.json --skip core --force
 assert_output_is "the file has the source content" "hello"                 cat /var/www/omeka-s/files/blueprint/hello.txt
+
+# references: absolute paths are rejected, ../ may not leave the blueprint root unless --root widens it
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/bp-files/site
+    printf '{ "files": [ { "source": "/tmp/bp-files/hello.txt", "destination": "files/blueprint/abs.txt" } ] }' \
+        > /tmp/bp-files/absolute.blueprint.json
+    printf '{ "files": [ { "$import": "../files.jsonc" } ] }' > /tmp/bp-files/site/escape.blueprint.json
+fi
+assert_output_contains "blueprint:validate rejects an absolute source path" "absolute path" \
+    $CLI blueprint:validate /tmp/bp-files/absolute.blueprint.json
+assert_output_contains "blueprint:validate rejects an \$import leaving the root" "outside the blueprint root" \
+    $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json
+assert_success "blueprint:validate accepts it with a wider --root"         $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json --root /tmp/bp-files
+
+# a module from a local zip release, resolved against the blueprint
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/bp-files/zips
+    if [[ ! -f /tmp/bp-files/zips/CustomVocab.zip ]]; then
+        rm -rf /tmp/bp-files/zips/CustomVocab
+        git clone -q --depth 1 https://github.com/omeka-s-modules/CustomVocab.git /tmp/bp-files/zips/CustomVocab
+        (cd /tmp/bp-files/zips && zip -qr CustomVocab.zip CustomVocab)
+    fi
+    printf '{ "modules": [ { "name": "CustomVocab", "state": "download", "source": "./zips/CustomVocab.zip" } ] }' \
+        > /tmp/bp-files/zip.blueprint.json
+fi
+run            "remove a module left by an earlier run"                    $CLI module:delete CustomVocab --force --ignore-not-found
+assert_success "blueprint:deploy downloads a module from a local zip"      $CLI blueprint:deploy /tmp/bp-files/zip.blueprint.json --skip core --force
+assert_output_contains "the module is on disk, not installed" "not_installed"  $CLI module:status CustomVocab
+run            "delete the module from the local zip"                      $CLI module:delete CustomVocab --force
 
 # files from URLs: a plain copy, and a ZIP whose single top-level directory is stripped on extract
 SPEC=https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json
@@ -715,16 +844,79 @@ assert_output_contains "blueprint:deploy keeps a theme already on disk" "already
 assert_output_contains "blueprint:deploy --update re-downloads it" "downloaded" \
     $CLI blueprint:deploy /tmp/bp-files/theme.blueprint.json --skip core --force --update
 
+# sites: created after users, skipped on a re-run, brought in line with --update; a site without a
+# slug is matched by its title, so a re-run never duplicates it
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    cat > /tmp/bp-files/sites.blueprint.json <<'JSON'
+{ "users": [ { "email": "bp-site-editor@example.com", "role": "editor" } ],
+  "sites": [
+    { "title": "Blueprint Site A", "slug": "bp-site-a", "setAsDefault": true,
+      "permissions": [ { "user": "bp-site-editor@example.com", "role": "editor" } ] },
+    { "title": "Blueprint Site B", "isPublic": false,
+      "permissions": [ { "user": "bp-site-editor@example.com" } ] }
+  ] }
+JSON
+    jq '.sites[1].isPublic = true | .sites[0].permissions[0].role = "admin"' \
+        /tmp/bp-files/sites.blueprint.json > /tmp/bp-files/sites-update.blueprint.json
+fi
+run            "remove a site left by an earlier run"                      $CLI site:delete bp-site-a --ignore-not-found
+run            "remove a site left by an earlier run"                      bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .slug' | xargs -r -n1 $CLI site:delete"
+
+assert_success "blueprint:validate accepts a blueprint with sites"         $CLI blueprint:validate /tmp/bp-files/sites.blueprint.json
+assert_success "blueprint:deploy creates the sites"                        $CLI blueprint:deploy /tmp/bp-files/sites.blueprint.json --skip core --force
+assert_output_is "site A is the default site" "true"                       bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"bp-site-a\") | .is_default'"
+assert_output_is "site B is private" "false"                               bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .is_public'"
+assert_output_is "site A granted its permission" "editor"                  bash -c "$CLI site:list-permissions bp-site-a --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+assert_output_is "site B (no slug) got its permission with the viewer default" "viewer" \
+    bash -c "$CLI site:list-permissions \$($CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .slug') --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+assert_output_contains "a re-run skips the existing sites" "already exists" \
+    $CLI blueprint:deploy /tmp/bp-files/sites.blueprint.json --skip core --force
+assert_output_is "the re-run did not duplicate the slug-less site" "1"     bash -c "$CLI site:list --json | jq '[.[] | select(.title==\"Blueprint Site B\")] | length'"
+assert_success "blueprint:deploy --update reconciles the sites"            $CLI blueprint:deploy /tmp/bp-files/sites-update.blueprint.json --skip core --force --update
+assert_output_is "--update made site B public" "true"                      bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .is_public'"
+assert_output_is "--update changed the role" "admin"                       bash -c "$CLI site:list-permissions bp-site-a --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+
+# a blueprint site whose slug is another site's id: the applier must act on the site it matched,
+# not on the site with that id
+BP_SITE_A_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    BP_SITE_A_ID=$($CLI site:list --json | jq -r '.[] | select(.slug=="bp-site-a") | .id')
+    cat > /tmp/bp-files/sites-collide.blueprint.json <<JSON
+{ "users": [ { "email": "bp-site-editor@example.com", "role": "editor" } ],
+  "sites": [ { "title": "Blueprint Collide", "slug": "$BP_SITE_A_ID",
+               "permissions": [ { "user": "bp-site-editor@example.com", "role": "viewer" } ] } ] }
+JSON
+fi
+run            "remove a site left by an earlier run"                      bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Collide\") | .id' | xargs -r -n1 $CLI site:delete"
+assert_success "blueprint:deploy a site whose slug is another site's id"   $CLI blueprint:deploy /tmp/bp-files/sites-collide.blueprint.json --skip core --force
+assert_output_is "the permission went to the matched site" "viewer"        bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Collide\") | .id' | xargs -I{} $CLI site:list-permissions {} --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+assert_output_is "the site with that id kept its role" "admin"             bash -c "$CLI site:list-permissions bp-site-a --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+run            "delete the colliding site"                                 bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Collide\") | .id' | xargs -r -n1 $CLI site:delete"
+
 # export the live instance and check the result round-trips through validate
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
 assert_output_contains "the export captures an installed module" "Common"   $CLI blueprint:export
+assert_output_contains "the export captures a site" '"slug": "bp-site-a"'  $CLI blueprint:export
+# site permissions (and the users they name) are exported only with --include site-permissions
+run            "add a user without a site permission"                      $CLI user:add bp-no-site@example.com "No Site" researcher secret123 --ignore-existing
+assert_output_is "the default export has no users" "0"                     bash -c "$CLI blueprint:export | grep -v '^//' | jq '.users // [] | length'"
+assert_output_is "the default export has no site permissions" "0"          bash -c "$CLI blueprint:export | grep -v '^//' | jq '[.sites[] | select(.permissions)] | length'"
+assert_output_contains "--include site-permissions exports the permissions" '"permissions"' \
+    $CLI blueprint:export --include site-permissions
+assert_output_contains "--include site-permissions declares the users they name" '"email": "bp-site-editor@example.com"' \
+    $CLI blueprint:export --include site-permissions
+assert_output_is "--include site-permissions skips a user without one" "0" bash -c "$CLI blueprint:export --include site-permissions | grep -c bp-no-site@example.com"
+assert_success "an export with site permissions validates"                 bash -c "$CLI blueprint:export /tmp/exported-permissions.blueprint.jsonc --include site-permissions && $CLI blueprint:validate /tmp/exported-permissions.blueprint.jsonc"
+run            "remove the user without a site permission"                 $CLI user:delete bp-no-site@example.com
+assert_fail    "blueprint:export rejects an unknown --include part"        $CLI blueprint:export --include passwords
+assert_output_contains "the export marks the default site" '"setAsDefault": true' $CLI blueprint:export
 
 # a full deploy (core phase included) started outside the Omeka S directory: it, and the processes
 # it continues in after the core install, must find the instance through --base-path alone, not by
 # searching the working directory. Resets the instance (database.ini is reused), so keep this last.
 assert_success "blueprint:deploy with the core phase works outside the Omeka S directory" \
-    bash -c "cd /tmp && $CLI blueprint:deploy $BP --base-path /var/www/omeka-s --force"
+    bash -c "cd /tmp && $CLI blueprint:deploy $BP ${BP_ROOT[*]} --base-path /var/www/omeka-s --force"
 assert_output_is "the deploy from outside the Omeka S directory applied its settings" '"Blueprint Demo"' \
     bash -c "cd /tmp && $CLI config:get installation_title --base-path /var/www/omeka-s"
 # no --admin-* flags were passed, so the administrator comes from the blueprint's install.admin

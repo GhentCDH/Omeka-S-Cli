@@ -15,17 +15,22 @@ use Otar\JSONC;
  * contain further `$import` entries). Referenced sources are resolved relative to the file/URL that
  * contains them. Circular references are detected and rejected.
  *
+ * References written in a blueprint (`$import` and the asset fields) must be URLs, repo-aware
+ * references or relative paths: absolute paths and `file:` URLs are rejected, and a relative path
+ * that resolves outside the blueprint root (by default the top-level blueprint's directory) is
+ * rejected too, so a blueprint can never reach an arbitrary file on the local filesystem.
+ *
  * De-duplication: within a resolved list, entries sharing a natural identity (module/theme `name`,
- * file `destination`, vocabulary `prefix`, resource-template `label`, user `email`, item/item-set
- * `title`) collapse to the last occurrence, so a later inline entry — or a later import — overrides
- * an earlier one. When such an override actually changes the value, an advisory warning is recorded
- * (see takeWarnings()), so intentional layering keeps working while an accidental duplicate stays
- * visible.
+ * file `destination`, vocabulary `namespaceUri`, resource-template `label`, user `email`, site
+ * `slug`, item/item-set `title`) collapse into the first occurrence: a later entry is shallow-merged
+ * into it and the entry keeps its first position (so module install order is stable). When such a
+ * merge actually changes the value, an advisory warning is recorded (see takeWarnings()), so
+ * intentional layering keeps working while an accidental duplicate stays visible.
  */
 class BlueprintLoader
 {
     /** Keys whose value is a list of items that may contain `$import` references. */
-    private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'itemSets', 'items'];
+    private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'sites', 'itemSets', 'items'];
 
     /**
      * Per-list item fields that hold a relative asset reference. They are resolved against the source
@@ -33,10 +38,24 @@ class BlueprintLoader
      * the imported config's location, not the top-level blueprint's.
      */
     private const ASSET_FIELDS = [
+        'modules' => ['source'],
+        'themes' => ['source'],
         'files' => ['source'],
         'vocabularies' => ['source'],
         'resourceTemplates' => ['source'],
     ];
+
+    /**
+     * Lists whose asset field may also hold a non-file reference (a git URL, gh:owner/repo) that the
+     * download commands interpret themselves: only a path-form value is resolved there.
+     */
+    private const ADDON_KEYS = ['modules', 'themes'];
+
+    /** An absolute filesystem path (POSIX, UNC/backslash, Windows drive) or a file: URL. */
+    private const ABSOLUTE_PATTERN = '#^(/|\\\\|[A-Za-z]:[\\\\/]|file:)#i';
+
+    /** A URI scheme (two characters or more, so a Windows drive letter is not one). */
+    private const SCHEME_PATTERN = '#^[A-Za-z][A-Za-z0-9+.-]+:#';
 
     /** Absolute sources currently being resolved, to detect circular imports. */
     private array $visiting = [];
@@ -47,7 +66,15 @@ class BlueprintLoader
     /** Resolves repo-aware and relative references (`$import`) into fetchable paths/URLs. */
     private ReferenceResolver $resolver;
 
-    public function __construct(?ReferenceResolver $resolver = null)
+    /** Local directory every local reference must stay inside, for the current load (null: none). */
+    private ?string $root = null;
+
+    /**
+     * @param ReferenceResolver|null $resolver Resolver for repo-aware and relative references
+     * @param string|null            $rootOverride Directory local references must stay inside; defaults
+     *                                             to the directory of the top-level blueprint
+     */
+    public function __construct(?ReferenceResolver $resolver = null, private ?string $rootOverride = null)
     {
         $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
     }
@@ -57,21 +84,21 @@ class BlueprintLoader
      *
      * @param string $source Path or URL to the blueprint (a repo-aware reference is accepted too)
      * @return Blueprint The normalized, import-resolved blueprint
-     * @throws Exception On fetch/parse errors or circular imports
+     * @throws Exception On fetch/parse errors, circular imports or a reference outside the root
      */
     public function load(string $source): Blueprint
     {
-        $this->warnings = [];
-        $source = $this->resolver->resolve($source);
-        $content = ResourceFetcher::fetch($source);
-        $blueprint = $this->decodeObject($content, $source);
-        return new Blueprint($this->resolve($blueprint, $source));
+        $source = $this->begin($source);
+        return $this->guarded($source, function () use ($source) {
+            $blueprint = $this->decodeObject(ResourceFetcher::fetch($source), $source);
+            return new Blueprint($this->resolve($blueprint, $source));
+        });
     }
 
     /**
      * Advisory messages collected during the most recent load()/loadPartial(), then cleared.
      *
-     * Currently: a notice that a later entry (often from an $import) overrode an earlier one with a
+     * Currently: a notice that a later entry (often from an $import) updated an earlier one with a
      * different value. A duplicate that re-declares an identical value is not reported.
      *
      * @return string[]
@@ -99,23 +126,42 @@ class BlueprintLoader
      */
     public function loadPartial(string $source, string $type): mixed
     {
+        $source = $this->begin($source);
+        return $this->guarded($source, function () use ($source, $type) {
+            $data = $this->decode(ResourceFetcher::fetch($source));
+            if ($type === 'settings') {
+                return $this->resolveSettings($data, $source);
+            }
+            return $this->resolveList($this->asList($data, $source), $source, $type);
+        });
+    }
+
+    /**
+     * Reset the per-load state and resolve the top-level source. The top-level source is given by the
+     * user, not written in a blueprint, so it may be absolute; it sets the default blueprint root.
+     */
+    private function begin(string $source): string
+    {
         $this->warnings = [];
+        $this->visiting = [];
         $source = $this->resolver->resolve($source);
-        $content = ResourceFetcher::fetch($source);
-        $data = $this->decode($content);
 
-        if ($type === 'settings') {
-            return $this->resolveSettings($data, $source);
+        if (ResourceFetcher::isFile($source)) {
+            // an absolute top-level path makes every local reference below it absolute too
+            $source = realpath($source) ?: $source;
         }
 
-        if (!is_array($data)) {
-            throw new Exception("Partial '{$source}' must be a JSON array or object.");
+        $this->root = null;
+        if ($this->rootOverride !== null) {
+            $root = realpath($this->rootOverride);
+            if ($root === false || !is_dir($root)) {
+                throw new Exception("Blueprint root '{$this->rootOverride}' is not a directory.");
+            }
+            $this->root = $root;
+        } elseif (ResourceFetcher::isFile($source)) {
+            $this->root = dirname($source);
         }
-        // a single item is allowed; wrap it so it is treated as a one-element list
-        if (!array_is_list($data)) {
-            $data = [$data];
-        }
-        return $this->resolveList($data, $source, $type);
+        return $source;
     }
 
     /** Decode jsonc content that must be a JSON object (not a list); $source is used for errors only. */
@@ -126,6 +172,15 @@ class BlueprintLoader
             throw new Exception("Blueprint '{$source}' must be a JSON object.");
         }
         return $data;
+    }
+
+    /** A decoded list source as a list: a single item (an object) becomes a one-element list. */
+    private function asList(mixed $data, string $source): array
+    {
+        if (!is_array($data)) {
+            throw new Exception("'{$source}' must be a JSON array or object.");
+        }
+        return array_is_list($data) ? $data : [$data];
     }
 
     private function resolve(array $blueprint, string $source): array
@@ -160,42 +215,17 @@ class BlueprintLoader
                 continue;
             }
 
-            $ref = $this->resolver->resolve($entry['$import'], $source);
-            // items pulled in by importList() were already asset-resolved against the imported source
-            $imported = $this->importList($ref, $key);
+            // items pulled in by an import were already asset-resolved against the imported source
+            $imported = $this->import(
+                $entry['$import'],
+                $source,
+                fn(mixed $data, string $ref) => $this->resolveList($this->asList($data, $ref), $ref, $key)
+            );
             foreach ($imported as $item) {
                 $resolved[] = $item;
             }
         }
         return $this->dedupe($resolved, $key);
-    }
-
-    /**
-     * Fetch, decode and recursively resolve an imported list, guarding against cycles.
-     *
-     * @return array
-     * @throws Exception
-     */
-    private function importList(string $ref, string $key): array
-    {
-        $guard = $this->guardKey($ref);
-        if (isset($this->visiting[$guard])) {
-            throw new Exception("Circular \$import detected at '{$ref}'.");
-        }
-        $this->visiting[$guard] = true;
-        try {
-            $content = ResourceFetcher::fetch($ref);
-            $data = $this->decode($content);
-            if (!is_array($data)) {
-                throw new Exception("Imported source '{$ref}' must be a JSON array or object.");
-            }
-            if (!array_is_list($data)) {
-                $data = [$data];
-            }
-            return $this->resolveList($data, $ref, $key);
-        } finally {
-            unset($this->visiting[$guard]);
-        }
     }
 
     /**
@@ -223,8 +253,11 @@ class BlueprintLoader
         $merged = [];
         foreach ($settings as $entry) {
             if ($this->isReference($entry)) {
-                $ref = $this->resolver->resolve($entry['$import'], $source);
-                $imported = $this->resolveSettings($this->decode(ResourceFetcher::fetch($ref)), $ref);
+                $imported = $this->import(
+                    $entry['$import'],
+                    $source,
+                    fn(mixed $data, string $ref) => $this->resolveSettings($data, $ref)
+                );
                 $merged = array_merge($merged, $imported);
                 continue;
             }
@@ -237,13 +270,90 @@ class BlueprintLoader
     }
 
     /**
+     * The single path for an `$import`: check and resolve the reference against the source that
+     * contains it, guard against cycles, then fetch, decode and hand the data to $resolve.
+     *
+     * @param mixed    $raw     The `$import` value
+     * @param string   $base    The source containing the reference
+     * @param callable $resolve fn(mixed $data, string $ref): mixed
+     * @throws Exception
+     */
+    private function import(mixed $raw, string $base, callable $resolve): mixed
+    {
+        if (!is_string($raw) || trim($raw) === '') {
+            throw new Exception("An \$import in '{$base}' must be a non-empty string.");
+        }
+        $ref = $this->reference($raw, $base);
+        return $this->guarded($ref, fn() => $resolve($this->decode(ResourceFetcher::fetch($ref)), $ref));
+    }
+
+    /**
+     * Run $fn with $source on the stack of sources being resolved, rejecting a source that is already
+     * on it (a circular import).
+     *
+     * @throws Exception
+     */
+    private function guarded(string $source, callable $fn): mixed
+    {
+        $guard = $this->guardKey($source);
+        if (isset($this->visiting[$guard])) {
+            throw new Exception("Circular \$import detected at '{$source}'.");
+        }
+        $this->visiting[$guard] = true;
+        try {
+            return $fn();
+        } finally {
+            unset($this->visiting[$guard]);
+        }
+    }
+
+    /**
+     * Turn a reference written in a blueprint into a fetchable path or URL: reject absolute paths and
+     * file: URLs, resolve it against the source that contains it, and require a local result to stay
+     * inside the blueprint root. A URL result needs no check: a relative reference in a remote file
+     * always resolves to a URL.
+     *
+     * @throws Exception
+     */
+    private function reference(string $raw, string $base): string
+    {
+        $raw = trim($raw);
+        if (preg_match(self::ABSOLUTE_PATTERN, $raw) === 1) {
+            throw new Exception(
+                "Reference '{$raw}' in '{$base}' is an absolute path or file: URL; use a relative path or a URL."
+            );
+        }
+
+        $ref = $this->resolver->resolve($raw, $base);
+        if (ResourceFetcher::isUrl($ref)) {
+            return $ref;
+        }
+        if ($this->root === null || !$this->isInside($ref, $this->root)) {
+            $root = $this->root ?? '(none: the blueprint is not a local file)';
+            throw new Exception(
+                "Reference '{$raw}' in '{$base}' resolves outside the blueprint root {$root}; use --root to widen it."
+            );
+        }
+        return $ref;
+    }
+
+    /** Whether a local path lies inside $root; an existing path is compared by its real path (symlinks). */
+    private function isInside(string $path, string $root): bool
+    {
+        $path = realpath($path) ?: $path;
+        return $path === $root || str_starts_with($path, rtrim($root, '/') . '/');
+    }
+
+    /**
      * Resolve an inline item's relative asset fields (see ASSET_FIELDS) against the source that
-     * declares it. Repo-aware references become raw URLs; absolute paths and URLs pass through.
+     * declares it. Repo-aware references become raw URLs; URLs pass through. For add-ons only a
+     * path-form source is resolved; a git URL or gh:owner/repo is left to the download commands.
      *
      * @param mixed  $entry  The inline item
      * @param string $source The source declaring the item (for relative resolution)
      * @param string $key    The list key (selects which fields are asset references)
      * @return mixed The item with its asset fields resolved
+     * @throws Exception
      */
     private function resolveItemAssets(mixed $entry, string $source, string $key): mixed
     {
@@ -251,11 +361,28 @@ class BlueprintLoader
             return $entry;
         }
         foreach (self::ASSET_FIELDS[$key] ?? [] as $field) {
-            if (isset($entry[$field]) && is_string($entry[$field]) && trim($entry[$field]) !== '') {
-                $entry[$field] = $this->resolver->resolve($entry[$field], $source);
+            if (!isset($entry[$field]) || !is_string($entry[$field]) || trim($entry[$field]) === '') {
+                continue;
             }
+            if (in_array($key, self::ADDON_KEYS, true) && !$this->isAddonPath($entry[$field])) {
+                continue;
+            }
+            $entry[$field] = $this->reference($entry[$field], $source);
         }
         return $entry;
+    }
+
+    /**
+     * Whether an add-on source is a path (a local zip release) rather than a URL, a git address or a
+     * scheme-prefixed reference. An absolute path counts as a path, so reference() rejects it.
+     */
+    private function isAddonPath(string $value): bool
+    {
+        $value = trim($value);
+        if (preg_match(self::ABSOLUTE_PATTERN, $value) === 1) {
+            return true;
+        }
+        return preg_match(self::SCHEME_PATTERN, $value) !== 1 && !str_starts_with($value, 'git@');
     }
 
     private function isReference(mixed $entry): bool
@@ -269,7 +396,9 @@ class BlueprintLoader
     }
 
     /**
-     * Collapse entries with the same natural identity, keeping the last occurrence.
+     * Collapse entries with the same natural identity into the first occurrence: a later entry is
+     * shallow-merged into it, and the entry keeps its first position. Entries without an identity keep
+     * their place.
      *
      * @param array  $list
      * @param string $key
@@ -277,24 +406,47 @@ class BlueprintLoader
      */
     private function dedupe(array $list, string $key): array
     {
-        $keyed = [];
-        $loose = [];
+        $result = [];
+        $positions = []; // identity => index in $result
         foreach ($list as $entry) {
             $id = $this->identity($entry, $key);
             if ($id === '') {
-                $loose[] = $entry;
+                $result[] = $entry;
                 continue;
             }
-            // a later entry with the same identity but a different value overrides the earlier one;
-            // record it so an accidental duplicate is visible while intentional layering still works
-            if (array_key_exists($id, $keyed) && $keyed[$id] != $entry) {
-                $label = $this->identityLabel($entry, $key);
-                $this->warnings[] = "{$key}: '{$label}' is declared more than once; the later definition overrides the earlier one.";
+            if (!array_key_exists($id, $positions)) {
+                $positions[$id] = count($result);
+                $result[] = $entry;
+                continue;
             }
-            unset($keyed[$id]); // drop earlier occurrence so the last one keeps last position
-            $keyed[$id] = $entry;
+
+            $position = $positions[$id];
+            [$earlier, $merged] = $this->merge($result[$position], $entry);
+            // a later entry that changes the value updates the earlier one; record it so an accidental
+            // duplicate is visible while intentional layering still works
+            if ($merged != $earlier) {
+                $label = $this->identityLabel($entry, $key);
+                $this->warnings[] = "{$key}: '{$label}' is declared more than once; the later definition updates the earlier one.";
+            }
+            $result[$position] = $merged;
         }
-        return array_merge(array_values($keyed), $loose);
+        return $result;
+    }
+
+    /**
+     * Shallow-merge a later duplicate into an earlier one. A bare string (module/theme name) is
+     * normalized to `['name' => ...]` when the other side is an object; two strings keep the later one.
+     *
+     * @return array{0:mixed,1:mixed} The (normalized) earlier entry and the merged entry
+     */
+    private function merge(mixed $earlier, mixed $later): array
+    {
+        if (!is_array($earlier) && !is_array($later)) {
+            return [$earlier, $later];
+        }
+        $earlier = is_array($earlier) ? $earlier : ['name' => $earlier];
+        $later = is_array($later) ? $later : ['name' => $later];
+        return [$earlier, array_merge($earlier, $later)];
     }
 
     private function identity(mixed $entry, string $key): string
@@ -315,9 +467,10 @@ class BlueprintLoader
         $field = match ($key) {
             'modules', 'themes'   => $entry['name'] ?? '',
             'files'               => $entry['destination'] ?? '',
-            'vocabularies'        => $entry['prefix'] ?? '',
+            'vocabularies'        => $entry['namespaceUri'] ?? '',
             'resourceTemplates'   => $entry['label'] ?? $entry['source'] ?? '',
             'users'               => $entry['email'] ?? '',
+            'sites'               => $entry['slug'] ?? $entry['title'] ?? '',
             'itemSets', 'items'   => $entry['title'] ?? '',
             default               => '',
         };
