@@ -61,11 +61,11 @@ class BlueprintLoader
      */
     public function load(string $source): Blueprint
     {
-        $this->warnings = [];
-        $source = $this->resolver->resolve($source);
-        $content = ResourceFetcher::fetch($source);
-        $blueprint = $this->decodeObject($content, $source);
-        return new Blueprint($this->resolve($blueprint, $source));
+        $source = $this->begin($source);
+        return $this->guarded($source, function () use ($source) {
+            $blueprint = $this->decodeObject(ResourceFetcher::fetch($source), $source);
+            return new Blueprint($this->resolve($blueprint, $source));
+        });
     }
 
     /**
@@ -99,23 +99,22 @@ class BlueprintLoader
      */
     public function loadPartial(string $source, string $type): mixed
     {
+        $source = $this->begin($source);
+        return $this->guarded($source, function () use ($source, $type) {
+            $data = $this->decode(ResourceFetcher::fetch($source));
+            if ($type === 'settings') {
+                return $this->resolveSettings($data, $source);
+            }
+            return $this->resolveList($this->asList($data, $source), $source, $type);
+        });
+    }
+
+    /** Reset the per-load state and resolve the top-level source. */
+    private function begin(string $source): string
+    {
         $this->warnings = [];
-        $source = $this->resolver->resolve($source);
-        $content = ResourceFetcher::fetch($source);
-        $data = $this->decode($content);
-
-        if ($type === 'settings') {
-            return $this->resolveSettings($data, $source);
-        }
-
-        if (!is_array($data)) {
-            throw new Exception("Partial '{$source}' must be a JSON array or object.");
-        }
-        // a single item is allowed; wrap it so it is treated as a one-element list
-        if (!array_is_list($data)) {
-            $data = [$data];
-        }
-        return $this->resolveList($data, $source, $type);
+        $this->visiting = [];
+        return $this->resolver->resolve($source);
     }
 
     /** Decode jsonc content that must be a JSON object (not a list); $source is used for errors only. */
@@ -126,6 +125,15 @@ class BlueprintLoader
             throw new Exception("Blueprint '{$source}' must be a JSON object.");
         }
         return $data;
+    }
+
+    /** A decoded list source as a list: a single item (an object) becomes a one-element list. */
+    private function asList(mixed $data, string $source): array
+    {
+        if (!is_array($data)) {
+            throw new Exception("'{$source}' must be a JSON array or object.");
+        }
+        return array_is_list($data) ? $data : [$data];
     }
 
     private function resolve(array $blueprint, string $source): array
@@ -160,42 +168,17 @@ class BlueprintLoader
                 continue;
             }
 
-            $ref = $this->resolver->resolve($entry['$import'], $source);
-            // items pulled in by importList() were already asset-resolved against the imported source
-            $imported = $this->importList($ref, $key);
+            // items pulled in by an import were already asset-resolved against the imported source
+            $imported = $this->import(
+                $entry['$import'],
+                $source,
+                fn(mixed $data, string $ref) => $this->resolveList($this->asList($data, $ref), $ref, $key)
+            );
             foreach ($imported as $item) {
                 $resolved[] = $item;
             }
         }
         return $this->dedupe($resolved, $key);
-    }
-
-    /**
-     * Fetch, decode and recursively resolve an imported list, guarding against cycles.
-     *
-     * @return array
-     * @throws Exception
-     */
-    private function importList(string $ref, string $key): array
-    {
-        $guard = $this->guardKey($ref);
-        if (isset($this->visiting[$guard])) {
-            throw new Exception("Circular \$import detected at '{$ref}'.");
-        }
-        $this->visiting[$guard] = true;
-        try {
-            $content = ResourceFetcher::fetch($ref);
-            $data = $this->decode($content);
-            if (!is_array($data)) {
-                throw new Exception("Imported source '{$ref}' must be a JSON array or object.");
-            }
-            if (!array_is_list($data)) {
-                $data = [$data];
-            }
-            return $this->resolveList($data, $ref, $key);
-        } finally {
-            unset($this->visiting[$guard]);
-        }
     }
 
     /**
@@ -223,8 +206,11 @@ class BlueprintLoader
         $merged = [];
         foreach ($settings as $entry) {
             if ($this->isReference($entry)) {
-                $ref = $this->resolver->resolve($entry['$import'], $source);
-                $imported = $this->resolveSettings($this->decode(ResourceFetcher::fetch($ref)), $ref);
+                $imported = $this->import(
+                    $entry['$import'],
+                    $source,
+                    fn(mixed $data, string $ref) => $this->resolveSettings($data, $ref)
+                );
                 $merged = array_merge($merged, $imported);
                 continue;
             }
@@ -234,6 +220,44 @@ class BlueprintLoader
             $merged = array_merge($merged, $entry);
         }
         return $merged;
+    }
+
+    /**
+     * The single path for an `$import`: resolve the reference against the source that contains it,
+     * guard against cycles, then fetch, decode and hand the data to $resolve.
+     *
+     * @param mixed    $raw     The `$import` value
+     * @param string   $base    The source containing the reference
+     * @param callable $resolve fn(mixed $data, string $ref): mixed
+     * @throws Exception
+     */
+    private function import(mixed $raw, string $base, callable $resolve): mixed
+    {
+        if (!is_string($raw) || trim($raw) === '') {
+            throw new Exception("An \$import in '{$base}' must be a non-empty string.");
+        }
+        $ref = $this->resolver->resolve($raw, $base);
+        return $this->guarded($ref, fn() => $resolve($this->decode(ResourceFetcher::fetch($ref)), $ref));
+    }
+
+    /**
+     * Run $fn with $source on the stack of sources being resolved, rejecting a source that is already
+     * on it (a circular import).
+     *
+     * @throws Exception
+     */
+    private function guarded(string $source, callable $fn): mixed
+    {
+        $guard = $this->guardKey($source);
+        if (isset($this->visiting[$guard])) {
+            throw new Exception("Circular \$import detected at '{$source}'.");
+        }
+        $this->visiting[$guard] = true;
+        try {
+            return $fn();
+        } finally {
+            unset($this->visiting[$guard]);
+        }
     }
 
     /**

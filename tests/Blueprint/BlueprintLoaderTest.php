@@ -396,4 +396,46 @@ class BlueprintLoaderTest extends TestCase
         $this->assertStringContainsString("sites: 'site-b'", $warnings[0]);
         $this->assertStringContainsString("sites: 'site a'", $warnings[1]);
     }
+
+    // ── import cycles and settings imports ──────────────────────────────────────────────────────
+
+    public function testCircularSettingsImportIsRejected(): void
+    {
+        $this->write('a.jsonc', '[ { "$import": "./b.jsonc" } ]');
+        $this->write('b.jsonc', '[ { "$import": "./a.jsonc" } ]');
+        $base = $this->write('base.jsonc', '{ "settings": [ { "$import": "./a.jsonc" } ] }');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/[Cc]ircular/');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testImportOfTheTopLevelBlueprintIsCircular(): void
+    {
+        $base = $this->write('base.jsonc', '{ "settings": [ { "$import": "./base.jsonc" } ] }');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/[Cc]ircular/');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testNestedSettingsImportResolvesAgainstItsParent(): void
+    {
+        $this->writeIn('settings/deep/b.jsonc', '{ "b": 2 }');
+        $this->writeIn('settings/a.jsonc', '[ { "a": 1 }, { "$import": "./deep/b.jsonc" } ]');
+        $base = $this->writeIn('base.jsonc', '{ "settings": [ { "$import": "./settings/a.jsonc" } ] }');
+
+        $this->assertSame(['a' => 1, 'b' => 2], (new BlueprintLoader())->load($base)->settings());
+    }
+
+    public function testDiamondImportIsNotCircular(): void
+    {
+        // the same file imported from two branches is not a cycle; its entries collapse
+        $this->write('common.jsonc', '["Common"]');
+        $this->write('x.jsonc', '[ { "$import": "./common.jsonc" }, "X" ]');
+        $this->write('y.jsonc', '[ { "$import": "./common.jsonc" }, "Y" ]');
+        $base = $this->write('base.jsonc', '{ "modules": [ { "$import": "./x.jsonc" }, { "$import": "./y.jsonc" } ] }');
+
+        $this->assertSame(['X', 'Common', 'Y'], (new BlueprintLoader())->load($base)->modules());
+    }
 }
