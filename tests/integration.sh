@@ -698,6 +698,38 @@ assert_output_contains "blueprint:deploy keeps a theme already on disk" "already
 assert_output_contains "blueprint:deploy --update re-downloads it" "downloaded" \
     $CLI blueprint:deploy /tmp/bp-files/theme.blueprint.json --skip core --force --update
 
+# sites: created after users, skipped on a re-run, brought in line with --update; a site without a
+# slug is matched by its title, so a re-run never duplicates it
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    cat > /tmp/bp-files/sites.blueprint.json <<'JSON'
+{ "users": [ { "email": "bp-site-editor@example.com", "role": "editor" } ],
+  "sites": [
+    { "title": "Blueprint Site A", "slug": "bp-site-a", "setAsDefault": true,
+      "permissions": [ { "user": "bp-site-editor@example.com", "role": "editor" } ] },
+    { "title": "Blueprint Site B", "isPublic": false,
+      "permissions": [ { "user": "bp-site-editor@example.com" } ] }
+  ] }
+JSON
+    jq '.sites[1].isPublic = true | .sites[0].permissions[0].role = "admin"' \
+        /tmp/bp-files/sites.blueprint.json > /tmp/bp-files/sites-update.blueprint.json
+fi
+run            "remove a site left by an earlier run"                      $CLI site:delete bp-site-a --ignore-not-found
+run            "remove a site left by an earlier run"                      bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .slug' | xargs -r -n1 $CLI site:delete"
+
+assert_success "blueprint:validate accepts a blueprint with sites"         $CLI blueprint:validate /tmp/bp-files/sites.blueprint.json
+assert_success "blueprint:deploy creates the sites"                        $CLI blueprint:deploy /tmp/bp-files/sites.blueprint.json --skip core --force
+assert_output_is "site A is the default site" "true"                       bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"bp-site-a\") | .is_default'"
+assert_output_is "site B is private" "false"                               bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .is_public'"
+assert_output_is "site A granted its permission" "editor"                  bash -c "$CLI site:list-permissions bp-site-a --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+assert_output_is "site B (no slug) got its permission with the viewer default" "viewer" \
+    bash -c "$CLI site:list-permissions \$($CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .slug') --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+assert_output_contains "a re-run skips the existing sites" "already exists" \
+    $CLI blueprint:deploy /tmp/bp-files/sites.blueprint.json --skip core --force
+assert_output_is "the re-run did not duplicate the slug-less site" "1"     bash -c "$CLI site:list --json | jq '[.[] | select(.title==\"Blueprint Site B\")] | length'"
+assert_success "blueprint:deploy --update reconciles the sites"            $CLI blueprint:deploy /tmp/bp-files/sites-update.blueprint.json --skip core --force --update
+assert_output_is "--update made site B public" "true"                      bash -c "$CLI site:list --json | jq -r '.[] | select(.title==\"Blueprint Site B\") | .is_public'"
+assert_output_is "--update changed the role" "admin"                       bash -c "$CLI site:list-permissions bp-site-a --json | jq -r '.[] | select(.email==\"bp-site-editor@example.com\") | .role'"
+
 # export the live instance and check the result round-trips through validate
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc

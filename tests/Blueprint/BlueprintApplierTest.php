@@ -1,12 +1,16 @@
 <?php
 namespace Tests\Blueprint;
 
+use Exception;
+use Omeka\Api\Representation\SiteRepresentation;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintApplier;
 use OSC\Commands\AbstractCommand;
 use OSC\Downloader\ZipDownloader;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
+use OSC\Omeka\OmekaInstance;
+use OSC\Omeka\SiteApi;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -236,5 +240,122 @@ class BlueprintApplierTest extends TestCase
         $notes = $this->dryRunAddons(['modules' => [['name' => 'Dev', 'source' => $zip, 'version' => '1.3.0']]]);
 
         $this->assertContains("would download module 'Dev' ({$zip})", $notes);
+    }
+
+    /**
+     * Run the configuration phases as a dry run and capture the notes and warnings. Without a site
+     * API the instance is "not installed" (getOmekaInstance throws), as on a fresh dry-run deploy.
+     *
+     * @return array{0: string[], 1: string[]} [notes, warnings]
+     */
+    private function dryRunSites(array $sites, ?SiteApi $siteApi, bool $update = false): array
+    {
+        $notes = [];
+        $warnings = [];
+        $command = $this->createMock(AbstractCommand::class);
+        $command->method('note')->willReturnCallback(function (string $m) use (&$notes) { $notes[] = $m; });
+        $command->method('warn')->willReturnCallback(function (string $m) use (&$warnings) { $warnings[] = $m; });
+        if ($siteApi) {
+            $instance = $this->createMock(OmekaInstance::class);
+            $instance->method('getSiteApi')->willReturn($siteApi);
+            $command->method('getOmekaInstance')->willReturn($instance);
+        } else {
+            $command->method('getOmekaInstance')->willThrowException(new Exception('Omeka S is not installed.'));
+        }
+        (new BlueprintApplier($command, true, $update))->applyConfiguration(new Blueprint(['sites' => $sites]));
+        return [$notes, $warnings];
+    }
+
+    /** A site API that knows one site, 'site-a' (titled 'Site A'), with the given permissions. */
+    private function siteApiWithSiteA(array $permissions = []): SiteApi
+    {
+        $site = $this->createMock(SiteRepresentation::class);
+        $site->method('slug')->willReturn('site-a');
+        $siteApi = $this->createMock(SiteApi::class);
+        $siteApi->method('findSiteBySlug')->willReturnCallback(fn(string $slug) => $slug === 'site-a' ? $site : null);
+        $siteApi->method('findSiteByTitle')->willReturnCallback(fn(string $title) => strcasecmp($title, 'Site A') === 0 ? $site : null);
+        $siteApi->method('getPermissionMap')->willReturn($permissions);
+        return $siteApi;
+    }
+
+    public function testDryRunCreatesEverySiteWhenOmekaIsNotInstalled(): void
+    {
+        [$notes] = $this->dryRunSites([
+            ['title' => 'Site A', 'slug' => 'site-a', 'permissions' => [['user' => 'e@x.org', 'role' => 'admin']]],
+            ['title' => 'Site B'],
+        ], null);
+
+        $this->assertSame([
+            "would create site 'site-a'",
+            "would grant 'e@x.org' the admin role on site 'site-a'",
+            "would create site 'Site B'",
+        ], $notes);
+    }
+
+    public function testAPermissionWithoutRoleDefaultsToViewer(): void
+    {
+        [$notes] = $this->dryRunSites([['title' => 'Site B', 'permissions' => [['user' => 'e@x.org']]]], null);
+
+        $this->assertContains("would grant 'e@x.org' the viewer role on site 'Site B'", $notes);
+    }
+
+    public function testAnExistingSiteIsSkippedButMissingPermissionsAreStillAdded(): void
+    {
+        [$notes, $warnings] = $this->dryRunSites(
+            [['title' => 'Site A', 'slug' => 'site-a', 'permissions' => [['user' => 'e@x.org', 'role' => 'editor']]]],
+            $this->siteApiWithSiteA(['admin@x.org' => 'admin'])
+        );
+
+        $this->assertSame(["site 'site-a' already exists, skipping (use --update to update it)."], $warnings);
+        $this->assertSame(["would grant 'e@x.org' the editor role on site 'site-a'"], $notes);
+    }
+
+    public function testAnExistingSiteIsUpdatedWithUpdate(): void
+    {
+        [$notes, $warnings] = $this->dryRunSites([['title' => 'Site A', 'slug' => 'site-a']], $this->siteApiWithSiteA(), true);
+
+        $this->assertSame([], $warnings);
+        $this->assertSame(["would update site 'site-a'"], $notes);
+    }
+
+    public function testADifferentRoleOnlyWarnsWithoutUpdate(): void
+    {
+        [$notes, $warnings] = $this->dryRunSites(
+            [['title' => 'Site A', 'slug' => 'site-a', 'permissions' => [['user' => 'E@x.org', 'role' => 'editor']]]],
+            $this->siteApiWithSiteA(['e@x.org' => 'viewer'])
+        );
+
+        $this->assertContains("site 'site-a': 'E@x.org' has the viewer role, the blueprint asks for editor (use --update to change it).", $warnings);
+        $this->assertSame([], $notes);
+    }
+
+    public function testADifferentRoleIsChangedWithUpdate(): void
+    {
+        [$notes] = $this->dryRunSites(
+            [['title' => 'Site A', 'slug' => 'site-a', 'permissions' => [['user' => 'e@x.org', 'role' => 'editor']]]],
+            $this->siteApiWithSiteA(['e@x.org' => 'viewer']),
+            true
+        );
+
+        $this->assertContains("would grant 'e@x.org' the editor role on site 'site-a'", $notes);
+    }
+
+    public function testAMatchingRoleIsLeftAlone(): void
+    {
+        [$notes] = $this->dryRunSites(
+            [['title' => 'Site A', 'slug' => 'site-a', 'permissions' => [['user' => 'e@x.org', 'role' => 'editor']]]],
+            $this->siteApiWithSiteA(['e@x.org' => 'editor']),
+            true
+        );
+
+        $this->assertSame(["would update site 'site-a'"], $notes);
+    }
+
+    public function testASiteWithoutSlugIsMatchedByTitle(): void
+    {
+        [$notes, $warnings] = $this->dryRunSites([['title' => 'site a']], $this->siteApiWithSiteA());
+
+        $this->assertSame(["site 'site a' already exists, skipping (use --update to update it)."], $warnings);
+        $this->assertSame([], $notes);
     }
 }

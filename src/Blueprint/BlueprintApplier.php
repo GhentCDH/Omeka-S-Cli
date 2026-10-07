@@ -10,10 +10,13 @@ use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
+use OSC\Helper\SiteConfig;
+use OSC\Omeka\SiteApi;
+use Throwable;
 
 /**
  * Apply a resolved blueprint to an Omeka S instance by driving the existing CLI commands in order:
- * modules, themes, files, vocabularies, resource templates, users, settings.
+ * modules, themes, files, vocabularies, resource templates, users, sites, settings.
  *
  * Most phases run in-process. Modules are special: every module is downloaded first (a filesystem step
  * that needs no bootstrap), then each module is installed/enabled in its OWN fresh process. A module's
@@ -33,6 +36,7 @@ class BlueprintApplier
         'vocabularies'      => 'Vocabularies',
         'resourceTemplates' => 'Resource templates',
         'users'             => 'Users',
+        'sites'             => 'Sites',
         'settings'          => 'Settings',
     ];
 
@@ -71,13 +75,14 @@ class BlueprintApplier
 
     /**
      * The phases that configure the instance (and may need the modules' services): vocabularies,
-     * resource templates, users and settings.
+     * resource templates, users, sites and settings.
      */
     public function applyConfiguration(Blueprint $blueprint): void
     {
         $this->runPhase('vocabularies', $blueprint->vocabularies(), fn($d) => $this->applyVocabularies($d));
         $this->runPhase('resourceTemplates', $blueprint->resourceTemplates(), fn($d) => $this->applyResourceTemplates($d));
         $this->runPhase('users', $blueprint->users(), fn($d) => $this->applyUsers($d));
+        $this->runPhase('sites', $blueprint->sites(), fn($d) => $this->applySites($d));
         $this->runPhase('settings', $blueprint->settings(), fn($d) => $this->applySettings($d));
     }
 
@@ -390,6 +395,145 @@ class BlueprintApplier
             }
             // ignoreExisting = true keeps apply idempotent
             $this->run('user:add', fn($c) => $c->execute($email, $name, $role, $password, $isInactive, false, true));
+        }
+    }
+
+    // --- sites -----------------------------------------------------------------------------------
+
+    /**
+     * Create the missing sites; an existing site (matched by slug, else title) is updated only with
+     * --update. Permissions are only ever added, or changed with --update: never removed.
+     */
+    private function applySites(array $sites): void
+    {
+        $siteApi = $this->siteApi();
+        foreach ($sites as $site) {
+            $title = $site['title'] ?? null;
+            if (!$title) {
+                $this->command->warn("  site entry without 'title', skipping.", true);
+                continue;
+            }
+            $slug = $site['slug'] ?? null;
+            $label = $slug ?? $title;
+
+            $existing = null;
+            if ($siteApi) {
+                $existing = $slug !== null ? $siteApi->findSiteBySlug($slug) : $siteApi->findSiteByTitle($title);
+            }
+
+            if ($existing === null) {
+                $this->createSite($site, $title, $slug, $label);
+                $current = [];
+            } else {
+                $this->updateSite($site, $existing->slug(), $label);
+                $current = $siteApi->getPermissionMap($existing);
+            }
+
+            // the site:* commands identify the site by slug; without one, Omeka derived it from the title
+            $ref = $existing?->slug() ?? $slug;
+            if ($ref === null && !$this->dryRun) {
+                $ref = $siteApi->findSiteByTitle($title)?->slug();
+            }
+            $this->applySitePermissions($site['permissions'] ?? [], (string) $ref, $label, $current);
+        }
+    }
+
+    private function createSite(array $site, string $title, ?string $slug, string $label): void
+    {
+        if ($this->dryRun) {
+            $this->command->note("would create site '{$label}'", true);
+            return;
+        }
+        $this->run('site:add', fn($c) => $c->execute(
+            $title,
+            $slug,
+            $site['summary'] ?? null,
+            $site['theme'] ?? null,
+            !($site['isPublic'] ?? true),
+            (bool) ($site['setAsDefault'] ?? false),
+            true,
+            null,
+            false,
+            false
+        ));
+    }
+
+    /** With --update, bring an existing site's fields in line with the blueprint. */
+    private function updateSite(array $site, string $existingSlug, string $label): void
+    {
+        if (!$this->update) {
+            $this->command->warn("site '{$label}' already exists, skipping (use --update to update it).", true);
+            return;
+        }
+        if ($this->dryRun) {
+            $this->command->note("would update site '{$label}'", true);
+            return;
+        }
+        $isPublic = (bool) ($site['isPublic'] ?? true);
+        $this->run('site:update', fn($c) => $c->execute(
+            $existingSlug,
+            $site['title'],
+            null,
+            $site['summary'] ?? '',
+            $site['theme'] ?? SiteConfig::DEFAULT_THEME,
+            $isPublic,
+            !$isPublic,
+            (bool) ($site['setAsDefault'] ?? false),
+            false,
+            false,
+            false,
+            false
+        ));
+    }
+
+    /**
+     * @param array                $permissions The blueprint permissions of the site
+     * @param string               $ref         Slug the site:* commands identify the site by
+     * @param string               $label       The site, for messages
+     * @param array<string,string> $current     Lower-cased email => role the site has now
+     */
+    private function applySitePermissions(array $permissions, string $ref, string $label, array $current): void
+    {
+        foreach ($permissions as $permission) {
+            $email = $permission['user'] ?? null;
+            if (!$email) {
+                $this->command->warn("  site '{$label}': permission without 'user', skipping.", true);
+                continue;
+            }
+            // Omeka silently drops a permission without a role
+            $role = $permission['role'] ?? 'viewer';
+            $have = $current[strtolower($email)] ?? null;
+            if ($have === $role) {
+                continue;
+            }
+            if ($have !== null && !$this->update) {
+                $this->command->warn(
+                    "site '{$label}': '{$email}' has the {$have} role, the blueprint asks for {$role} (use --update to change it).",
+                    true
+                );
+                continue;
+            }
+            if ($this->dryRun) {
+                $this->command->note("would grant '{$email}' the {$role} role on site '{$label}'", true);
+                continue;
+            }
+            $this->run('site:set-permission', fn($c) => $c->execute($ref, $email, $role));
+        }
+    }
+
+    /**
+     * The site API, to read the instance's current sites. A dry run may target an instance that is
+     * not installed yet (the core phase only reported what it would do): then no site exists yet.
+     */
+    private function siteApi(): ?SiteApi
+    {
+        try {
+            return $this->command->getOmekaInstance()->getSiteApi();
+        } catch (Throwable $e) {
+            if ($this->dryRun) {
+                return null;
+            }
+            throw $e;
         }
     }
 
