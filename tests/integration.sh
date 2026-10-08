@@ -574,6 +574,39 @@ assert_success "custom-vocabulary:list custom_vocab_terms"         $CLI custom-v
 assert_success "custom-vocabulary:list custom_vocab_uris"         $CLI custom-vocabulary:delete custom-vocab-uris
 assert_success "custom-vocabulary:list returns 0 results after deletion"         $CLI custom-vocabulary:list
 
+# item set based vocabularies reference their item set by a property value (unique per run, item sets are not cleaned up)
+CV_URN="urn:middle-earth:item-set:palantiri-$$-$RANDOM"
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p /tmp/cv-files
+    printf '{ "dcterms:title": [ { "generator": "literal", "mode": "values", "values": [ "The Seeing-stones of Arnor and Gondor" ] } ],
+  "dcterms:identifier": [ { "generator": "literal", "mode": "values", "values": [ "%s" ] } ] }' "$CV_URN" \
+        > /tmp/cv-files/item-set.json
+    jq --arg urn "$CV_URN" '."o:item_set".value = $urn' \
+        /app/omeka-s-cli/examples/custom-vocabulary/custom_vocab_item_set.json > /tmp/cv-files/item-set-vocab.json
+    rm -f /tmp/cv-files/export.json /tmp/cv-files/terms-export.json
+fi
+assert_fail    "custom-vocabulary:import fails when the item set does not exist"   $CLI custom-vocabulary:import /tmp/cv-files/item-set-vocab.json
+assert_success "dummy:create-item-sets creates the referenced item set"          $CLI dummy:create-item-sets -n 1 --config /tmp/cv-files/item-set.json
+assert_success "custom-vocabulary:import an item set vocabulary"                 $CLI custom-vocabulary:import /tmp/cv-files/item-set-vocab.json
+assert_output_is "the imported vocabulary has type resource" "resource"          bash -c "$CLI custom-vocabulary:list --json | jq -r '.[] | select(.label == \"Palantíri\") | .type'"
+assert_success "custom-vocabulary:export an item set vocabulary to a file"       $CLI custom-vocabulary:export Palantíri /tmp/cv-files/export.json
+assert_output_is "the export identifies the item set by dcterms:identifier" "$CV_URN"   jq -r '."o:item_set".value' /tmp/cv-files/export.json
+assert_fail    "custom-vocabulary:export fails when the item set has no value for --item-set-property" \
+    $CLI custom-vocabulary:export Palantíri --item-set-property dcterms:subject
+assert_success "custom-vocabulary:delete the item set vocabulary"                $CLI custom-vocabulary:delete Palantíri
+assert_success "custom-vocabulary:import the exported file (round trip)"         $CLI custom-vocabulary:import /tmp/cv-files/export.json
+assert_success "dummy:create-item-sets creates a second item set with the same identifier" \
+    $CLI dummy:create-item-sets -n 1 --config /tmp/cv-files/item-set.json
+assert_output_contains "custom-vocabulary:import fails on an ambiguous item set" "Several item sets" \
+    $CLI custom-vocabulary:import /tmp/cv-files/item-set-vocab.json --update
+assert_success "custom-vocabulary:delete the round-tripped vocabulary"           $CLI custom-vocabulary:delete Palantíri
+
+# a terms vocabulary exports to a valid json file
+assert_success "custom-vocabulary:import custom_vocab_terms.json"                $CLI custom-vocabulary:import /app/omeka-s-cli/examples/custom-vocabulary/custom_vocab_terms.json
+assert_success "custom-vocabulary:export a terms vocabulary to a file"           $CLI custom-vocabulary:export custom-vocab-terms /tmp/cv-files/terms-export.json
+assert_output_is "the exported file contains the terms" "3"                      jq '."o:terms" | length' /tmp/cv-files/terms-export.json
+assert_success "custom-vocabulary:delete custom_vocab_terms"                     $CLI custom-vocabulary:delete custom-vocab-terms
+
 assert_fail    "custom-vocabulary:delete on an unknown vocabulary fails"                 $CLI custom-vocabulary:delete ghostcv
 assert_success "custom-vocabulary:delete --ignore-not-found skips an unknown vocabulary" $CLI custom-vocabulary:delete ghostcv --ignore-not-found
 

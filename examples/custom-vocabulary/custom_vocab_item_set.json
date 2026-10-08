@@ -1,0 +1,9 @@
+{
+    "o:label": "Palantíri",
+    "o:lang": "en",
+    "o:item_set": {
+        "property": "dcterms:identifier",
+        "value": "urn:middle-earth:item-set:palantiri",
+        "o:title": "The Seeing-stones of Arnor and Gondor"
+    }
+}
