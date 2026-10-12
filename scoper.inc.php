@@ -12,7 +12,8 @@ return [
         'Omeka',
         'Laminas',
         'CustomVocab',
-        'Common'
+        'Common',
+        'CodeSnippets'
     ],
 
     'expose-global-constants' => true,

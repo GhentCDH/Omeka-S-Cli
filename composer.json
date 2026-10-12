@@ -50,8 +50,8 @@
             "@php scripts/fetch-blueprint-schema.php --force",
             "box compile"
         ],
-        "lint": "phpcs . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php,src/Commands/Cli/Index.php --colors --warning-severity=0 --extensions=php",
-        "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php,src/Commands/Cli/Index.php --colors --warning-severity=0 --extensions=php"
+        "lint": "phpcs . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php,src/Commands/Cli/Index.php,src/Commands/CodeSnippets/Index.php --colors --warning-severity=0 --extensions=php",
+        "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php,src/Commands/Cli/Index.php,src/Commands/CodeSnippets/Index.php --colors --warning-severity=0 --extensions=php"
     },
     "require-dev": {
         "bamarni/composer-bin-plugin": "^1.9",
