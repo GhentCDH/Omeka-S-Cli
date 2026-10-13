@@ -11,8 +11,8 @@ class AddCommand extends AbstractUserCommand
     public function __construct()
     {
         parent::__construct('user:add', 'Add a new user');
-        $this->option('-i --inactive', 'Set the user inactive (default: active)');
-        $this->option('-e --ignore-existing', 'Ignore if the user already exists (default: throw an error)');
+        $this->option('-i --inactive', 'Set the user inactive (default: active)', 'boolval', false);
+        $this->option('-e --ignore-existing', 'Ignore if the user already exists (default: throw an error)', 'boolval', false);
         $this->optionJson();
         $this->argument('<email>', 'Email address of the user');
         $this->argument('<name>', 'Display name of the user');

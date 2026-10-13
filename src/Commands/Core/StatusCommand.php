@@ -10,9 +10,9 @@ class StatusCommand extends AbstractCommand
     {
         parent::__construct('core:status', 'Get Omeka S core status');
         $this->optionJson();
-        $this->option('--is-installed', 'Check if Omeka S is installed (exit code 0 if yes, 1 if no)');
-        $this->option('--needs-migration', 'Check if Omeka S needs migration (exit code 0 if yes, 1 if no)');
-        $this->option('--is-ready', 'Check if Omeka S is ready (installed and no migrations needed, exit code 0 if yes, 1 if no)');
+        $this->option('--is-installed', 'Check if Omeka S is installed (exit code 0 if yes, 1 if no)', 'boolval');
+        $this->option('--needs-migration', 'Check if Omeka S needs migration (exit code 0 if yes, 1 if no)', 'boolval');
+        $this->option('--is-ready', 'Check if Omeka S is ready (installed and no migrations needed, exit code 0 if yes, 1 if no)', 'boolval');
     }
 
     public function execute(): int {
