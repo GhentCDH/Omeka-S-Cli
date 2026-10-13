@@ -34,9 +34,9 @@ tests and how to work on the documentation (sources in [docs/](docs/)).
 
 ## Credits
 
-Built @ the [Ghent Center For Digital Humanities](https://www.ghentcdh.ugent.be/), Ghent University by:
-
-* Frederic Lamsens
+Developed at the [Ghent Centre for Digital Humanities](https://www.ghentcdh.ugent.be/), Ghent University.
+Maintained by Frederic Lamsens, with thanks to all
+[contributors](https://github.com/GhentCDH/Omeka-S-Cli/graphs/contributors).
 
 Built with:
 
@@ -54,3 +54,4 @@ Inspired by:
 - [Omeka S Cli](https://github.com/Libnamic/omeka-s-cli/) by Libnamic
 - [Omeka CLI](https://github.com/biblibre/omeka-cli) by biblibre
 - [Omeka S Module Settings](https://github.com/mcoonen/omekas-module-settings) by Maarten Coonen
+- [Omeka S Playground](https://ateeducacion.github.io/omeka-s-playground/docs/) by Ernesto Serrano
