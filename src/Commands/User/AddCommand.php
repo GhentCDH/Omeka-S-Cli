@@ -20,7 +20,7 @@ class AddCommand extends AbstractUserCommand
         $this->argument('[password]', 'Password for the user (optional)');
     }
 
-    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false, ?bool $json = false, ?bool $ignoreExisting = false): void
+    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $inactive = false, ?bool $json = false, ?bool $ignoreExisting = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
@@ -47,7 +47,7 @@ class AddCommand extends AbstractUserCommand
             'o:email' => $email,
             'o:name' => $name,
             'o:role' => $role,
-            'o:is_active' => !$isInactive,
+            'o:is_active' => !$inactive,
         ];
 
         // Remove null values
