@@ -57,7 +57,8 @@ jobs:
       - name: Generate the command reference
         run: composer docs:reference
 
-      - uses: astral-sh/setup-uv@v10
+      # setup-uv has no floating major tag (v10), only release tags
+      - uses: astral-sh/setup-uv@v10.3.0
 
       - name: Build the site
         run: uvx --python 3.12 --with-requirements requirements-docs.txt zensical build --clean --strict
