@@ -4,3 +4,5 @@ data
 .env
 /assets/blueprints/
 /vendor-bin/*/composer.lock
+/site/
+/build/

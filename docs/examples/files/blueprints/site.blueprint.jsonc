@@ -1,0 +1,51 @@
+{
+    // lets your editor complete and check the file
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
+    "meta": {
+        "title": "Collections site",
+        "description": "A small Omeka S instance for an object collection."
+    },
+    // used by the core phase only; the password comes from --admin-password
+    "install": {
+        "title": "Digital Collections",
+        "locale": "en_US",
+        "timezone": "Europe/Brussels",
+        "admin": { "name": "Site Admin", "email": "admin@example.org" }
+    },
+    "modules": [
+        // a shared list, replaced in place by its entries
+        { "$import": "./shared/modules.jsonc" }
+    ],
+    "themes": [
+        "default"
+    ],
+    "vocabularies": [
+        {
+            "prefix": "coll",
+            "namespaceUri": "https://example.org/ns/collection#",
+            "label": "Collection",
+            "source": "./vocabularies/collection.ttl",
+            "format": "turtle"
+        }
+    ],
+    "resourceTemplates": [
+        { "source": "./templates/book.json" }
+    ],
+    "users": [
+        // no password: the editor sets one with "Forgot password"
+        { "email": "editor@example.org", "username": "Collection Editor", "role": "editor" }
+    ],
+    "sites": [
+        {
+            "title": "Collections",
+            "slug": "collections",
+            "theme": "default",
+            "setAsDefault": true,
+            "permissions": [ { "user": "editor@example.org", "role": "editor" } ]
+        }
+    ],
+    "settings": [
+        { "installation_title": "Digital Collections" },
+        { "$import": "./shared/settings.json" }
+    ]
+}

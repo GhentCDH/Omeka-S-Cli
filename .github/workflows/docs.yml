@@ -1,0 +1,85 @@
+# Builds the documentation site (Zensical, docs/) and publishes it to GitHub Pages.
+#
+# - push to main: build and deploy
+# - pull request: build only (strict, so broken links and missing snippets fail the check)
+#
+# The command reference is generated from the command definitions first (composer docs:reference),
+# which also fails when a command is not documented on any page. The examples on the pages are
+# tested separately, against a live Omeka S: tests/docs-examples.sh.
+#
+# One-time setup: Settings > Pages > Build and deployment > Source: GitHub Actions.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "src/Commands/**"
+      - "scripts/generate-command-reference.php"
+      - "zensical.toml"
+      - "requirements-docs.txt"
+      - "composer.lock"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "src/Commands/**"
+      - "scripts/generate-command-reference.php"
+      - "zensical.toml"
+      - "requirements-docs.txt"
+      - "composer.lock"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  # a newer push to a pull request supersedes the running build; deployments run to completion
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist
+
+      - name: Generate the command reference
+        run: composer docs:reference
+
+      # setup-uv has no floating major tag (v10), only release tags
+      - uses: astral-sh/setup-uv@v10.3.0
+
+      - name: Build the site
+        run: uvx --python 3.12 --with-requirements requirements-docs.txt zensical build --clean --strict
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

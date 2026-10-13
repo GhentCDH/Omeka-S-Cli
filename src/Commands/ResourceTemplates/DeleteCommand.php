@@ -10,7 +10,7 @@ class DeleteCommand extends AbstractResourceTemplateCommand
     {
         parent::__construct('resource-template:delete', 'Delete a resource template');
         $this->argument('<identifier>', 'Resource template ID or label');
-        $this->option('-f --force', 'Force delete');
+        $this->option('-f --force', 'Force delete', 'boolval', false);
         $this->optionIgnoreNotFound('resource template');
     }
 

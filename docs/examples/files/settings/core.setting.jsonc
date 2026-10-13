@@ -1,0 +1,10 @@
+// Global settings of the Omeka S core
+{
+    "type": "setting",
+    "module": "core",
+    "settings": {
+        "installation_title": "Digital Collections",
+        "pagination_per_page": 50,
+        "time_zone": "Europe/Brussels",
+    }
+}

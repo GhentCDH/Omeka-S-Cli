@@ -45,7 +45,7 @@
 - Build PHAR: `composer build` (fetches the blueprint schema, then `box compile`; configured by `box.json` + `scoper.inc.php`). Box lives in `vendor-bin/box` (bamarni/composer-bin-plugin, installed by `composer install`) since its deps conflict with Omeka's, so a local `composer install --no-dev` removes it (Box excludes dev packages from the PHAR anyway). CI installs `--no-dev` and gets the latest Box from `setup-php`.
 - Optional container dev setup is defined in `compose.yaml` and `Dockerfile`.
 - Dev container: compose services `app` (container `omeka-s-cli-app-1`, repo mounted at `/app/omeka-s-cli`, Omeka at `/var/www/omeka-s`) and `db` (MariaDB). Run the CLI there with `docker exec -w /var/www/omeka-s omeka-s-cli-app-1 php /app/omeka-s-cli/bin/omeka-s-cli <cmd>`.
-- Design notes and roadmaps for in-progress features live in `docs/*.md`.
+- Design notes and roadmaps for in-progress features live in `plans/*.md` (not published). `docs/` is the documentation site (see Documentation).
 
 ## Testing
 - Unit tests: `vendor/bin/phpunit` (config `phpunit.xml`, tests under `tests/`). These run against unscoped source.
@@ -62,3 +62,17 @@
 
 ## Source Of Existing AI Conventions
 - One required convention glob search matched only `README.md`; no existing repo AI policy files were found.
+
+## Documentation
+- The documentation site (GitHub Pages) is built with [Zensical](https://zensical.org) from `docs/` (config `zensical.toml`, version pinned in `requirements-docs.txt`), published by `.github/workflows/docs.yml`. Design notes and plans live in `plans/`, not `docs/`.
+- Pages: `docs/installation.md`, `docs/usage.md`, one page per command domain in `docs/commands/<domain>.md`, install automation in `docs/automation/`.
+- Every command shown on a page is tested: examples live in runnable bash scripts in `docs/examples/` (`<domain>.sh`), and pages embed regions of them with snippet includes, never typed commands.
+  - Mark a region in the script with `# --8<-- [start:name]` / `# --8<-- [end:name]`; embed it in a ```` ```bash ```` block as `--8<-- "docs/examples/modules.sh:name"`.
+  - Lines outside the regions are hidden setup and checks (`jq -e`, `grep -q`, `test`); a script stops at the first failing command (`set -euo pipefail`). Expected failures: `! omeka-s-cli ... || exit 1` (`set -e` ignores a command negated with `!`, so the `|| exit 1` is what fails the script).
+  - Scripts call `omeka-s-cli` (the runner puts the binary under test on the PATH), start in the Omeka S directory, and may use `$SCRATCH_DIR` (a private temp dir), `$REPO_DIR`, `$DB_PASSWORD`, `$ADMIN_PASSWORD`. Each must pass on its own on a freshly installed instance: set up prerequisites (modules, users) idempotently in hidden lines.
+  - Sample output goes in ```` ```text ```` blocks (illustrative, not asserted). A ```` ```bash ```` block containing a typed `omeka-s-cli` command fails the lint.
+  - Data files a page shows (blueprints, JSON configs) are included from files that a script uses, so they are tested too.
+- The command reference is generated from the command definitions: `composer docs:reference` (`scripts/generate-command-reference.php`) writes `build/docs/commands/<name>.md` (`:` → `-`) and `build/docs/global-options.md`. Each domain page ends with `## Reference` including the fragments of its commands; the script fails if a registered command is not included by any page. So a new command needs: its reference include on a page, a section with a tested example, and (for a new script) an entry in `SCRIPTS` in `tests/docs-examples.sh`.
+- Run the examples in the dev container against a fresh PHAR: `box compile`, then `docker exec omeka-s-cli-app-1 /app/omeka-s-cli/tests/docs-examples.sh` (wipes `/var/www/omeka-s`). `--script <name>` runs one script, `--instance <name>` uses a separate instance (`/var/www/omeka-s-<name>`, database `omeka_<name>`), `--lint-only` only checks the pages, `-v` traces.
+- Preview: `composer docs:serve` (needs `uv`); build: `composer docs:build` (strict, like CI).
+- Audience: sysadmins comfortable on the Linux command line. Task-oriented sections (one H2 per task), short prose, real values (`example.org` emails), secrets from environment variables.

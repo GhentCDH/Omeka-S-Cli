@@ -1,0 +1,11 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix coll: <https://example.org/ns/collection#> .
+
+coll:Object a rdfs:Class ;
+    rdfs:label "Object" ;
+    rdfs:comment "An object in the collection." .
+
+coll:inventoryNumber a rdf:Property ;
+    rdfs:label "inventory number" ;
+    rdfs:comment "The number the object is registered under." .

@@ -1,0 +1,10 @@
+{
+    "o:label": "Condition",
+    "o:lang": "en",
+    "o:terms": [
+        "Excellent",
+        "Good",
+        "Fair",
+        "Poor"
+    ]
+}

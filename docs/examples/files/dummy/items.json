@@ -1,0 +1,14 @@
+{
+    "o:is_public": { "generator": "boolean" },
+    "o:resource_class": { "generator": "resource_class", "values": ["dctype:Text", "dctype:StillImage"] },
+    "dcterms:title": [{ "generator": "literal", "mode": "words", "min": 2, "max": 6 }],
+    "dcterms:creator": [{ "generator": "literal", "mode": "name", "locale": "nl_BE" }],
+    "dcterms:date": [{ "generator": "literal", "mode": "date", "min": 1850, "max": 1950, "format": "Y-m-d" }],
+    "dcterms:subject": [
+        { "generator": "literal", "mode": "values", "values": ["Architecture", "Industry", "Agriculture"] },
+        { "generator": "literal", "mode": "values", "values": ["Ghent", "Bruges", "Antwerp"] }
+    ],
+    "dcterms:rights": [{ "generator": "uri", "values": [
+        { "id": "https://creativecommons.org/publicdomain/zero/1.0/", "label": "CC0 1.0" }
+    ] }]
+}
