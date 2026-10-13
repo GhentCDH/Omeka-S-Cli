@@ -1,0 +1,8 @@
+{
+    "o:label": "Collection",
+    "o:lang": "en",
+    "o:item_set": {
+        "property": "dcterms:identifier",
+        "value": "urn:example:item-set:photographs"
+    }
+}

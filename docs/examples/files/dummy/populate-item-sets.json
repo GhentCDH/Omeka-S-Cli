@@ -1,0 +1,5 @@
+{
+    "o:item_set": { "generator": "item_set", "min": 1, "max": 2 },
+    "dcterms:title": [{ "generator": "literal", "mode": "words", "min": 2, "max": 5 }],
+    "dcterms:relation": [{ "generator": "resource", "resourceType": "items" }]
+}
