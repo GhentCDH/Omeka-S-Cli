@@ -231,12 +231,15 @@ class BlueprintApplier
                 continue;
             }
             $uri = AddonResolver::uriFor($theme['name'], $theme['source'], $theme['version']);
+            // `name` is the theme's folder: a sourced theme is installed there (a catalog theme keeps
+            // the catalog's folder name)
+            $dir = $theme['source'] !== null ? $theme['name'] : null;
             if ($this->dryRun) {
-                $this->command->note("would download theme '{$theme['name']}' ({$uri})", true);
+                $this->command->note("would download theme '{$theme['name']}' ({$uri})" . ($dir !== null ? " into themes/{$dir}" : ''), true);
                 continue;
             }
             try {
-                $this->run('theme:download', fn($c) => $c->execute($uri, $force, false), false);
+                $this->run('theme:download', fn($c) => $c->execute($uri, $force, false, $dir), false);
             } catch (ThemeExistsException) {
                 $this->command->note("{$theme['name']}: already present at the required version, skipping (use --update to replace)", true);
             }

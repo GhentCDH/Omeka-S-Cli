@@ -17,17 +17,19 @@ class DownloadCommand extends AbstractThemeCommand
         $this->argument('<theme>', 'Theme URI (syntax: theme-id:version, zip-release-url, zip-file, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force theme overwrite', 'boolval', false);
         $this->option('-b --backup', 'Backup current theme before download (delete otherwise)', 'boolval', false);
+        $this->option('--dir', 'Folder (the theme ID) to install into (default: the catalog folder, or the theme.ini name for a zip or git source)');
         $this->usage(
             'theme:download freedom<eol>' .
             'theme:download freedom:1.0.7<eol>' .
             'theme:download https://github.com/omeka-s-themes/freedom/releases/download/v1.0.7/freedom-v1.0.7.zip<eol>' .
             'theme:download ./freedom-v1.0.7.zip<eol>' .
             'theme:download https://github.com/omeka-s-themes/freedom.git#v1.0.7<eol>' .
+            'theme:download gh:omeka-s-themes/freedom#v1.0.7 --dir freedom<eol>' .
             'theme:download gh:omeka-s-themes/freedom#v1.0.7'
         );
     }
 
-    public function execute(?string $theme, ?bool $force, ?bool $backup): void
+    public function execute(?string $theme, ?bool $force, ?bool $backup, ?string $dir = null): void
     {
         $modulesPath = Path::createPath([$this->getOmekaPath(), "themes"]);
         if (!is_writable($modulesPath)) {
@@ -44,6 +46,12 @@ class DownloadCommand extends AbstractThemeCommand
         }
         $themeDirName = $resolved->dirname;
         $downloader = $resolved->downloader;
+        if ($dir !== null && $dir !== '') {
+            if (!Path::isSafeFolderName($dir)) {
+                throw new Exception("Invalid --dir '{$dir}': use a plain folder name (letters, digits, '_', '-', '.').");
+            }
+            $themeDirName = $dir;
+        }
 
         // check if module is already available
         if ($themeDirName) {
