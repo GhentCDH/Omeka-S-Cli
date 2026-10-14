@@ -887,6 +887,14 @@ assert_output_is "every source in the bundle is relative" "0" \
 assert_success "blueprint:validate --self-contained accepts the bundle"    $CLI blueprint:validate "$BUNDLE/blueprint.json" --self-contained
 assert_fail    "blueprint:bundle refuses a non-empty output directory"     $CLI blueprint:bundle "$BUNDLE_SRC/site.blueprint.json" "$BUNDLE"
 assert_success "a refused bundle leaves no partial directory behind"       bash -c "! compgen -G '$BUNDLE.partial-*' > /dev/null"
+run            "remove a re-bundle left by an earlier run"                 rm -rf /tmp/bp-rebundle
+assert_success "blueprint:bundle into . re-bundles a bundle (no network needed)" \
+    bash -c "mkdir -p /tmp/bp-rebundle && cd /tmp/bp-rebundle && $CLI blueprint:bundle $BUNDLE/blueprint.json ."
+assert_success "the re-bundle is the same blueprint"                       bash -c "diff <(jq -S . $BUNDLE/blueprint.json) <(jq -S . /tmp/bp-rebundle/blueprint.json)"
+assert_fail    "blueprint:bundle --force refuses to replace the directory holding the blueprint" \
+    bash -c "cd $BUNDLE && $CLI blueprint:bundle blueprint.json . --force"
+assert_success "the refused --force left the bundle intact"                test -f "$BUNDLE/blueprint.json"
+run            "remove the re-bundle"                                      rm -rf /tmp/bp-rebundle
 assert_output_contains "a dry run takes the core from the bundle" "from omeka-s-$OMEKA_VERSION.zip" \
     $CLI blueprint:deploy "$BUNDLE/blueprint.json" --self-contained --dry-run
 run            "remove a site left by an earlier run"                      $CLI site:delete bp-bundle-site --ignore-not-found

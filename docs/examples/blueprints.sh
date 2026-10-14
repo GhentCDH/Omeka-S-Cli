@@ -119,6 +119,8 @@ omeka-s-cli site:list --json | jq -e 'any(.[]; .slug == "collections")'
 # the Dockerfile on the automation page runs these same commands
 grep -q 'omeka-s-cli blueprint:bundle /src/site.blueprint.jsonc /opt/bundle' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
 grep -q 'omeka-s-cli blueprint:deploy /opt/bundle/blueprint.json --self-contained' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
+# a restart must not run the core phase again: it refuses an installed instance (and --force would wipe it)
+grep -q 'omeka-s-cli core:status --is-installed --base-path /var/www/omeka-s ||' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
 
 # leave the shared instance as it was (the modules stay)
 omeka-s-cli site:delete collections --quiet

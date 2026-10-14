@@ -276,7 +276,8 @@ unchanged. Keep them out of the blueprint and pass them at deploy time instead; 
 ### In a Docker image
 
 Bundle in a build stage, which has network access. Deploy when the container starts, once the
-database is reachable:
+database is reachable. Only the first start deploys: keep `/var/www/omeka-s` on a volume, and a
+later start finds Omeka S installed and only starts the web server.
 
 ```dockerfile
 --8<-- "docs/examples/files/blueprints/Dockerfile.bundle"
