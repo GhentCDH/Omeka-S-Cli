@@ -38,7 +38,7 @@ class DownloadCommand extends AbstractModuleCommand
             if (!$createDestination) {
                 throw new Exception("The destination directory '{$destinationPath}' does not exist or is not writable.");
             } else {
-                mkdir($destinationPath, 755, true);
+                mkdir($destinationPath, 0755, true);
             }
         }
 
