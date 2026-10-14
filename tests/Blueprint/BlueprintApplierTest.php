@@ -17,6 +17,7 @@ use PHPUnit\Framework\TestCase;
 use ZipArchive;
 
 #[CoversClass(BlueprintApplier::class)]
+#[UsesClass(\OSC\Downloader\AddonResolver::class)]
 #[UsesClass(Blueprint::class)]
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(Path::class)]
