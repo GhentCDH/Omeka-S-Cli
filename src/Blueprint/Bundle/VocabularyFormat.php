@@ -35,14 +35,18 @@ final class VocabularyFormat
         return self::BY_EXTENSION[self::sourceExtension($source)] ?? null;
     }
 
-    /** The file extension for a bundled copy: the format's, else the source's own, else `rdf`. */
+    /**
+     * The file extension for a bundled copy: the format's, else the source's own, else `vocab`. The
+     * fallback is one detect() does not know, so an undetected format stays undetected when the bundle
+     * is bundled again (and the importer guesses it from the content, not from the name).
+     */
     public static function extension(?string $format, string $source): string
     {
         if ($format !== null && isset(self::EXTENSIONS[$format])) {
             return self::EXTENSIONS[$format];
         }
         $extension = self::sourceExtension($source);
-        return $extension !== '' && preg_match('/^[a-z0-9]+$/', $extension) === 1 ? $extension : 'rdf';
+        return $extension !== '' && preg_match('/^[a-z0-9]+$/', $extension) === 1 ? $extension : 'vocab';
     }
 
     private static function sourceExtension(string $source): string

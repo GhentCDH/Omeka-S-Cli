@@ -68,6 +68,9 @@ class BundlerTest extends TestCase
     /** @var string[] Every source the fake download was asked for */
     private array $downloads = [];
 
+    /** @var array<string,string[]> The request headers of each download, by source */
+    private array $headers = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -144,8 +147,9 @@ class BundlerTest extends TestCase
             ])]),
             new AddonPackager(fn(string $dir) => throw new LogicException('composer must not run')),
             $latest ?? fn() => throw new LogicException('the latest Omeka S version must not be looked up'),
-            function (string $source, string $target) use ($remote): ?string {
+            function (string $source, string $target, array $headers = []) use ($remote): ?string {
                 $this->downloads[] = $source;
+                $this->headers[$source] = $headers;
                 if (isset($remote[$source])) {
                     file_put_contents($target, $remote[$source][0]);
                     return $remote[$source][1];
@@ -304,5 +308,42 @@ class BundlerTest extends TestCase
         $vocabulary = $this->bundled()['vocabularies'][0];
         $this->assertSame('rdfxml', $vocabulary['format']);
         $this->assertSame('./vocabularies/v.rdf', $vocabulary['source']);
+    }
+
+    private function vocabularyBlueprint(string $source): Blueprint
+    {
+        return new Blueprint([
+            'preferredVersions' => ['omeka' => '4.1.1'],
+            'vocabularies' => [['prefix' => 'ex', 'namespaceUri' => 'https://example.org/ns#', 'label' => 'Ex', 'source' => $source]],
+        ]);
+    }
+
+    public function testVocabulariesAreRequestedAsRdf(): void
+    {
+        $this->bundler(['https://example.org/ns' => ['<rdf/>', 'application/rdf+xml']])
+            ->bundle($this->vocabularyBlueprint('https://example.org/ns'), "{$this->dir}/out");
+
+        $accept = implode("\n", $this->headers['https://example.org/ns'] ?? []);
+        $this->assertStringContainsString('Accept: text/turtle', $accept);
+        $this->assertStringContainsString('application/rdf+xml', $accept);
+    }
+
+    public function testAVocabularyServedAsHtmlIsRefused(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("vocabularies[0] 'ex': https://example.org/ns returned an HTML page, not RDF");
+        $this->bundler(['https://example.org/ns' => ['<html></html>', 'text/html']])
+            ->bundle($this->vocabularyBlueprint('https://example.org/ns'), "{$this->dir}/out");
+    }
+
+    public function testAnUndetectedVocabularyFormatStaysUndetectedWhenRebundled(): void
+    {
+        $this->bundler(['https://example.org/ns' => ['@prefix ex: <https://example.org/ns#> .', 'text/plain']])
+            ->bundle($this->vocabularyBlueprint('https://example.org/ns'), "{$this->dir}/out");
+        mkdir("{$this->dir}/again");
+        $this->bundler()->bundle((new BlueprintLoader())->load("{$this->dir}/out/blueprint.json"), "{$this->dir}/again");
+
+        $this->assertArrayNotHasKey('format', $this->bundled('out')['vocabularies'][0]);
+        $this->assertEquals($this->bundled('out'), $this->bundled('again'));
     }
 }

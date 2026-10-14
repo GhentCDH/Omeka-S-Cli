@@ -72,11 +72,12 @@ class ResourceFetcher
      * Copy a file, or download a URL, to $target, streaming it (no memory limit; a 10-minute timeout
      * suits release ZIPs).
      *
+     * @param string[] $headers Request headers for a URL (e.g. "Accept: text/turtle")
      * @return string|null The response Content-Type of a URL (lowercase, without parameters); null for a file
      * @throws InvalidArgumentException If a file source does not exist
      * @throws Exception If copying or downloading fails
      */
-    public static function download(string $source, string $target): ?string
+    public static function download(string $source, string $target, array $headers = []): ?string
     {
         if (self::isFile($source)) {
             if (!is_file($source)) {
@@ -89,7 +90,7 @@ class ResourceFetcher
         }
 
         if (!function_exists('curl_init')) {
-            if (file_put_contents($target, self::fetchFromUrl($source)) === false) {
+            if (file_put_contents($target, self::fetchFromUrl($source, $headers)) === false) {
                 throw new Exception("Failed to write '{$target}'.");
             }
             return null;
@@ -107,6 +108,7 @@ class ResourceFetcher
             CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_FAILONERROR => true,
+            CURLOPT_HTTPHEADER => $headers,
         ]);
         $ok = curl_exec($ch);
         $error = curl_error($ch);

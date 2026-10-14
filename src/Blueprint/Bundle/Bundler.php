@@ -28,6 +28,16 @@ class Bundler
     /** Top-level keys that are JSON objects, so an empty one is written as {} rather than []. */
     private const OBJECT_KEYS = ['meta', 'preferredVersions', 'install', 'settings'];
 
+    /**
+     * Asked for when downloading a vocabulary: a namespace URL often serves HTML to a browser and RDF
+     * only when asked for it, as the Omeka S importer does.
+     */
+    private const VOCABULARY_ACCEPT = 'Accept: text/turtle, application/rdf+xml;q=0.9, application/ld+json;q=0.8, '
+        . 'application/n-triples;q=0.7, */*;q=0.1';
+
+    /** Content types of a web page, which is never a vocabulary. */
+    private const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
+
     /** @var Closure(string, string): ?string */
     private Closure $download;
 
@@ -36,7 +46,7 @@ class Bundler
 
     /**
      * @param Closure(): string                         $latestOmekaVersion The latest Omeka S release
-     * @param (Closure(string, string): ?string)|null   $download fn(source, target): Content-Type; copies or downloads a source
+     * @param (Closure(string, string, string[]): ?string)|null $download fn(source, target, headers): Content-Type; copies or downloads a source
      * @param (Closure(string): void)|null              $progress Receives a line per source being bundled
      */
     public function __construct(
@@ -196,7 +206,11 @@ class Bundler
 
         // the file name depends on the format, known only once it is downloaded
         $download = "{$dir}/.vocabulary.download";
-        $contentType = $this->fetch($label, $source, $download);
+        $contentType = $this->fetch($label, $source, $download, [self::VOCABULARY_ACCEPT]);
+        if ($contentType !== null && in_array($contentType, self::HTML_TYPES, true)) {
+            @unlink($download);
+            throw new Exception("{$label}: {$source} returned an HTML page, not RDF; use the URL of the vocabulary file.");
+        }
         $format = strtolower(trim((string) ($vocabulary['format'] ?? '')));
         if ($format === '' || $format === 'auto') {
             $format = VocabularyFormat::detect($contentType, $source);
@@ -220,14 +234,17 @@ class Bundler
         return $target;
     }
 
-    /** @throws Exception Naming $label when the source cannot be fetched */
-    private function fetch(string $label, string $source, string $target): ?string
+    /**
+     * @param string[] $headers Request headers for a URL source
+     * @throws Exception Naming $label when the source cannot be fetched
+     */
+    private function fetch(string $label, string $source, string $target, array $headers = []): ?string
     {
         if ($source === '') {
             throw new Exception("{$label}: no source.");
         }
         try {
-            return ($this->download)($source, $target);
+            return ($this->download)($source, $target, $headers);
         } catch (Throwable $e) {
             @unlink($target);
             throw new Exception("{$label}: {$e->getMessage()}", 0, $e);

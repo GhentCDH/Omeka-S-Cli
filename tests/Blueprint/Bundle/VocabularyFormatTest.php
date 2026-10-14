@@ -30,6 +30,6 @@ class VocabularyFormatTest extends TestCase
         $this->assertSame('ttl', VocabularyFormat::extension('turtle', 'https://example.org/v'));
         $this->assertSame('rdf', VocabularyFormat::extension('rdfxml', 'https://example.org/v.owl'));
         $this->assertSame('n3', VocabularyFormat::extension(null, 'https://example.org/v.n3'));
-        $this->assertSame('rdf', VocabularyFormat::extension(null, 'https://example.org/vocab'));
+        $this->assertSame('vocab', VocabularyFormat::extension(null, 'https://example.org/vocab'));
     }
 }
