@@ -4,8 +4,10 @@ namespace Tests\Helper;
 use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
 use OSC\Helper\ResourceFetcher;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass(ResourceFetcher::class)]
 class ResourceFetcherTest extends TestCase
 {
     private string $testFile;
