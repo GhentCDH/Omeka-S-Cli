@@ -2,7 +2,9 @@
 namespace Tests\Blueprint;
 
 use Exception;
+use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintLoader;
+use OSC\Blueprint\SourceFields;
 use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\Reference\RepoProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -11,6 +13,8 @@ use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlueprintLoader::class)]
 #[UsesClass(ReferenceResolver::class)]
+#[UsesClass(Blueprint::class)]
+#[UsesClass(SourceFields::class)]
 class BlueprintLoaderTest extends TestCase
 {
     private string $dir;
@@ -609,5 +613,47 @@ class BlueprintLoaderTest extends TestCase
         $this->expectException(Exception::class);
         $this->expectExceptionMessageMatches('/absolute path/');
         (new BlueprintLoader())->load($base);
+    }
+
+    // ── x-omeka-s-cli.install.source: the Omeka S release ZIP ───────────────────────────────────
+
+    /** The core source in the CLI's extension key (until the spec has install.source). */
+    private function coreSource(string $source): string
+    {
+        return json_encode(['install' => ['title' => 'Demo'], 'x-omeka-s-cli' => ['install' => ['source' => $source]]]);
+    }
+
+    public function testInstallSourceResolvesAgainstTheBlueprint(): void
+    {
+        $base = $this->write('base.json', $this->coreSource('./core/omeka-s-4.1.1.zip'));
+
+        $blueprint = (new BlueprintLoader())->load($base);
+
+        $this->assertSame($this->dir . '/core/omeka-s-4.1.1.zip', $blueprint->installSource());
+        $this->assertSame('Demo', $blueprint->install()['title']);
+    }
+
+    public function testInstallSourceUrlIsKept(): void
+    {
+        $url = 'https://github.com/omeka/omeka-s/releases/download/v4.1.1/omeka-s-4.1.1.zip';
+        $base = $this->write('base.json', $this->coreSource($url));
+
+        $this->assertSame($url, (new BlueprintLoader())->load($base)->installSource());
+    }
+
+    public function testInstallSourceMayNotBeAnAbsolutePath(): void
+    {
+        $base = $this->write('base.json', $this->coreSource('/tmp/omeka-s.zip'));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('absolute path');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testWithoutInstallSourceThereIsNone(): void
+    {
+        $base = $this->write('base.json', '{ "install": { "title": "Demo" }, "x-omeka-s-cli": { "other": true } }');
+
+        $this->assertNull((new BlueprintLoader())->load($base)->installSource());
     }
 }

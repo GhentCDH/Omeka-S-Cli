@@ -15,7 +15,7 @@ use Otar\JSONC;
  * contain further `$import` entries). Referenced sources are resolved relative to the file/URL that
  * contains them. Circular references are detected and rejected.
  *
- * References written in a blueprint (`$import` and the asset fields) must be URLs, repo-aware
+ * References written in a blueprint (`$import` and the source fields listed in SourceFields) must be URLs, repo-aware
  * references or relative paths: absolute paths and `file:` URLs are rejected, and a relative path
  * that resolves outside the blueprint root (by default the top-level blueprint's directory) is
  * rejected too, so a blueprint can never reach an arbitrary file on the local filesystem.
@@ -31,25 +31,6 @@ class BlueprintLoader
 {
     /** Keys whose value is a list of items that may contain `$import` references. */
     private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'sites', 'itemSets', 'items'];
-
-    /**
-     * Per-list item fields that hold a relative asset reference. They are resolved against the source
-     * that declares the item — so a vocabulary pulled in via `$import` resolves its `source` against
-     * the imported config's location, not the top-level blueprint's.
-     */
-    private const ASSET_FIELDS = [
-        'modules' => ['source'],
-        'themes' => ['source'],
-        'files' => ['source'],
-        'vocabularies' => ['source'],
-        'resourceTemplates' => ['source'],
-    ];
-
-    /**
-     * Lists whose asset field may also hold a non-file reference (a git URL, gh:owner/repo) that the
-     * download commands interpret themselves: only a path-form value is resolved there.
-     */
-    private const ADDON_KEYS = ['modules', 'themes'];
 
     /** An absolute filesystem path (POSIX, UNC/backslash, Windows drive) or a file: URL. */
     private const ABSOLUTE_PATTERN = '#^(/|\\\\|[A-Za-z]:[\\\\/]|file:)#i';
@@ -193,7 +174,29 @@ class BlueprintLoader
         if (isset($blueprint['settings'])) {
             $blueprint['settings'] = $this->resolveSettings($blueprint['settings'], $source);
         }
+        foreach (SourceFields::objects() as $path => $fields) {
+            $blueprint = $this->resolveObject($blueprint, explode('.', $path), $source, $fields);
+        }
         return $blueprint;
+    }
+
+    /**
+     * Resolve the source fields of the object at $path (a list of keys) inside $data.
+     *
+     * @param string[]             $path   Keys leading to the object
+     * @param array<string,string> $fields field => kind (see SourceFields)
+     * @throws Exception
+     */
+    private function resolveObject(array $data, array $path, string $source, array $fields): array
+    {
+        $key = array_shift($path);
+        if (!isset($data[$key]) || !is_array($data[$key])) {
+            return $data;
+        }
+        $data[$key] = $path === []
+            ? $this->resolveFields($data[$key], $source, $fields)
+            : $this->resolveObject($data[$key], $path, $source, $fields);
+        return $data;
     }
 
     /**
@@ -345,14 +348,12 @@ class BlueprintLoader
     }
 
     /**
-     * Resolve an inline item's relative asset fields (see ASSET_FIELDS) against the source that
-     * declares it. Repo-aware references become raw URLs; URLs pass through. For add-ons only a
-     * path-form source is resolved; a git URL or gh:owner/repo is left to the download commands.
+     * Resolve an inline item's source fields (see SourceFields) against the source that declares it.
      *
      * @param mixed  $entry  The inline item
      * @param string $source The source declaring the item (for relative resolution)
-     * @param string $key    The list key (selects which fields are asset references)
-     * @return mixed The item with its asset fields resolved
+     * @param string $key    The list key (selects which fields are sources)
+     * @return mixed The item with its source fields resolved
      * @throws Exception
      */
     private function resolveItemAssets(mixed $entry, string $source, string $key): mixed
@@ -360,11 +361,26 @@ class BlueprintLoader
         if (!is_array($entry)) {
             return $entry;
         }
-        foreach (self::ASSET_FIELDS[$key] ?? [] as $field) {
+        return $this->resolveFields($entry, $source, SourceFields::forList($key));
+    }
+
+    /**
+     * Resolve the source fields of an item or object against the source that declares it.
+     * Repo-aware references become raw URLs; URLs pass through. For add-ons only a path-form source
+     * is resolved; a git URL or gh:owner/repo is left to the download commands.
+     *
+     * @param array                $entry  The item or object
+     * @param string               $source The source declaring it (for relative resolution)
+     * @param array<string,string> $fields field => kind (see SourceFields)
+     * @throws Exception
+     */
+    private function resolveFields(array $entry, string $source, array $fields): array
+    {
+        foreach ($fields as $field => $kind) {
             if (!isset($entry[$field]) || !is_string($entry[$field]) || trim($entry[$field]) === '') {
                 continue;
             }
-            if (in_array($key, self::ADDON_KEYS, true) && !$this->isAddonPath($entry[$field])) {
+            if (SourceFields::isAddon($kind) && !$this->isAddonPath($entry[$field])) {
                 continue;
             }
             $entry[$field] = $this->reference($entry[$field], $source);

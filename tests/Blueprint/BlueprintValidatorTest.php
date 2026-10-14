@@ -289,4 +289,12 @@ class BlueprintValidatorTest extends TestCase
     {
         $this->assertSame(['/: must be a list of sites'], $this->validator()->validatePartial(['title' => 'A'], 'sites'));
     }
+
+    public function testAcceptsTheCoreSourceInTheCliExtension(): void
+    {
+        $this->assertSame([], $this->validator()->validateBlueprint([
+            'install' => ['title' => 'Demo'],
+            'x-omeka-s-cli' => ['install' => ['source' => './core/omeka-s-4.1.1.zip']],
+        ]));
+    }
 }
