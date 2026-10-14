@@ -5,7 +5,7 @@ use Exception;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintApplier;
 use OSC\Blueprint\BlueprintLoader;
-use OSC\Blueprint\BlueprintValidator;
+use OSC\Blueprint\SelfContainedCheck;
 use OSC\Helper\DatabaseConfig;
 use OSC\Helper\Path;
 use OSC\Helper\UserConfig;
@@ -47,6 +47,12 @@ class DeployCommand extends AbstractBlueprintCommand
         // rather than reported as skipped. Set automatically when the deploy re-executes itself.
         $this->option('--defer', 'Internal: phases already applied by a previous deploy stage');
         $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
+        $this->option(
+            '--self-contained',
+            'Refuse a blueprint that has a source outside it (a catalog, git or remote reference): deploy a bundle offline',
+            'boolval',
+            false
+        );
         $this->optionDryRun();
 
         // Core phase: database connection (secrets come from flags, never the blueprint)
@@ -64,6 +70,7 @@ class DeployCommand extends AbstractBlueprintCommand
         $this->usage(
             'blueprint:deploy ./site.blueprint.jsonc --base-path /var/www/omeka-s --db-name omeka --db-user omeka --db-password secret<eol/>'
             . 'blueprint:deploy ./site.blueprint.jsonc --dry-run<eol/>'
+            . 'blueprint:deploy ./bundle/blueprint.json --self-contained --base-path /var/www/omeka-s --db-name omeka --db-user omeka --db-password secret<eol/>'
             . 'blueprint:deploy ./site.blueprint.jsonc --skip core --force   (sync config onto an existing site)'
         );
     }
@@ -83,7 +90,9 @@ class DeployCommand extends AbstractBlueprintCommand
         ?string $adminEmail = null,
         ?string $adminPassword = null,
         ?string $root = null,
+        ?bool $selfContained = false,
     ): void {
+        $selfContained = (bool) $selfContained;
         $skipPhases = $this->parsePhases($skip);
         $deferPhases = $this->parsePhases($defer);
 
@@ -94,7 +103,7 @@ class DeployCommand extends AbstractBlueprintCommand
         if (!$isContinuation) {
             $this->note("Loading blueprint from '{$source}' ...", true);
         }
-        $loader = new BlueprintLoader(null, $root);
+        $loader = new BlueprintLoader(null, $root, $selfContained);
         $blueprint = $loader->load($source);
         $loaderWarnings = $loader->takeWarnings();
         if (!$isContinuation) {
@@ -103,7 +112,21 @@ class DeployCommand extends AbstractBlueprintCommand
             }
         }
 
-        $errors = (new BlueprintValidator())->validateBlueprint($blueprint->toArray());
+        if ($selfContained) {
+            $violations = array_merge(
+                $loader->takeViolations(),
+                SelfContainedCheck::violations($blueprint, $this->coreWillInstall($skipPhases, $deferPhases))
+            );
+            if ($violations) {
+                $this->error('Blueprint is not self-contained:', true);
+                foreach ($violations as $violation) {
+                    $this->error("  - {$violation}", true);
+                }
+                throw new Exception('Refusing to deploy: ' . count($violations) . ' source(s) are outside the blueprint.');
+            }
+        }
+
+        $errors = $this->validator($selfContained)->validateBlueprint($blueprint->toArray());
         if ($errors) {
             $this->error('Blueprint is invalid:', true);
             foreach ($errors as $error) {
@@ -154,7 +177,7 @@ class DeployCommand extends AbstractBlueprintCommand
                 $core->run($blueprint, $targetPath, $database, $admin, $force);
 
                 // core is installed now: run the remaining phases in a fresh process so it is seen
-                $this->reExecRemaining($source, $root, $skipPhases, $this->mergeSkip($deferPhases, ['core']), $update, 'Core installed');
+                $this->reExecRemaining($source, $root, $skipPhases, $this->mergeSkip($deferPhases, ['core']), $update, $selfContained, 'Core installed');
                 return;
             }
         } elseif (!$dryRun && !$coreDeferred) {
@@ -179,7 +202,7 @@ class DeployCommand extends AbstractBlueprintCommand
 
             // stage 2: the deferred phases, now that the modules are active
             $stage2Defer = $this->mergeSkip($deferPhases, self::IN_PROCESS_PHASES);
-            $this->reExecRemaining($source, $root, $skipPhases, $stage2Defer, $update, 'Modules ready');
+            $this->reExecRemaining($source, $root, $skipPhases, $stage2Defer, $update, $selfContained, 'Modules ready');
             return;
         }
 
@@ -213,6 +236,25 @@ class DeployCommand extends AbstractBlueprintCommand
     }
 
     /**
+     * Whether this process will download and install the core: the core phase runs and --base-path
+     * does not already hold Omeka S (then the core files are kept).
+     *
+     * @param string[] $skip
+     * @param string[] $defer
+     */
+    private function coreWillInstall(array $skip, array $defer): bool
+    {
+        if (in_array('core', $skip, true) || in_array('core', $defer, true)) {
+            return false;
+        }
+        $basePath = $this->values()['basePath'] ?? null;
+        if (!$basePath) {
+            return true;
+        }
+        return !$this->isOmekaDir(rtrim(Path::toAbsolutePath($basePath, $this->getCwd()), DIRECTORY_SEPARATOR));
+    }
+
+    /**
      * @param string[] $skipPhases
      * @param string[] $add
      * @return string[]
@@ -226,12 +268,21 @@ class DeployCommand extends AbstractBlueprintCommand
      * Re-run deploy for the remaining phases in a fresh process (so just-installed core/modules are
      * active there). Phases already done are passed as --defer (silent), the user's --skip is carried
      * through, and $reason explains the reload. The blueprint root is carried too, so the new process
-     * accepts the same references.
+     * accepts the same references, and so is the self-contained check.
      *
      * @param string[] $skip
      * @param string[] $defer
+     * @param bool     $selfContained Pass --self-contained on
      */
-    private function reExecRemaining(string $source, ?string $root, array $skip, array $defer, bool $update, string $reason): void
+    private function reExecRemaining(
+        string $source,
+        ?string $root,
+        array $skip,
+        array $defer,
+        bool $update,
+        bool $selfContained,
+        string $reason
+    ): void
     {
         if (!array_diff(self::PHASES, $skip, $defer)) {
             $this->ok('Blueprint deployed.', true);
@@ -252,6 +303,9 @@ class DeployCommand extends AbstractBlueprintCommand
         if ($root !== null) {
             $arguments[] = '--root';
             $arguments[] = $root;
+        }
+        if ($selfContained) {
+            $arguments[] = '--self-contained';
         }
         $this->debug("{$reason}, continuing in a new process ...", true);
         $exitCode = $this->runInNewProcess($arguments);

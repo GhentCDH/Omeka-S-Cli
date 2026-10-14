@@ -656,4 +656,72 @@ class BlueprintLoaderTest extends TestCase
 
         $this->assertNull((new BlueprintLoader())->load($base)->installSource());
     }
+
+    // ── self-contained mode ─────────────────────────────────────────────────────────────────────
+
+    public function testSelfContainedRecordsEveryNonRelativeSourceWithoutFetchingIt(): void
+    {
+        $base = $this->write('base.json', json_encode([
+            'x-omeka-s-cli' => ['install' => ['source' => 'https://example.org/omeka-s.zip']],
+            'modules' => [
+                ['name' => 'Log', 'source' => 'gh:Daniel-KM/Omeka-S-module-Log'],
+                ['name' => 'Local', 'source' => './modules/Local-1.0.0.zip'],
+            ],
+            'vocabularies' => [[
+                'prefix' => 'ex', 'namespaceUri' => 'https://example.org/ns#', 'label' => 'Ex',
+                'source' => 'https://example.org/ex.ttl',
+            ]],
+            // reported, never fetched: a unit test has no network, and .invalid never resolves
+            'settings' => [['$import' => 'https://example.invalid/settings.json']],
+        ]));
+
+        $loader = new BlueprintLoader(null, null, true);
+        $blueprint = $loader->load($base);
+        $violations = implode("\n", $loader->takeViolations());
+
+        $this->assertStringContainsString("x-omeka-s-cli.install source 'https://example.org/omeka-s.zip'", $violations);
+        $this->assertStringContainsString("modules 'Log' source 'gh:Daniel-KM/Omeka-S-module-Log'", $violations);
+        $this->assertStringContainsString("vocabularies 'https://example.org/ns#' source 'https://example.org/ex.ttl'", $violations);
+        $this->assertStringContainsString("\$import 'https://example.invalid/settings.json'", $violations);
+        $this->assertSame(4, substr_count($violations, 'is not a relative path inside the blueprint'));
+        // relative sources are still resolved; a skipped import contributes nothing
+        $this->assertSame($this->dir . '/modules/Local-1.0.0.zip', $blueprint->modules()[1]['source']);
+        $this->assertSame([], $blueprint->settings());
+    }
+
+    public function testSelfContainedAcceptsRelativeSourcesAndImports(): void
+    {
+        $this->writeIn('shared/modules.json', '[ { "name": "A", "source": "../modules/A-1.0.0.zip" } ]');
+        $base = $this->write('base.json', json_encode([
+            'x-omeka-s-cli' => ['install' => ['source' => './core/omeka-s-4.1.1.zip']],
+            'modules' => [['$import' => './shared/modules.json']],
+            'files' => [['source' => './files/logo.png', 'destination' => 'files/logo.png']],
+        ]));
+
+        $loader = new BlueprintLoader(null, null, true);
+        $blueprint = $loader->load($base);
+
+        $this->assertSame([], $loader->takeViolations());
+        $this->assertSame($this->dir . '/modules/A-1.0.0.zip', $blueprint->modules()[0]['source']);
+    }
+
+    public function testViolationsAreOnlyCollectedInSelfContainedMode(): void
+    {
+        $base = $this->write('base.json', '{ "modules": [ { "name": "Log", "source": "gh:owner/log" } ] }');
+
+        $loader = new BlueprintLoader();
+        $loader->load($base);
+
+        $this->assertSame([], $loader->takeViolations());
+    }
+
+    public function testSelfContainedStillRejectsAReferenceOutsideTheRoot(): void
+    {
+        mkdir($this->dir . '/site');
+        $base = $this->writeIn('site/base.json', '{ "files": [ { "source": "../outside.txt", "destination": "files/x" } ] }');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('outside the blueprint root');
+        (new BlueprintLoader(null, null, true))->load($base);
+    }
 }

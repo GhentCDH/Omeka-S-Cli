@@ -132,9 +132,15 @@ class BlueprintValidator
         return $errors;
     }
 
-    public function schemaFile(): string
+    /** The schema copy shipped with the CLI (also inside the PHAR): the offline fallback. */
+    public static function bundledSchemaPath(): string
     {
         return dirname(__DIR__, 2) . '/assets/blueprints/blueprint-schema.json';
+    }
+
+    public function schemaFile(): string
+    {
+        return self::bundledSchemaPath();
     }
 
     /**

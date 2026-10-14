@@ -297,4 +297,9 @@ class BlueprintValidatorTest extends TestCase
             'x-omeka-s-cli' => ['install' => ['source' => './core/omeka-s-4.1.1.zip']],
         ]));
     }
+
+    public function testTheBundledSchemaPathIsTheFallbackFile(): void
+    {
+        $this->assertSame(BlueprintValidator::bundledSchemaPath(), (new BlueprintValidator())->schemaFile());
+    }
 }
