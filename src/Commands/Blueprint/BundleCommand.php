@@ -55,7 +55,12 @@ class BundleCommand extends AbstractBlueprintCommand
         }
 
         $target = Path::toAbsolutePath($output, $this->getCwd());
-        $bundleOutput = BundleOutput::prepare($target, (bool) $force);
+        // --force must never delete the blueprint being bundled, nor the directory its references live in
+        $protect = array_filter(
+            [Path::toAbsolutePath($source, $this->getCwd()), $root !== null ? Path::toAbsolutePath($root, $this->getCwd()) : null],
+            fn(?string $path) => $path !== null && file_exists($path)
+        );
+        $bundleOutput = BundleOutput::prepare($target, (bool) $force, $protect);
         try {
             $bundler = new Bundler(
                 new AddonResolver($this->getModuleRepositoryManager(), 'module'),

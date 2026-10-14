@@ -93,4 +93,40 @@ class BundleOutputTest extends TestCase
         $this->expectExceptionMessage('is not a directory');
         BundleOutput::prepare("{$this->dir}/bundle", true);
     }
+
+    public function testATargetEndingInADotSegmentIsTheDirectoryItself(): void
+    {
+        mkdir("{$this->dir}/bundle");
+        file_put_contents("{$this->dir}/bundle/old.txt", 'old');
+
+        $output = BundleOutput::prepare("{$this->dir}/bundle/.", true);
+        file_put_contents($output->path() . '/blueprint.json', '{}');
+        $output->commit();
+
+        $this->assertFileExists("{$this->dir}/bundle/blueprint.json");
+        $this->assertFileDoesNotExist("{$this->dir}/bundle/old.txt");
+        $this->assertSame([], $this->partials());
+        $this->assertSame([], glob("{$this->dir}/bundle/*.partial-*") ?: []);
+    }
+
+    public function testForceRefusesATargetThatHoldsTheBlueprint(): void
+    {
+        mkdir("{$this->dir}/bundle/src", 0777, true);
+        file_put_contents("{$this->dir}/bundle/src/site.blueprint.json", '{}');
+
+        try {
+            BundleOutput::prepare("{$this->dir}/bundle", true, ["{$this->dir}/bundle/src/site.blueprint.json"]);
+            $this->fail('expected an exception');
+        } catch (Exception $e) {
+            $this->assertStringContainsString('contains', $e->getMessage());
+        }
+        $this->assertFileExists("{$this->dir}/bundle/src/site.blueprint.json");
+        $this->assertSame([], $this->partials());
+    }
+
+    public function testTheRootDirectoryIsRefused(): void
+    {
+        $this->expectException(Exception::class);
+        BundleOutput::prepare('/tmp/..', true);
+    }
 }
