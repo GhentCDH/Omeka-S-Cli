@@ -2,6 +2,7 @@
 namespace OSC\Commands\Module;
 
 use Exception;
+use OSC\Blueprint\Bundle\AddonPackager;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Downloader\AddonResolver;
 use OSC\Exceptions\NotFoundException;
@@ -88,7 +89,7 @@ class DownloadCommand extends AbstractModuleCommand
                 if (!$moduleSrc) {
                     throw new NotFoundException("No valid Module.php found in download folder.");
                 }
-                $moduleDirName = $this->getModuleNameSpace($moduleSrc);
+                $moduleDirName = AddonPackager::moduleNamespace($moduleSrc);
             }
             $moduleDestinationPath = Path::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
 
@@ -166,13 +167,4 @@ class DownloadCommand extends AbstractModuleCommand
 
         Path::moveFolder($path, Path::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
     }
-
-    private function getModuleNameSpace($src): ?string
-    {
-        if (preg_match('#(namespace)(\\s+)([A-Za-z0-9\\\\]+?)(\\s*);#sm', $src, $matches)) {
-            return $matches[3];
-        }
-        return null;
-    }
-
 }
