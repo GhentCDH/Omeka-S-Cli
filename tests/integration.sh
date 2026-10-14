@@ -854,6 +854,81 @@ run            "remove the user without a site permission"                 $CLI 
 assert_fail    "blueprint:export rejects an unknown --include part"        $CLI blueprint:export --include passwords
 assert_output_contains "the export marks the default site" '"setAsDefault": true' $CLI blueprint:export
 
+# bundle: everything a blueprint needs, downloaded into one folder whose blueprint only uses relative
+# sources; then deployed with --self-contained, from disk and over HTTP
+BUNDLE_SRC=/tmp/bp-bundle-src
+BUNDLE=/tmp/bp-bundle
+OMEKA_VERSION=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf "$BUNDLE_SRC" "$BUNDLE" "$BUNDLE".partial-* && mkdir -p "$BUNDLE_SRC"
+    cp /app/omeka-s-cli/examples/resource-template/base_resource.json "$BUNDLE_SRC/"
+    OMEKA_VERSION=$($CLI core:version)
+    cat > "$BUNDLE_SRC/site.blueprint.json" <<JSON
+{ "preferredVersions": { "omeka": "$OMEKA_VERSION" },
+  "modules": [ "Common", { "name": "CustomVocab", "source": "https://github.com/omeka-s-modules/CustomVocab.git" } ],
+  "themes": [ "default", "freedom" ],
+  "vocabularies": [ { "prefix": "schema", "namespaceUri": "https://schema.org/", "label": "schema.org",
+                      "source": "https://schema.org/version/latest/schemaorg-current-https.rdf" } ],
+  "resourceTemplates": [ { "source": "./base_resource.json" } ],
+  "sites": [ { "title": "Bundle Site", "slug": "bp-bundle-site", "theme": "freedom" } ],
+  "settings": { "installation_title": "Bundle Demo" } }
+JSON
+fi
+assert_output_contains "blueprint:validate --self-contained flags catalog sources" "has no source" \
+    $CLI blueprint:validate "$BUNDLE_SRC/site.blueprint.json" --self-contained
+assert_output_contains "blueprint:validate --self-contained flags a git source" "is not a relative path inside the blueprint" \
+    $CLI blueprint:validate "$BUNDLE_SRC/site.blueprint.json" --self-contained
+assert_success "blueprint:bundle writes a bundle"                          $CLI blueprint:bundle "$BUNDLE_SRC/site.blueprint.json" "$BUNDLE"
+assert_success "the bundle holds the core release"                         test -f "$BUNDLE/core/omeka-s-$OMEKA_VERSION.zip"
+assert_output_is "the git module became a local zip" "true"                bash -c "jq -r '.modules[1].source | startswith(\"./modules/CustomVocab-\")' $BUNDLE/blueprint.json"
+assert_output_is "the catalog theme keeps its folder name" "freedom"       jq -r '.themes[1].name' "$BUNDLE/blueprint.json"
+assert_output_is "every source in the bundle is relative" "0" \
+    bash -c "jq '[.. | objects | .source? // empty | select(startswith(\"./\") | not)] | length' $BUNDLE/blueprint.json"
+assert_success "blueprint:validate --self-contained accepts the bundle"    $CLI blueprint:validate "$BUNDLE/blueprint.json" --self-contained
+assert_fail    "blueprint:bundle refuses a non-empty output directory"     $CLI blueprint:bundle "$BUNDLE_SRC/site.blueprint.json" "$BUNDLE"
+assert_success "a refused bundle leaves no partial directory behind"       bash -c "! compgen -G '$BUNDLE.partial-*' > /dev/null"
+assert_output_contains "a dry run takes the core from the bundle" "from omeka-s-$OMEKA_VERSION.zip" \
+    $CLI blueprint:deploy "$BUNDLE/blueprint.json" --self-contained --dry-run
+run            "remove a site left by an earlier run"                      $CLI site:delete bp-bundle-site --ignore-not-found
+run            "remove the theme, so the deploy must take it from the bundle" $CLI theme:delete freedom --force
+assert_success "blueprint:deploy --self-contained deploys the bundle"      $CLI blueprint:deploy "$BUNDLE/blueprint.json" --skip core --force --self-contained
+assert_success "the theme came from the bundle"                            test -f /var/www/omeka-s/themes/freedom/config/theme.ini
+assert_output_is "the site uses the bundled theme" "freedom" \
+    bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"bp-bundle-site\") | .theme'"
+
+# the same bundle served over HTTP: relative sources resolve against the blueprint URL, and a
+# reference leaving that URL is flagged
+BUNDLE_SERVER=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    mkdir -p "$BUNDLE/sub"
+    printf '{ "files": [ { "source": "../core/omeka-s-%s.zip", "destination": "files/x.zip" } ] }' "$OMEKA_VERSION" \
+        > "$BUNDLE/sub/escape.blueprint.json"
+    php -S 127.0.0.1:8765 -t "$BUNDLE" > /dev/null 2>&1 &
+    BUNDLE_SERVER=$!
+    sleep 1
+fi
+assert_success "blueprint:validate --self-contained accepts a bundle over HTTP" \
+    $CLI blueprint:validate http://127.0.0.1:8765/blueprint.json --self-contained
+assert_output_contains "a reference leaving the bundle URL is flagged" "outside the blueprint location" \
+    $CLI blueprint:validate http://127.0.0.1:8765/sub/escape.blueprint.json --self-contained
+assert_success "blueprint:deploy --self-contained deploys a bundle over HTTP" \
+    $CLI blueprint:deploy http://127.0.0.1:8765/blueprint.json --skip core --force --self-contained
+if [[ -n "$BUNDLE_SERVER" ]]; then kill "$BUNDLE_SERVER" 2>/dev/null || true; rm -rf "$BUNDLE/sub"; fi
+
+# the core and theme commands the bundle relies on
+run            "remove a core download left by an earlier run"             rm -rf /tmp/core-from-zip
+assert_success "core:download --source installs from a local release zip" \
+    $CLI core:download /tmp/core-from-zip --source "$BUNDLE/core/omeka-s-$OMEKA_VERSION.zip" --create-destination
+assert_success "the core files are there"                                  test -f /tmp/core-from-zip/application/Module.php
+assert_output_is "the created destination has mode 755" "drwxr-xr-x"      stat -c %A /tmp/core-from-zip
+BUNDLED_THEME=""
+if [[ $SECTION_SKIP -eq 0 ]]; then BUNDLED_THEME=$(ls "$BUNDLE"/themes/freedom-*.zip); fi
+run            "remove a theme left by an earlier run"                     $CLI theme:delete bundle-theme --force --ignore-not-found
+assert_success "theme:download --dir installs a zip into that folder"      $CLI theme:download "$BUNDLED_THEME" --dir bundle-theme
+assert_success "the theme is in that folder"                               test -f /var/www/omeka-s/themes/bundle-theme/config/theme.ini
+assert_fail    "theme:download --dir rejects a path"                       $CLI theme:download "$BUNDLED_THEME" --dir ../escape --force
+run            "remove the --dir theme"                                    $CLI theme:delete bundle-theme --force
+
 # a full deploy (core phase included) started outside the Omeka S directory: it, and the processes
 # it continues in after the core install, must find the instance through --base-path alone, not by
 # searching the working directory. Resets the instance (database.ini is reused), so keep this last.
