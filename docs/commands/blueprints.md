@@ -270,11 +270,32 @@ password) for every user they name:
 The deploy makes the first global administrator the owner of every site it creates, with the admin
 role on it, so that user appears in the permissions too.
 
+## Bundle a blueprint
+
+Download everything a blueprint needs into one directory, with a blueprint that only refers to files
+inside it. See [Bundle a blueprint for offline deploys](../automation/blueprints.md#bundle-a-blueprint-for-offline-deploys).
+
+```bash
+--8<-- "docs/examples/blueprints.sh:bundle"
+```
+
+## Check that a blueprint is self-contained
+
+`--self-contained` also rejects every source outside the blueprint's directory: catalog names, git
+repositories, URLs, and a missing `x-omeka-s-cli.install.source`. `blueprint:deploy` accepts the same
+flag.
+
+```bash
+--8<-- "docs/examples/blueprints.sh:validate-self-contained"
+```
+
 ## Reference
 
 All commands also accept the [global options](../reference/global-options.md).
 
 --8<-- "build/docs/commands/blueprint-validate.md"
+
+--8<-- "build/docs/commands/blueprint-bundle.md"
 
 --8<-- "build/docs/commands/blueprint-deploy.md"
 

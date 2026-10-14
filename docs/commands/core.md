@@ -20,6 +20,14 @@ directory that does not exist yet. To pin a release, give its version number:
 --8<-- "docs/examples/core.sh:download-version"
 ```
 
+## Install the core from a release ZIP
+
+Use a release ZIP you already have (a path or a URL) instead of downloading one:
+
+```bash
+--8<-- "docs/examples/core.sh:download-source"
+```
+
 ## Configure the database connection
 
 Omeka S reads its database credentials from `config/database.ini`. `config:create-db-ini` writes that

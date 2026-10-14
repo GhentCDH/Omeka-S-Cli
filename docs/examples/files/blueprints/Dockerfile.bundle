@@ -1,0 +1,18 @@
+# Build stage: has network access, and downloads everything the blueprint needs.
+FROM php:8.2-cli AS bundle
+RUN apt-get update && apt-get install -y --no-install-recommends git unzip libzip-dev \
+    && docker-php-ext-install zip && rm -rf /var/lib/apt/lists/*
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+ADD --chmod=755 https://github.com/GhentCDH/Omeka-S-Cli/releases/latest/download/omeka-s-cli.phar /usr/local/bin/omeka-s-cli
+COPY site.blueprint.jsonc /src/
+RUN omeka-s-cli blueprint:bundle /src/site.blueprint.jsonc /opt/bundle
+
+# Runtime image (your PHP + web server image): deploys the bundle when the container starts,
+# with no downloads from omeka.org, GitHub or vocabulary hosts.
+FROM your-omeka-runtime-image
+COPY --from=bundle /usr/local/bin/omeka-s-cli /usr/local/bin/omeka-s-cli
+COPY --from=bundle /opt/bundle /opt/bundle
+CMD omeka-s-cli blueprint:deploy /opt/bundle/blueprint.json --self-contained \
+        --base-path /var/www/omeka-s --db-host "$DB_HOST" --db-name "$DB_NAME" \
+        --db-user "$DB_USER" --db-password "$DB_PASSWORD" --admin-password "$ADMIN_PASSWORD" \
+    && exec apache2-foreground

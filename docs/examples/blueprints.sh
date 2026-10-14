@@ -100,6 +100,26 @@ omeka-s-cli blueprint:export --include site-permissions | grep -v '^//' | jq -e 
     and any(.sites[] | select(.slug == "collections") | .permissions[]; .user == "editor@example.org" and .role == "editor")'
 ! omeka-s-cli blueprint:export --include settings 2> /dev/null || exit 1
 
+# --8<-- [start:bundle]
+omeka-s-cli blueprint:bundle ~/blueprints/site.blueprint.jsonc ~/bundle
+# --8<-- [end:bundle]
+jq -e '[.. | objects | .source? // empty | select(startswith("./") | not)] | length == 0' ~/bundle/blueprint.json
+jq -e '."x-omeka-s-cli".install.source | startswith("./core/omeka-s-")' ~/bundle/blueprint.json
+
+# --8<-- [start:validate-self-contained]
+omeka-s-cli blueprint:validate ~/bundle/blueprint.json --self-contained
+# --8<-- [end:validate-self-contained]
+failure_output omeka-s-cli blueprint:validate ~/blueprints/site.blueprint.jsonc --self-contained | grep 'has no source' > /dev/null
+
+# --8<-- [start:deploy-bundle]
+omeka-s-cli blueprint:deploy ~/bundle/blueprint.json --self-contained --skip core --force
+# --8<-- [end:deploy-bundle]
+omeka-s-cli site:list --json | jq -e 'any(.[]; .slug == "collections")'
+
+# the Dockerfile on the automation page runs these same commands
+grep -q 'omeka-s-cli blueprint:bundle /src/site.blueprint.jsonc /opt/bundle' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
+grep -q 'omeka-s-cli blueprint:deploy /opt/bundle/blueprint.json --self-contained' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
+
 # leave the shared instance as it was (the modules stay)
 omeka-s-cli site:delete collections --quiet
 omeka-s-cli resource-template:delete Book --quiet

@@ -54,3 +54,14 @@ omeka-s-cli core:status --is-ready
 cd /tmp
 omeka-s-cli core:version --base-path /var/www/omeka-s
 # --8<-- [end:base-path]
+
+# a release ZIP that is already here (back in the Omeka S directory: the last example left it)
+cd "$OMEKA_DIR"
+CORE_VERSION=$(omeka-s-cli core:version)
+CORE_ZIP="$SCRATCH_DIR/omeka-s-$CORE_VERSION.zip"
+curl -fsSL -o "$CORE_ZIP" "https://github.com/omeka/omeka-s/releases/download/v$CORE_VERSION/omeka-s-$CORE_VERSION.zip"
+
+# --8<-- [start:download-source]
+omeka-s-cli core:download "$SCRATCH_DIR/omeka-s" --source "$CORE_ZIP" --create-destination
+# --8<-- [end:download-source]
+test -f "$SCRATCH_DIR/omeka-s/application/Module.php"
