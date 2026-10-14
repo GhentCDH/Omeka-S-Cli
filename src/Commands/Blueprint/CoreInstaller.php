@@ -35,7 +35,8 @@ class CoreInstaller
         if (!$this->command->isOmekaDir($targetPath)) {
             $this->command->note('Downloading Omeka S core ...', true);
             $version = $blueprint->preferredOmekaVersion();
-            $this->runSubcommand('core:download', fn($c) => $c->execute($version, $targetPath, true));
+            $source = $blueprint->installSource();
+            $this->runSubcommand('core:download', fn($c) => $c->execute($version, $targetPath, true, false, $source));
         } else {
             $this->command->note("Core already present at {$targetPath}", true);
         }
@@ -84,7 +85,8 @@ class CoreInstaller
     {
         $this->command->section('Core');
         $version = $blueprint->preferredOmekaVersion() ?? 'latest';
-        $this->command->note("Would ensure the Omeka S core ({$version}) is downloaded and installed", true);
+        $from = $blueprint->installSource() !== null ? ' from ' . basename($blueprint->installSource()) : '';
+        $this->command->note("Would ensure the Omeka S core ({$version}) is downloaded{$from} and installed", true);
         $this->command->note('Would write database.ini if missing, and reset the database if it is already installed (with --force)', true);
     }
 

@@ -7,6 +7,7 @@ use OSC\Commands\Module\FormattersTrait;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Helper\Path;
+use OSC\Omeka\OmekaDotOrgApi;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -19,9 +20,15 @@ class DownloadCommand extends AbstractModuleCommand
         $this->argument('[version-number]', 'Core version number (latest if not specified)');
         $this->option('-c --create-destination', 'Create destination directory', 'boolval', false);
         $this->option('-f --force', 'Download even if the destination is not empty (and not an Omeka S installation)', 'boolval', false);
+        $this->option('--source', 'Install from this Omeka S release ZIP (a path or URL) instead of downloading version-number');
+        $this->usage(
+            'core:download /var/www/omeka-s<eol/>'
+            . 'core:download /var/www/omeka-s 4.1.1<eol/>'
+            . 'core:download /var/www/omeka-s --source ./omeka-s-4.1.1.zip'
+        );
     }
 
-    public function execute(?string $versionNumber, string $destinationPath, ?bool $createDestination, ?bool $force = false): void
+    public function execute(?string $versionNumber, string $destinationPath, ?bool $createDestination, ?bool $force = false, ?string $source = null): void
     {
         // convert destinatino path to absolute path
         $destinationPath = realpath($destinationPath) ?: $destinationPath;
@@ -49,31 +56,38 @@ class DownloadCommand extends AbstractModuleCommand
             );
         }
 
-        // Get the latest version if no version number is provided
-        if (!$versionNumber) {
-            try {
-                $this->debug("No version number supplied, getting latest core version number ... ");
-                $versionNumber = $this->webApi->getLatestOmekaVersion();
-                if (!$versionNumber) {
-                    throw new Exception("Unable to determine the latest Omeka S version.");
-                }
-                $this->debug('done');
-            } finally {
-                $this->debug("", true);
-            }
-        }
-
-        // Download the specified version
-        if ( $versionNumber === "dev" ) {
-            $url = "https://github.com/omeka/omeka-s.git";
-            $downloader = new GitDownloader($url);
+        if ($source !== null && $source !== '') {
+            // a release ZIP given by the caller (a local file or a URL): nothing to look up
+            $url = $source;
+            $downloader = new ZipDownloader($source);
+            $label = $versionNumber ? "version {$versionNumber}" : basename($source);
         } else {
-            $url = "https://github.com/omeka/omeka-s/releases/download/v$versionNumber/omeka-s-$versionNumber.zip";
-            $downloader = new ZipDownloader($url);
+            // Get the latest version if no version number is provided
+            if (!$versionNumber) {
+                try {
+                    $this->debug("No version number supplied, getting latest core version number ... ");
+                    $versionNumber = $this->webApi->getLatestOmekaVersion();
+                    if (!$versionNumber) {
+                        throw new Exception("Unable to determine the latest Omeka S version.");
+                    }
+                    $this->debug('done');
+                } finally {
+                    $this->debug("", true);
+                }
+            }
+
+            if ($versionNumber === "dev") {
+                $url = "https://github.com/omeka/omeka-s.git";
+                $downloader = new GitDownloader($url);
+            } else {
+                $url = OmekaDotOrgApi::coreReleaseUrl($versionNumber);
+                $downloader = new ZipDownloader($url);
+            }
+            $label = "version {$versionNumber}";
         }
 
         try {
-            $this->info("Downloading Omeka S core version $versionNumber from $url ... ");
+            $this->info("Downloading Omeka S core {$label} from {$url} ... ");
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {
@@ -105,6 +119,6 @@ class DownloadCommand extends AbstractModuleCommand
         Path::removeFolder($tmpDownloadPath);
         $this->debug("done", true);
 
-        $this->ok("Omeka S core version $versionNumber downloaded to {$destinationPath}.", true);
+        $this->ok("Omeka S core {$label} downloaded to {$destinationPath}.", true);
     }
 }
