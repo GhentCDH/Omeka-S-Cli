@@ -3,6 +3,7 @@ namespace OSC\Blueprint\Bundle;
 
 use Closure;
 use Exception;
+use InvalidArgumentException;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintValidator;
 use OSC\Blueprint\SelfContainedCheck;
@@ -131,7 +132,7 @@ class Bundler
      * Refuse a git source before anything is downloaded: a bundle holds release ZIPs, and a git
      * checkout may need build steps before it can be installed.
      *
-     * @throws Exception Naming the first add-on with a git source
+     * @throws Exception Naming the first add-on with a git source, or with a source that is not an add-on reference
      */
     private function assertNoGitSources(array $data): void
     {
@@ -142,7 +143,12 @@ class Bundler
                 }
                 $name = (string) ($entry['name'] ?? '');
                 $version = isset($entry['version']) && $entry['version'] !== '' ? (string) $entry['version'] : null;
-                if (AddonResolver::isGit(AddonResolver::uriFor($name, (string) $entry['source'], $version))) {
+                try {
+                    $isGit = AddonResolver::isGit(AddonResolver::uriFor($name, (string) $entry['source'], $version));
+                } catch (InvalidArgumentException $e) {
+                    throw new Exception("{$key}[{$i}] '{$name}': {$e->getMessage()}", 0, $e);
+                }
+                if ($isGit) {
                     throw new Exception(
                         "{$key}[{$i}] '{$name}': a git source can't be bundled; a bundle holds release ZIPs. "
                         . 'Point source to a release ZIP (URL or path).'

@@ -284,6 +284,16 @@ class BundlerTest extends TestCase
         $this->assertSame([], $this->downloads);
     }
 
+    public function testAnUnparseableSourceNamesTheEntry(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[1] 'Foo': Could not determine argument type");
+        $this->bundler()->bundle(new Blueprint([
+            'preferredVersions' => ['omeka' => '4.1.1'],
+            'modules' => ['Common', ['name' => 'Foo', 'source' => 'https://example.org/dl?id=5']],
+        ]), "{$this->dir}/out");
+    }
+
     public function testErrorsNameTheEntry(): void
     {
         $this->expectException(Exception::class);
