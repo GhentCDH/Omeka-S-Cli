@@ -858,6 +858,7 @@ assert_output_contains "the export marks the default site" '"setAsDefault": true
 # sources; then deployed with --self-contained, from disk and over HTTP
 BUNDLE_SRC=/tmp/bp-bundle-src
 BUNDLE=/tmp/bp-bundle
+CUSTOMVOCAB_ZIP=https://github.com/omeka-s-modules/CustomVocab/releases/download/v2.1.0/CustomVocab-2.1.0.zip
 OMEKA_VERSION=""
 if [[ $SECTION_SKIP -eq 0 ]]; then
     rm -rf "$BUNDLE_SRC" "$BUNDLE" "$BUNDLE".partial-* && mkdir -p "$BUNDLE_SRC"
@@ -865,7 +866,7 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
     OMEKA_VERSION=$($CLI core:version)
     cat > "$BUNDLE_SRC/site.blueprint.json" <<JSON
 { "preferredVersions": { "omeka": "$OMEKA_VERSION" },
-  "modules": [ "Common", { "name": "CustomVocab", "source": "https://github.com/omeka-s-modules/CustomVocab.git" } ],
+  "modules": [ "Common", { "name": "CustomVocab", "source": "$CUSTOMVOCAB_ZIP" } ],
   "themes": [ "default", "freedom" ],
   "vocabularies": [ { "prefix": "schema", "namespaceUri": "https://schema.org/", "label": "schema.org",
                       "source": "https://schema.org/version/latest/schemaorg-current-https.rdf" } ],
@@ -873,14 +874,23 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
   "sites": [ { "title": "Bundle Site", "slug": "bp-bundle-site", "theme": "freedom" } ],
   "settings": { "installation_title": "Bundle Demo" } }
 JSON
+    cat > "$BUNDLE_SRC/git.blueprint.json" <<JSON
+{ "preferredVersions": { "omeka": "$OMEKA_VERSION" },
+  "modules": [ { "name": "CustomVocab", "source": "gh:omeka-s-modules/CustomVocab" } ] }
+JSON
 fi
 assert_output_contains "blueprint:validate --self-contained flags catalog sources" "has no source" \
     $CLI blueprint:validate "$BUNDLE_SRC/site.blueprint.json" --self-contained
 assert_output_contains "blueprint:validate --self-contained flags a git source" "is not a relative path inside the blueprint" \
-    $CLI blueprint:validate "$BUNDLE_SRC/site.blueprint.json" --self-contained
+    $CLI blueprint:validate "$BUNDLE_SRC/git.blueprint.json" --self-contained
+assert_output_contains "blueprint:bundle refuses a git source" "can't be bundled" \
+    $CLI blueprint:bundle "$BUNDLE_SRC/git.blueprint.json" /tmp/bp-bundle-git
+assert_success "a refused git bundle leaves no directory behind"           test ! -e /tmp/bp-bundle-git
 assert_success "blueprint:bundle writes a bundle"                          $CLI blueprint:bundle "$BUNDLE_SRC/site.blueprint.json" "$BUNDLE"
 assert_success "the bundle holds the core release"                         test -f "$BUNDLE/core/omeka-s-$OMEKA_VERSION.zip"
-assert_output_is "the git module became a local zip" "true"                bash -c "jq -r '.modules[1].source | startswith(\"./modules/CustomVocab-\")' $BUNDLE/blueprint.json"
+assert_output_is "the ZIP module became a local zip" "true"                bash -c "jq -r '.modules[1].source | startswith(\"./modules/CustomVocab-\")' $BUNDLE/blueprint.json"
+assert_success "the bundled module ZIP is the release, unchanged" \
+    bash -c "curl -fsSL -o /tmp/bp-customvocab.zip $CUSTOMVOCAB_ZIP && cmp /tmp/bp-customvocab.zip $BUNDLE/modules/CustomVocab-2.1.0.zip; rc=\$?; rm -f /tmp/bp-customvocab.zip; exit \$rc"
 assert_output_is "the catalog theme keeps its folder name" "freedom"       jq -r '.themes[1].name' "$BUNDLE/blueprint.json"
 assert_output_is "every source in the bundle is relative" "0" \
     bash -c "jq '[.. | objects | .source? // empty | select(startswith(\"./\") | not)] | length' $BUNDLE/blueprint.json"

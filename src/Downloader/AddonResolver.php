@@ -46,6 +46,13 @@ class AddonResolver
         return $source;
     }
 
+    /** Whether a reference (as uriFor() builds it) is a git repository: a git URL or gh:owner/repo. */
+    public static function isGit(string $uri): bool
+    {
+        $type = ResourceUriParser::parse($uri)->getType();
+        return $type === ResourceUriType::GitRepo || $type === ResourceUriType::GitHubRepo;
+    }
+
     /**
      * @param string            $uri          id[:version], a ZIP URL/file, a git URL[#ref] or gh:owner/repo[#ref]
      * @param Closure(): string $omekaVersion The target Omeka S version; called only for a catalog lookup

@@ -57,6 +57,17 @@ class AddonResolverTest extends TestCase
         return fn() => throw new LogicException('no catalog lookup expected');
     }
 
+    public function testIsGit(): void
+    {
+        $this->assertTrue(AddonResolver::isGit('gh:omeka-s-modules/CustomVocab'));
+        $this->assertTrue(AddonResolver::isGit('gh:omeka-s-modules/CustomVocab#v2.1.0'));
+        $this->assertTrue(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab.git#v2.1.0'));
+        $this->assertTrue(AddonResolver::isGit('git@github.com:omeka-s-modules/CustomVocab.git'));
+        $this->assertFalse(AddonResolver::isGit('https://example.org/CustomVocab-2.1.0.zip'));
+        $this->assertFalse(AddonResolver::isGit('./modules/CustomVocab-2.1.0.zip'));
+        $this->assertFalse(AddonResolver::isGit('CustomVocab:2.1.0'));
+    }
+
     public function testAZipSourceNeedsNoCatalog(): void
     {
         $url = 'https://example.org/Mapping-2.1.0.zip';

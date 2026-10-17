@@ -250,9 +250,10 @@ The bundle pins what it downloaded:
 - every module and theme version;
 - the format of each vocabulary.
 
-Modules from git are packed with their Composer dependencies, so a deploy never needs Composer or the
-network. Add-ons are named after their folder: a module after its namespace, a catalog theme after its
-catalog folder.
+Modules and themes are bundled as their release ZIPs, unchanged. A git or `gh:` source can't be
+bundled, because a checkout may need build steps before it can be installed: point its `source` to a
+release ZIP (a URL or a path) instead. Add-ons are named after their folder: a module after its
+namespace, a catalog theme after its catalog folder.
 
 The blueprint format has no field for the Omeka S release yet, so the bundle stores it in the CLI's
 own extension key, `x-omeka-s-cli.install.source`. Other tools ignore that key. You can set it in any

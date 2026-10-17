@@ -1,42 +1,30 @@
 <?php
 namespace OSC\Blueprint\Bundle;
 
-use Closure;
 use Composer\Semver\Semver;
 use Exception;
-use FilesystemIterator;
 use OSC\Blueprint\SourceFields;
 use OSC\Downloader\ResolvedAddon;
-use OSC\Helper\Path;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
+use OSC\Helper\ResourceFetcher;
 use Throwable;
 use ZipArchive;
 
 /**
- * Turn a resolved module or theme into a bundle-ready ZIP. Each add-on is:
- * - fetched;
- * - checked against the target Omeka S version;
- * - given its Composer dependencies when it ships a lock file without vendor/ (so a deploy never
- *   needs Composer or the network);
- * - repacked as `<modules|themes>/<Name>-<version>.zip`, with a single `<Name>/` folder and no .git.
+ * Copy a resolved module or theme release ZIP into a bundle, unchanged, after checking it:
+ * - its ini file has a version, and the add-on fits the target Omeka S version;
+ * - a module's namespace is its blueprint name.
  *
- * <Name> is the add-on's folder name:
+ * It is saved as `<modules|themes>/<Name>-<version>.zip`. <Name> is the add-on's folder name:
  * - a module's namespace (Omeka requires it to be the folder);
  * - a catalog theme's dirname;
  * - else the blueprint name.
+ *
+ * Only release ZIPs are bundled: a git checkout may need build steps before it can be installed, so
+ * a git source is refused. The ZIP is read in place; where its files sit inside it does not matter,
+ * because a deploy looks for the add-on folder the same way (see Path::findSubpath).
  */
 class AddonPackager
 {
-    /** @var Closure(string): void */
-    private Closure $composerInstall;
-
-    /** @param (Closure(string): void)|null $composerInstall Installs the dependencies of the package in a directory */
-    public function __construct(?Closure $composerInstall = null)
-    {
-        $this->composerInstall = $composerInstall ?? self::runComposerInstall(...);
-    }
-
     /**
      * @param string $kind          SourceFields::MODULE or SourceFields::THEME
      * @param string $name          The blueprint name
@@ -52,14 +40,28 @@ class AddonPackager
         bool $allowIncompatible,
         string $bundleDir,
     ): PackagedAddon {
+        if ($resolved->form === ResolvedAddon::GIT) {
+            throw new Exception("a git source can't be bundled; a bundle holds release ZIPs. Point source to a release ZIP (URL or path).");
+        }
         $iniName = $kind === SourceFields::MODULE ? 'module.ini' : 'theme.ini';
-        $download = $resolved->downloader->download();
+        $source = $resolved->downloader->getDownloadUrl();
+        $download = "{$bundleDir}/.addon.download";
         try {
-            $root = Path::findSubpath($download, "config/{$iniName}");
-            if ($root === null) {
-                throw new Exception("no config/{$iniName} found in {$resolved->downloader->getDownloadUrl()}");
+            ResourceFetcher::download($source, $download);
+            $zip = new ZipArchive();
+            if ($zip->open($download, ZipArchive::RDONLY) !== true) {
+                throw new Exception("{$source} is not a ZIP archive");
             }
-            $ini = @parse_ini_file("{$root}/config/{$iniName}", true);
+            try {
+                $prefix = self::addonFolder($zip, "config/{$iniName}");
+                if ($prefix === null) {
+                    throw new Exception("no config/{$iniName} found in {$source}");
+                }
+                $ini = @parse_ini_string((string) $zip->getFromName("{$prefix}config/{$iniName}"), true);
+                $moduleSrc = $kind === SourceFields::MODULE ? $zip->getFromName("{$prefix}Module.php") : false;
+            } finally {
+                $zip->close();
+            }
             $info = is_array($ini) ? ($ini['info'] ?? $ini) : [];
             $version = trim((string) ($info['version'] ?? ''));
             if ($version === '') {
@@ -79,13 +81,9 @@ class AddonPackager
                 $warnings[] = $incompatibility;
             }
 
-            $folder = $this->folderName($kind, $name, $resolved, $root);
+            $folder = $this->folderName($kind, $name, $resolved, $moduleSrc);
             if ($folder !== $name) {
                 $warnings[] = "renamed to '{$folder}', its folder name";
-            }
-
-            if (!is_dir("{$root}/vendor") && is_file("{$root}/composer.lock")) {
-                ($this->composerInstall)($root);
             }
 
             $zipPath = ($kind === SourceFields::MODULE ? 'modules' : 'themes')
@@ -94,14 +92,40 @@ class AddonPackager
             if (!is_dir($zipDir) && !mkdir($zipDir, 0777, true) && !is_dir($zipDir)) {
                 throw new Exception("could not create {$zipDir}");
             }
-            self::zipFolder($root, "{$bundleDir}/{$zipPath}", $folder);
+            if (!rename($download, "{$bundleDir}/{$zipPath}")) {
+                throw new Exception("could not write {$zipPath}");
+            }
 
             return new PackagedAddon($folder, $version, $zipPath, $warnings);
         } finally {
-            if (is_string($download) && is_dir($download)) {
-                Path::removeFolder($download);
+            if (is_file($download)) {
+                @unlink($download);
             }
         }
+    }
+
+    /**
+     * The folder (as an entry prefix: '' or ending in '/') of the shallowest $subpath in the archive,
+     * or null when it has none. A deploy picks the same folder, as it unpacks the ZIP and looks for
+     * the add-on from the top down.
+     */
+    private static function addonFolder(ZipArchive $zip, string $subpath): ?string
+    {
+        $found = null;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entry = (string) $zip->getNameIndex($i);
+            if (!str_ends_with($entry, $subpath)) {
+                continue;
+            }
+            $prefix = substr($entry, 0, -strlen($subpath));
+            if ($prefix !== '' && !str_ends_with($prefix, '/')) {
+                continue;
+            }
+            if ($found === null || substr_count($prefix, '/') < substr_count($found, '/')) {
+                $found = $prefix;
+            }
+        }
+        return $found;
     }
 
     /** The namespace a module's Module.php declares (Omeka requires it to be the module's folder). */
@@ -113,12 +137,14 @@ class AddonPackager
         return null;
     }
 
-    /** @throws Exception When a module's namespace is not its blueprint name */
-    private function folderName(string $kind, string $name, ResolvedAddon $resolved, string $root): string
+    /**
+     * @param string|false $moduleSrc The module's Module.php, or false when there is none (or for a theme)
+     * @throws Exception When a module's namespace is not its blueprint name
+     */
+    private function folderName(string $kind, string $name, ResolvedAddon $resolved, string|false $moduleSrc): string
     {
         if ($kind === SourceFields::MODULE) {
-            $src = @file_get_contents("{$root}/Module.php");
-            $namespace = $src !== false ? self::moduleNamespace($src) : null;
+            $namespace = $moduleSrc !== false ? self::moduleNamespace($moduleSrc) : null;
             if ($namespace === null) {
                 throw new Exception('no namespace found in Module.php');
             }
@@ -152,45 +178,5 @@ class AddonPackager
     private static function normalizeVersion(string $version): string
     {
         return ltrim(trim($version), 'vV');
-    }
-
-    /** Zip $dir (without its .git folder) into $zipPath, under a single top-level folder $prefix. */
-    private static function zipFolder(string $dir, string $zipPath, string $prefix): void
-    {
-        $zip = new ZipArchive();
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new Exception("could not create {$zipPath}");
-        }
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::SELF_FIRST
-        );
-        foreach ($files as $file) {
-            $relative = str_replace(DIRECTORY_SEPARATOR, '/', substr($file->getPathname(), strlen($dir) + 1));
-            if ($relative === '.git' || str_starts_with($relative, '.git/')) {
-                continue;
-            }
-            $entry = "{$prefix}/{$relative}";
-            $file->isDir() ? $zip->addEmptyDir($entry) : $zip->addFile($file->getPathname(), $entry);
-        }
-        if (!$zip->close()) {
-            throw new Exception("could not write {$zipPath}");
-        }
-    }
-
-    /** @throws Exception When Composer is missing or fails */
-    private static function runComposerInstall(string $dir): void
-    {
-        exec('command -v composer 2>/dev/null', $output, $code);
-        if ($code !== 0) {
-            throw new Exception(
-                "it ships composer.lock without vendor/, so its dependencies must be installed, but 'composer' is not on the PATH"
-            );
-        }
-        $output = [];
-        exec(sprintf('cd %s && composer install --no-dev --no-interaction --quiet 2>&1', escapeshellarg($dir)), $output, $code);
-        if ($code !== 0) {
-            throw new Exception('composer install failed: ' . implode("\n", $output));
-        }
     }
 }

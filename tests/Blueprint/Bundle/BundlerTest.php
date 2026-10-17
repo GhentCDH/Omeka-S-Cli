@@ -145,7 +145,7 @@ class BundlerTest extends TestCase
             $this->resolver('theme', [new ThemeDetails('Freedom', 'freedom', '1.0.7', [
                 '1.0.7' => new ThemeVersion('1.0.7', '2024-01-01', $freedom, '^4.0'),
             ])]),
-            new AddonPackager(fn(string $dir) => throw new LogicException('composer must not run')),
+            new AddonPackager(),
             $latest ?? fn() => throw new LogicException('the latest Omeka S version must not be looked up'),
             function (string $source, string $target, array $headers = []) use ($remote): ?string {
                 $this->downloads[] = $source;
@@ -264,6 +264,24 @@ class BundlerTest extends TestCase
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("preferredVersions.omeka is 'dev'");
         $this->bundler()->bundle(new Blueprint(['preferredVersions' => ['omeka' => 'dev']]), "{$this->dir}/out");
+    }
+
+    public function testAGitSourceIsRefusedBeforeAnythingIsDownloaded(): void
+    {
+        try {
+            $this->bundler()->bundle(new Blueprint([
+                'preferredVersions' => ['omeka' => '4.1.1'],
+                'modules' => ['Common', ['name' => 'CustomVocab', 'source' => 'gh:omeka-s-modules/CustomVocab']],
+            ]), "{$this->dir}/out");
+            $this->fail('a git source must be refused');
+        } catch (Exception $e) {
+            $this->assertSame(
+                "modules[1] 'CustomVocab': a git source can't be bundled; a bundle holds release ZIPs. "
+                . 'Point source to a release ZIP (URL or path).',
+                $e->getMessage()
+            );
+        }
+        $this->assertSame([], $this->downloads);
     }
 
     public function testErrorsNameTheEntry(): void

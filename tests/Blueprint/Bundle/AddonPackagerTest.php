@@ -1,9 +1,7 @@
 <?php
 namespace Tests\Blueprint\Bundle;
 
-use Closure;
 use Exception;
-use LogicException;
 use OSC\Blueprint\Bundle\AddonPackager;
 use OSC\Blueprint\Bundle\PackagedAddon;
 use OSC\Blueprint\SourceFields;
@@ -81,36 +79,82 @@ class AddonPackagerTest extends TestCase
         ResolvedAddon $resolved,
         ?string $pinned = null,
         bool $allowIncompatible = false,
-        ?Closure $composer = null,
     ): PackagedAddon {
-        $composer ??= fn(string $dir) => throw new LogicException('composer must not run');
-        return (new AddonPackager($composer))
+        return (new AddonPackager())
             ->package($kind, $name, $resolved, $pinned, '4.1.1', $allowIncompatible, "{$this->dir}/bundle");
     }
 
-    /** @return string[] The entry names of a ZIP in the bundle */
-    private function entries(PackagedAddon $packaged): array
+    public function testCopiesTheReleaseZipUnchanged(): void
     {
-        $zip = new ZipArchive();
-        $zip->open("{$this->dir}/bundle/{$packaged->zipPath}");
-        $names = [];
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $names[] = $zip->getNameIndex($i);
-        }
-        $zip->close();
-        return $names;
-    }
+        $zip = $this->moduleZip('release-1.2.0', 'Foo', '1.2.0');
 
-    public function testRepacksAModuleUnderItsNamespace(): void
-    {
-        $packaged = $this->package(SourceFields::MODULE, 'foo', $this->zipSource($this->moduleZip('release-1.2.0', 'Foo', '1.2.0')));
+        $packaged = $this->package(SourceFields::MODULE, 'foo', $this->zipSource($zip));
 
         $this->assertSame('Foo', $packaged->name);
         $this->assertSame('1.2.0', $packaged->version);
         $this->assertSame('modules/Foo-1.2.0.zip', $packaged->zipPath);
-        $this->assertContains('Foo/config/module.ini', $this->entries($packaged));
-        $this->assertContains('Foo/Module.php', $this->entries($packaged));
+        $this->assertSame(sha1_file($zip), sha1_file("{$this->dir}/bundle/{$packaged->zipPath}"));
         $this->assertSame(["renamed to 'Foo', its folder name"], $packaged->warnings);
+    }
+
+    public function testAZipWithoutTopFolderIsCopied(): void
+    {
+        $zip = $this->zip('flat.zip', [
+            'config/module.ini' => "[info]\nversion = \"1.0.0\"\nomeka_version_constraint = \"^4.0\"\n",
+            'Module.php' => "<?php\nnamespace Foo;\n",
+        ]);
+
+        $packaged = $this->package(SourceFields::MODULE, 'Foo', $this->zipSource($zip));
+
+        $this->assertSame('modules/Foo-1.0.0.zip', $packaged->zipPath);
+        $this->assertSame(sha1_file($zip), sha1_file("{$this->dir}/bundle/{$packaged->zipPath}"));
+    }
+
+    public function testReadsTheShallowestIni(): void
+    {
+        // the nested ini comes first in the archive, but the add-on is the shallowest folder
+        $zip = $this->zip('Foo.zip', [
+            'Foo/vendor/x/config/module.ini' => "[info]\nversion = \"9.9.9\"\n",
+            'Foo/vendor/x/Module.php' => "<?php\nnamespace X;\n",
+            'Foo/config/module.ini' => "[info]\nversion = \"1.2.0\"\nomeka_version_constraint = \"^4.0\"\n",
+            'Foo/Module.php' => "<?php\nnamespace Foo;\n",
+        ]);
+
+        $packaged = $this->package(SourceFields::MODULE, 'Foo', $this->zipSource($zip));
+
+        $this->assertSame('Foo', $packaged->name);
+        $this->assertSame('1.2.0', $packaged->version);
+    }
+
+    public function testRejectsAFileThatIsNotAZip(): void
+    {
+        $path = "{$this->dir}/broken.zip";
+        file_put_contents($path, 'not a zip');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("{$path} is not a ZIP archive");
+        $this->package(SourceFields::MODULE, 'Foo', $this->zipSource($path));
+    }
+
+    public function testAGitSourceIsRefused(): void
+    {
+        $resolved = new ResolvedAddon(new GitDownloader('https://example.org/foo.git'), ResolvedAddon::GIT);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("a git source can't be bundled");
+        $this->package(SourceFields::MODULE, 'Foo', $resolved);
+    }
+
+    public function testNoDownloadIsLeftBehindOnError(): void
+    {
+        try {
+            $this->package(SourceFields::MODULE, 'Bar', $this->zipSource($this->moduleZip('Foo', 'Foo', '1.2.0')));
+            $this->fail('the namespace mismatch must be refused');
+        } catch (Exception $e) {
+            $this->assertStringContainsString("declares namespace 'Foo'", $e->getMessage());
+        }
+
+        $this->assertSame([], array_values(array_diff(scandir("{$this->dir}/bundle"), ['.', '..'])));
     }
 
     public function testRejectsAModuleWhoseNamespaceIsNotTheName(): void
@@ -140,29 +184,6 @@ class AddonPackagerTest extends TestCase
         $this->assertSame(['version 1.0.0 is pinned, but the ZIP contains 1.2.0; the ZIP wins'], $packaged->warnings);
     }
 
-    public function testInstallsComposerDependenciesWhenVendorIsMissing(): void
-    {
-        $zip = $this->moduleZip('Foo', 'Foo', '1.2.0', '^4.0', ['Foo/composer.lock' => '{}']);
-        $composer = function (string $dir): void {
-            mkdir("{$dir}/vendor");
-            file_put_contents("{$dir}/vendor/autoload.php", '<?php');
-        };
-
-        $packaged = $this->package(SourceFields::MODULE, 'Foo', $this->zipSource($zip), null, false, $composer);
-
-        $this->assertContains('Foo/vendor/autoload.php', $this->entries($packaged));
-    }
-
-    public function testSkipsComposerWhenVendorIsShipped(): void
-    {
-        $zip = $this->moduleZip('Foo', 'Foo', '1.2.0', '^4.0', ['Foo/composer.lock' => '{}', 'Foo/vendor/autoload.php' => '<?php']);
-
-        // the default test closure throws if composer runs
-        $packaged = $this->package(SourceFields::MODULE, 'Foo', $this->zipSource($zip));
-
-        $this->assertContains('Foo/vendor/autoload.php', $this->entries($packaged));
-    }
-
     public function testACatalogThemeUsesTheCatalogFolderName(): void
     {
         $zip = $this->themeZip('freedom-v1.0.7', 'Freedom', '1.0.7');
@@ -172,7 +193,7 @@ class AddonPackagerTest extends TestCase
 
         $this->assertSame('freedom', $packaged->name);
         $this->assertSame('themes/freedom-1.0.7.zip', $packaged->zipPath);
-        $this->assertContains('freedom/config/theme.ini', $this->entries($packaged));
+        $this->assertSame(sha1_file($zip), sha1_file("{$this->dir}/bundle/{$packaged->zipPath}"));
     }
 
     public function testASourcedThemeKeepsTheBlueprintName(): void
@@ -197,27 +218,5 @@ class AddonPackagerTest extends TestCase
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('config/module.ini has no version');
         $this->package(SourceFields::MODULE, 'Foo', $this->zipSource($zip));
-    }
-
-    public function testAGitSourceIsZippedWithoutGitMetadata(): void
-    {
-        exec('command -v git', $out, $code);
-        if ($code !== 0) {
-            $this->markTestSkipped('git is not available');
-        }
-        $repo = "{$this->dir}/repo";
-        mkdir("{$repo}/config", 0777, true);
-        file_put_contents("{$repo}/config/module.ini", "[info]\nversion = \"2.0.0\"\nomeka_version_constraint = \"^4.0\"\n");
-        file_put_contents("{$repo}/Module.php", "<?php\nnamespace Foo;\n");
-        exec(sprintf(
-            'cd %s && git init -q && git add . && git -c user.name=t -c user.email=t@example.org commit -qm init && git tag 2.0.0',
-            escapeshellarg($repo)
-        ));
-
-        $resolved = new ResolvedAddon(new GitDownloader($repo, '2.0.0'), ResolvedAddon::GIT);
-        $packaged = $this->package(SourceFields::MODULE, 'Foo', $resolved);
-
-        $this->assertSame('modules/Foo-2.0.0.zip', $packaged->zipPath);
-        $this->assertSame([], array_filter($this->entries($packaged), fn($e) => str_starts_with($e, 'Foo/.git')));
     }
 }

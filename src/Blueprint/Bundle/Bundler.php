@@ -15,8 +15,9 @@ use Throwable;
 
 /**
  * Fetch every source a blueprint needs into one directory, and write a rewritten `blueprint.json`
- * there whose sources are relative paths inside it. The bundle then deploys without the catalogs,
- * git hosts or remote URLs the original refers to (see SourceFields for where sources live).
+ * there whose sources are relative paths inside it. The bundle then deploys without the catalogs or
+ * remote URLs the original refers to (see SourceFields for where sources live). Add-ons are bundled
+ * as their release ZIPs, unchanged; a git source is refused.
  *
  * Versions are pinned on the way: the Omeka S version (the latest release when the blueprint has
  * none) and every add-on's version. Add-on names become their folder names (catalog dirname or
@@ -72,7 +73,7 @@ class Bundler
 
         $omeka = $this->omekaVersion($data);
         $data['preferredVersions'] = array_merge($data['preferredVersions'] ?? [], ['omeka' => $omeka]);
-        $this->assertGitAvailable($data);
+        $this->assertNoGitSources($data);
 
         $core = $this->bundleCore($blueprint->installSource(), $omeka, $dir);
         $data = self::withValue($data, explode('.', SourceFields::CORE_SOURCE), './' . $core);
@@ -126,25 +127,29 @@ class Bundler
         return $version;
     }
 
-    /** @throws Exception When an add-on comes from git and git is not installed */
-    private function assertGitAvailable(array $data): void
+    /**
+     * Refuse a git source before anything is downloaded: a bundle holds release ZIPs, and a git
+     * checkout may need build steps before it can be installed.
+     *
+     * @throws Exception Naming the first add-on with a git source
+     */
+    private function assertNoGitSources(array $data): void
     {
         foreach (['modules', 'themes'] as $key) {
-            foreach ($data[$key] ?? [] as $entry) {
-                $source = is_array($entry) ? (string) ($entry['source'] ?? '') : '';
-                $isGit = str_starts_with($source, 'gh:') || str_starts_with($source, 'git@')
-                    || str_ends_with($source, '.git') || str_contains($source, '.git#');
-                if ($isGit && !self::hasCommand('git')) {
-                    throw new Exception("{$key} '{$entry['name']}' comes from git, but 'git' is not on the PATH.");
+            foreach ($data[$key] ?? [] as $i => $entry) {
+                if (!is_array($entry) || !isset($entry['source']) || $entry['source'] === '') {
+                    continue;
+                }
+                $name = (string) ($entry['name'] ?? '');
+                $version = isset($entry['version']) && $entry['version'] !== '' ? (string) $entry['version'] : null;
+                if (AddonResolver::isGit(AddonResolver::uriFor($name, (string) $entry['source'], $version))) {
+                    throw new Exception(
+                        "{$key}[{$i}] '{$name}': a git source can't be bundled; a bundle holds release ZIPs. "
+                        . 'Point source to a release ZIP (URL or path).'
+                    );
                 }
             }
         }
-    }
-
-    private static function hasCommand(string $command): bool
-    {
-        exec('command -v ' . escapeshellarg($command) . ' 2>/dev/null', $output, $code);
-        return $code === 0;
     }
 
     private function bundleCore(?string $source, string $omeka, string $dir): string
