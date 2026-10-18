@@ -223,6 +223,67 @@ blueprint in clear text: a blueprint that contains them is a secret itself. Leav
 the passwords with `--admin-password` and [`user:update-password`](../commands/users.md) (or let users
 use *Forgot password*).
 
+## Bundle a blueprint for offline deploys
+
+A deploy downloads the Omeka S core, modules, themes and vocabularies from omeka.org, GitHub and
+other hosts, so it fails when one of them is down. `blueprint:bundle` downloads all of them once into
+one directory, and writes a `blueprint.json` there that only refers to files in that directory:
+
+```bash
+--8<-- "docs/examples/blueprints.sh:bundle"
+```
+
+```text
+bundle/
+  blueprint.json                # every $import inlined, every version pinned
+  core/omeka-s-4.2.1.zip        # x-omeka-s-cli.install.source
+  modules/Common-3.4.71.zip
+  themes/freedom-1.0.7.zip
+  vocabularies/coll.ttl
+  resource-templates/book.json
+  files/logo.png
+```
+
+The bundle pins what it downloaded:
+
+- `preferredVersions.omeka` (the latest release if the blueprint had none);
+- every module and theme version;
+- the format of each vocabulary.
+
+Modules and themes are bundled as their release ZIPs, unchanged. A git or `gh:` source can't be
+bundled, because a checkout may need build steps before it can be installed: point its `source` to a
+release ZIP (a URL or a path) instead. Add-ons are named after their folder: a module after its
+namespace, a catalog theme after its catalog folder.
+
+The blueprint format has no field for the Omeka S release yet, so the bundle stores it in the CLI's
+own extension key, `x-omeka-s-cli.install.source`. Other tools ignore that key. You can set it in any
+blueprint, to a release ZIP path or URL, and the core phase installs from it.
+
+Deploy the bundle with `--self-contained`. It refuses a blueprint that still refers to anything
+outside its directory: a catalog name, a git repository, a URL, or a missing
+`x-omeka-s-cli.install.source`.
+
+```bash
+--8<-- "docs/examples/blueprints.sh:deploy-bundle"
+```
+
+A bundle can also live in a git repository or on a web server. Deployed from there, for example
+`gh:org/infra@v1:bundle/blueprint.json`, it only downloads from that location.
+
+Passwords in the blueprint (`install.admin.password`, user passwords) are copied into the bundle
+unchanged. Keep them out of the blueprint and pass them at deploy time instead; see
+[Keep secrets out of the blueprint](#keep-secrets-out-of-the-blueprint).
+
+### In a Docker image
+
+Bundle in a build stage, which has network access. Deploy when the container starts, once the
+database is reachable. Only the first start deploys: keep `/var/www/omeka-s` on a volume, and a
+later start finds Omeka S installed and only starts the web server.
+
+```dockerfile
+--8<-- "docs/examples/files/blueprints/Dockerfile.bundle"
+```
+
 ## Omeka S Playground
 
 The format started as the blueprint of the [Omeka S Playground](https://github.com/ateeducacion/omeka-s-playground),

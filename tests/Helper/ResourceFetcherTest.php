@@ -4,8 +4,10 @@ namespace Tests\Helper;
 use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
 use OSC\Helper\ResourceFetcher;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass(ResourceFetcher::class)]
 class ResourceFetcherTest extends TestCase
 {
     private string $testFile;
@@ -120,5 +122,22 @@ class ResourceFetcherTest extends TestCase
         // Must throw a plain exception, without emitting a PHP warning
         $fetch->invoke(null, 'http://127.0.0.1:1/nope');
     }
-}
 
+    public function testDownloadCopiesALocalFileAndHasNoContentType(): void
+    {
+        $target = $this->testFile . '.copy';
+        try {
+            $this->assertNull(ResourceFetcher::download($this->testFile, $target));
+            $this->assertSame('Test content', file_get_contents($target));
+        } finally {
+            @unlink($target);
+        }
+    }
+
+    public function testDownloadOfAMissingFileFails(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('File not found');
+        ResourceFetcher::download($this->testFile . '.missing', $this->testFile . '.x');
+    }
+}

@@ -15,7 +15,7 @@ use Otar\JSONC;
  * contain further `$import` entries). Referenced sources are resolved relative to the file/URL that
  * contains them. Circular references are detected and rejected.
  *
- * References written in a blueprint (`$import` and the asset fields) must be URLs, repo-aware
+ * References written in a blueprint (`$import` and the source fields listed in SourceFields) must be URLs, repo-aware
  * references or relative paths: absolute paths and `file:` URLs are rejected, and a relative path
  * that resolves outside the blueprint root (by default the top-level blueprint's directory) is
  * rejected too, so a blueprint can never reach an arbitrary file on the local filesystem.
@@ -31,25 +31,6 @@ class BlueprintLoader
 {
     /** Keys whose value is a list of items that may contain `$import` references. */
     private const LIST_KEYS = ['modules', 'themes', 'files', 'vocabularies', 'resourceTemplates', 'users', 'sites', 'itemSets', 'items'];
-
-    /**
-     * Per-list item fields that hold a relative asset reference. They are resolved against the source
-     * that declares the item — so a vocabulary pulled in via `$import` resolves its `source` against
-     * the imported config's location, not the top-level blueprint's.
-     */
-    private const ASSET_FIELDS = [
-        'modules' => ['source'],
-        'themes' => ['source'],
-        'files' => ['source'],
-        'vocabularies' => ['source'],
-        'resourceTemplates' => ['source'],
-    ];
-
-    /**
-     * Lists whose asset field may also hold a non-file reference (a git URL, gh:owner/repo) that the
-     * download commands interpret themselves: only a path-form value is resolved there.
-     */
-    private const ADDON_KEYS = ['modules', 'themes'];
 
     /** An absolute filesystem path (POSIX, UNC/backslash, Windows drive) or a file: URL. */
     private const ABSOLUTE_PATTERN = '#^(/|\\\\|[A-Za-z]:[\\\\/]|file:)#i';
@@ -69,13 +50,24 @@ class BlueprintLoader
     /** Local directory every local reference must stay inside, for the current load (null: none). */
     private ?string $root = null;
 
+    /** Root URL (with trailing slash) a self-contained remote blueprint's references must stay under. */
+    private ?string $rootUrl = null;
+
+    /** Self-contained violations gathered during the current load (see takeViolations()). */
+    private array $violations = [];
+
     /**
-     * @param ReferenceResolver|null $resolver Resolver for repo-aware and relative references
-     * @param string|null            $rootOverride Directory local references must stay inside; defaults
-     *                                             to the directory of the top-level blueprint
+     * @param ReferenceResolver|null $resolver      Resolver for repo-aware and relative references
+     * @param string|null            $rootOverride  Directory local references must stay inside; defaults
+     *                                              to the directory of the top-level blueprint
+     * @param bool                   $selfContained Record (instead of following) every reference that is
+     *                                              not a relative path inside the blueprint; see takeViolations()
      */
-    public function __construct(?ReferenceResolver $resolver = null, private ?string $rootOverride = null)
-    {
+    public function __construct(
+        ?ReferenceResolver $resolver = null,
+        private ?string $rootOverride = null,
+        private bool $selfContained = false,
+    ) {
         $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
     }
 
@@ -108,6 +100,20 @@ class BlueprintLoader
         $warnings = array_values(array_unique($this->warnings));
         $this->warnings = [];
         return $warnings;
+    }
+
+    /**
+     * In self-contained mode: the references of the most recent load()/loadPartial() that are not a
+     * relative path inside the blueprint (a URL, a repo reference, a git source, or a path leaving
+     * the blueprint's URL), then cleared. Such a reference is skipped, never fetched.
+     *
+     * @return string[]
+     */
+    public function takeViolations(): array
+    {
+        $violations = array_values(array_unique($this->violations));
+        $this->violations = [];
+        return $violations;
     }
 
     /** Decode jsonc content (comments and trailing commas allowed), throwing on invalid JSON. */
@@ -144,6 +150,7 @@ class BlueprintLoader
     {
         $this->warnings = [];
         $this->visiting = [];
+        $this->violations = [];
         $source = $this->resolver->resolve($source);
 
         if (ResourceFetcher::isFile($source)) {
@@ -152,6 +159,7 @@ class BlueprintLoader
         }
 
         $this->root = null;
+        $this->rootUrl = null;
         if ($this->rootOverride !== null) {
             $root = realpath($this->rootOverride);
             if ($root === false || !is_dir($root)) {
@@ -160,6 +168,9 @@ class BlueprintLoader
             $this->root = $root;
         } elseif (ResourceFetcher::isFile($source)) {
             $this->root = dirname($source);
+        } else {
+            // a remote blueprint: its directory URL bounds a self-contained blueprint's references
+            $this->rootUrl = substr($source, 0, strrpos($source, '/') + 1);
         }
         return $source;
     }
@@ -193,7 +204,30 @@ class BlueprintLoader
         if (isset($blueprint['settings'])) {
             $blueprint['settings'] = $this->resolveSettings($blueprint['settings'], $source);
         }
+        foreach (SourceFields::objects() as $path => $fields) {
+            $blueprint = $this->resolveObject($blueprint, explode('.', $path), $source, $fields, $path);
+        }
         return $blueprint;
+    }
+
+    /**
+     * Resolve the source fields of the object at $path (a list of keys) inside $data.
+     *
+     * @param string[]             $path   Keys leading to the object
+     * @param array<string,string> $fields field => kind (see SourceFields)
+     * @param string               $label  The dotted object path, for messages
+     * @throws Exception
+     */
+    private function resolveObject(array $data, array $path, string $source, array $fields, string $label): array
+    {
+        $key = array_shift($path);
+        if (!isset($data[$key]) || !is_array($data[$key])) {
+            return $data;
+        }
+        $data[$key] = $path === []
+            ? $this->resolveFields($data[$key], $source, $fields, $label)
+            : $this->resolveObject($data[$key], $path, $source, $fields, $label);
+        return $data;
     }
 
     /**
@@ -283,7 +317,10 @@ class BlueprintLoader
         if (!is_string($raw) || trim($raw) === '') {
             throw new Exception("An \$import in '{$base}' must be a non-empty string.");
         }
-        $ref = $this->reference($raw, $base);
+        $ref = $this->reference($raw, $base, '$import');
+        if ($ref === null) {
+            return []; // a self-contained violation: recorded, not fetched
+        }
         return $this->guarded($ref, fn() => $resolve($this->decode(ResourceFetcher::fetch($ref)), $ref));
     }
 
@@ -310,12 +347,14 @@ class BlueprintLoader
     /**
      * Turn a reference written in a blueprint into a fetchable path or URL: reject absolute paths and
      * file: URLs, resolve it against the source that contains it, and require a local result to stay
-     * inside the blueprint root. A URL result needs no check: a relative reference in a remote file
-     * always resolves to a URL.
+     * inside the blueprint root. In self-contained mode a reference that is not a relative path inside
+     * the blueprint (a URL, a repo reference, or a path leaving a remote blueprint's directory) is
+     * recorded as a violation and null is returned, so the caller skips it.
      *
+     * @param string $label What the reference is, for messages (e.g. "$import", "modules 'Log' source")
      * @throws Exception
      */
-    private function reference(string $raw, string $base): string
+    private function reference(string $raw, string $base, string $label): ?string
     {
         $raw = trim($raw);
         if (preg_match(self::ABSOLUTE_PATTERN, $raw) === 1) {
@@ -323,9 +362,15 @@ class BlueprintLoader
                 "Reference '{$raw}' in '{$base}' is an absolute path or file: URL; use a relative path or a URL."
             );
         }
+        if ($this->selfContained && !$this->isRelative($raw)) {
+            return $this->violation($label, $raw, $base, 'is not a relative path inside the blueprint');
+        }
 
         $ref = $this->resolver->resolve($raw, $base);
         if (ResourceFetcher::isUrl($ref)) {
+            if ($this->selfContained && $this->rootUrl !== null && !str_starts_with($ref, $this->rootUrl)) {
+                return $this->violation($label, $raw, $base, "resolves outside the blueprint location {$this->rootUrl}");
+            }
             return $ref;
         }
         if ($this->root === null || !$this->isInside($ref, $this->root)) {
@@ -337,6 +382,19 @@ class BlueprintLoader
         return $ref;
     }
 
+    /** Record a self-contained violation; returns null so the caller skips the reference. */
+    private function violation(string $label, string $raw, string $base, string $problem): ?string
+    {
+        $this->violations[] = "{$label} '{$raw}' in '{$base}' {$problem}.";
+        return null;
+    }
+
+    /** Whether a (non-absolute) reference is a relative path: no URI scheme, repo prefix or git address. */
+    private function isRelative(string $raw): bool
+    {
+        return preg_match(self::SCHEME_PATTERN, $raw) !== 1 && !str_starts_with($raw, 'git@');
+    }
+
     /** Whether a local path lies inside $root; an existing path is compared by its real path (symlinks). */
     private function isInside(string $path, string $root): bool
     {
@@ -345,14 +403,12 @@ class BlueprintLoader
     }
 
     /**
-     * Resolve an inline item's relative asset fields (see ASSET_FIELDS) against the source that
-     * declares it. Repo-aware references become raw URLs; URLs pass through. For add-ons only a
-     * path-form source is resolved; a git URL or gh:owner/repo is left to the download commands.
+     * Resolve an inline item's source fields (see SourceFields) against the source that declares it.
      *
      * @param mixed  $entry  The inline item
      * @param string $source The source declaring the item (for relative resolution)
-     * @param string $key    The list key (selects which fields are asset references)
-     * @return mixed The item with its asset fields resolved
+     * @param string $key    The list key (selects which fields are sources)
+     * @return mixed The item with its source fields resolved
      * @throws Exception
      */
     private function resolveItemAssets(mixed $entry, string $source, string $key): mixed
@@ -360,14 +416,38 @@ class BlueprintLoader
         if (!is_array($entry)) {
             return $entry;
         }
-        foreach (self::ASSET_FIELDS[$key] ?? [] as $field) {
+        $name = $this->identityLabel($entry, $key);
+        return $this->resolveFields($entry, $source, SourceFields::forList($key), $name !== '' ? "{$key} '{$name}'" : $key);
+    }
+
+    /**
+     * Resolve the source fields of an item or object against the source that declares it.
+     * Repo-aware references become raw URLs; URLs pass through. For add-ons only a path-form source
+     * is resolved; a git URL or gh:owner/repo is left to the download commands (and is a violation
+     * in self-contained mode).
+     *
+     * @param array                $entry  The item or object
+     * @param string               $source The source declaring it (for relative resolution)
+     * @param array<string,string> $fields field => kind (see SourceFields)
+     * @param string               $label  What the entry is, for messages (e.g. "modules 'Log'")
+     * @throws Exception
+     */
+    private function resolveFields(array $entry, string $source, array $fields, string $label): array
+    {
+        foreach ($fields as $field => $kind) {
             if (!isset($entry[$field]) || !is_string($entry[$field]) || trim($entry[$field]) === '') {
                 continue;
             }
-            if (in_array($key, self::ADDON_KEYS, true) && !$this->isAddonPath($entry[$field])) {
+            if (SourceFields::isAddon($kind) && !$this->isAddonPath($entry[$field])) {
+                if ($this->selfContained) {
+                    $this->violation("{$label} {$field}", trim($entry[$field]), $source, 'is not a relative path inside the blueprint');
+                }
                 continue;
             }
-            $entry[$field] = $this->reference($entry[$field], $source);
+            $ref = $this->reference($entry[$field], $source, "{$label} {$field}");
+            if ($ref !== null) {
+                $entry[$field] = $ref;
+            }
         }
         return $entry;
     }

@@ -69,6 +69,61 @@ class ResourceFetcher
     }
 
     /**
+     * Copy a file, or download a URL, to $target, streaming it (no memory limit; a 10-minute timeout
+     * suits release ZIPs).
+     *
+     * @param string[] $headers Request headers for a URL (e.g. "Accept: text/turtle")
+     * @return string|null The response Content-Type of a URL (lowercase, without parameters); null for a file
+     * @throws InvalidArgumentException If a file source does not exist
+     * @throws Exception If copying or downloading fails
+     */
+    public static function download(string $source, string $target, array $headers = []): ?string
+    {
+        if (self::isFile($source)) {
+            if (!is_file($source)) {
+                throw new InvalidArgumentException("File not found: {$source}");
+            }
+            if (!@copy($source, $target)) {
+                throw new Exception("Failed to copy '{$source}' to '{$target}'.");
+            }
+            return null;
+        }
+
+        if (!function_exists('curl_init')) {
+            if (file_put_contents($target, self::fetchFromUrl($source, $headers)) === false) {
+                throw new Exception("Failed to write '{$target}'.");
+            }
+            return null;
+        }
+
+        $handle = fopen($target, 'wb');
+        if ($handle === false) {
+            throw new Exception("Failed to write '{$target}'.");
+        }
+        $ch = curl_init($source);
+        curl_setopt_array($ch, [
+            CURLOPT_FILE => $handle,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 600,
+            CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_FAILONERROR => true,
+            CURLOPT_HTTPHEADER => $headers,
+        ]);
+        $ok = curl_exec($ch);
+        $error = curl_error($ch);
+        $type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+        fclose($handle);
+
+        if ($ok === false) {
+            @unlink($target);
+            throw new Exception("Failed to download '{$source}': {$error}");
+        }
+        return is_string($type) && $type !== '' ? strtolower(trim(explode(';', $type)[0])) : null;
+    }
+
+    /**
      * Detect if source is a file or URL
      *
      * @param string $source

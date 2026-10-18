@@ -72,3 +72,10 @@ omeka-s-cli theme:delete Cozy --ignore-not-found
 # --8<-- [end:delete]
 test ! -d themes/freedom
 test ! -d themes/Cozy
+
+omeka-s-cli theme:delete freedom-dev --force --ignore-not-found
+# --8<-- [start:download-dir]
+omeka-s-cli theme:download gh:omeka-s-themes/freedom --dir freedom-dev
+# --8<-- [end:download-dir]
+test -f themes/freedom-dev/config/theme.ini
+omeka-s-cli theme:delete freedom-dev --force --quiet

@@ -47,4 +47,10 @@ class OmekaDotOrgApi
     {
         return trim(file_get_contents(self::OMEKA_VERSION_API_URL));
     }
+
+    /** The release ZIP of an Omeka S version, as published on GitHub. */
+    public static function coreReleaseUrl(string $version): string
+    {
+        return "https://github.com/omeka/omeka-s/releases/download/v{$version}/omeka-s-{$version}.zip";
+    }
 }

@@ -3,8 +3,10 @@ namespace Tests\Helper;
 
 use InvalidArgumentException;
 use OSC\Helper\Path;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass(Path::class)]
 class FileUtilsTest extends TestCase
 {
     private string $tempDir;

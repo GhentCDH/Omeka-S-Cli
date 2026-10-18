@@ -64,6 +64,16 @@ From a git repository, at a tag, branch or commit, or from a release zip:
     `theme.ini` (`themes/Cozy`). The directory name is the theme id Omeka S stores for a site, so pick
     one way of downloading a theme and stick to it: mixing them leaves two copies of the same theme.
 
+## Choose the theme folder
+
+The folder is the theme's ID in Omeka S; sites refer to it. A theme from the catalog keeps the
+catalog's folder. A ZIP or git theme gets its `theme.ini` name, unless you pick the folder with
+`--dir`:
+
+```bash
+--8<-- "docs/examples/themes.sh:download-dir"
+```
+
 ## Use a theme
 
 Choose the theme of a site when you create it, or change it later with

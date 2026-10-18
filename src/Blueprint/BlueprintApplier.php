@@ -6,6 +6,7 @@ use Omeka\Module\Manager as ModuleManager;
 use OSC\Commands\AbstractCommand;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
+use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Path;
@@ -120,7 +121,7 @@ class BlueprintApplier
                 $this->command->note("{$module['name']}: already present, nothing to download", true);
                 continue;
             }
-            $uri = $this->addonUri($module);
+            $uri = AddonResolver::uriFor($module['name'], $module['source'], $module['version']);
             if ($this->dryRun) {
                 $this->command->note("would download module '{$module['name']}' ({$uri})", true);
                 continue;
@@ -188,26 +189,6 @@ class BlueprintApplier
         }
     }
 
-    /**
-     * The module:download / theme:download argument for an add-on entry: its source, or its name
-     * (resolved through omeka.org) when it has none. The version selects the omeka.org release or
-     * the tag of a git source; a ZIP URL already pins the release, so it wins.
-     *
-     * @param array{name:string,source:?string,version:?string} $addon
-     */
-    private function addonUri(array $addon): string
-    {
-        ['name' => $name, 'source' => $source, 'version' => $version] = $addon;
-        if ($source === null) {
-            return $version ? "{$name}:{$version}" : $name;
-        }
-        $isGit = str_starts_with($source, 'gh:') || str_ends_with($source, '.git');
-        if ($version && $isGit && !str_contains($source, '#')) {
-            return "{$source}#{$version}";
-        }
-        return $source;
-    }
-
     private function normalizeModule(mixed $module): array
     {
         if (is_string($module)) {
@@ -249,13 +230,16 @@ class BlueprintApplier
                 $this->command->note("{$theme['name']}: already present, nothing to download", true);
                 continue;
             }
-            $uri = $this->addonUri($theme);
+            $uri = AddonResolver::uriFor($theme['name'], $theme['source'], $theme['version']);
+            // `name` is the theme's folder: a sourced theme is installed there (a catalog theme keeps
+            // the catalog's folder name)
+            $dir = $theme['source'] !== null ? $theme['name'] : null;
             if ($this->dryRun) {
-                $this->command->note("would download theme '{$theme['name']}' ({$uri})", true);
+                $this->command->note("would download theme '{$theme['name']}' ({$uri})" . ($dir !== null ? " into themes/{$dir}" : ''), true);
                 continue;
             }
             try {
-                $this->run('theme:download', fn($c) => $c->execute($uri, $force, false), false);
+                $this->run('theme:download', fn($c) => $c->execute($uri, $force, false, $dir), false);
             } catch (ThemeExistsException) {
                 $this->command->note("{$theme['name']}: already present at the required version, skipping (use --update to replace)", true);
             }

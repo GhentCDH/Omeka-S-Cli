@@ -8,6 +8,7 @@ use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Path;
+use OSC\Omeka\OmekaDotOrgApi;
 
 class UpdateCommand extends AbstractModuleCommand
 {
@@ -68,7 +69,7 @@ class UpdateCommand extends AbstractModuleCommand
             $url = "https://github.com/omeka/omeka-s.git";
             $downloader = new GitDownloader($url);
         } else {
-            $url = "https://github.com/omeka/omeka-s/releases/download/v$versionNumber/omeka-s-$versionNumber.zip";
+            $url = OmekaDotOrgApi::coreReleaseUrl($versionNumber);
             $downloader = new ZipDownloader($url);
         }
 

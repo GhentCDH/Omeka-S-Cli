@@ -73,6 +73,22 @@ class Blueprint
         return $this->data['install'] ?? [];
     }
 
+    /**
+     * The Omeka S release ZIP to install from (resolved path or URL), or null to download the release.
+     * Read from SourceFields::CORE_SOURCE.
+     */
+    public function installSource(): ?string
+    {
+        $value = $this->data;
+        foreach (explode('.', SourceFields::CORE_SOURCE) as $key) {
+            if (!is_array($value) || !isset($value[$key])) {
+                return null;
+            }
+            $value = $value[$key];
+        }
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
     public function preferredOmekaVersion(): ?string
     {
         return $this->data['preferredVersions']['omeka'] ?? null;
