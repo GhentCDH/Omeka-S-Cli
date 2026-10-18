@@ -14,7 +14,7 @@ use OSC\Blueprint\SourceFields;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
-use OSC\Helper\AddonZip;
+use OSC\Helper\ModuleNamespace;
 use OSC\Helper\Path;
 use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\ResourceFetcher;
@@ -38,7 +38,7 @@ use ZipArchive;
 #[UsesClass(Blueprint::class)]
 #[UsesClass(BlueprintLoader::class)]
 #[UsesClass(BlueprintValidator::class)]
-#[UsesClass(AddonZip::class)]
+#[UsesClass(ModuleNamespace::class)]
 #[UsesClass(VocabularyFormat::class)]
 #[UsesClass(SelfContainedCheck::class)]
 #[UsesClass(SourceFields::class)]
@@ -417,6 +417,96 @@ class BundlerTest extends TestCase
             $this->assertFileDoesNotExist("{$this->dir}/out/.addon.download");
             $this->assertDirectoryDoesNotExist("{$this->dir}/out/modules");
         }
+    }
+
+    public function testAnAddonInsideAVendorFolderIsNotTheModule(): void
+    {
+        // the nested module comes first in the archive, but the module is its parent folder
+        $zip = $this->zip('foo.zip', [
+            'Foo/vendor/x/config/module.ini' => "[info]\nversion = \"9.9.9\"\n",
+            'Foo/vendor/x/Module.php' => "<?php\nnamespace X;\n",
+            'Foo/config/module.ini' => "[info]\nversion = \"1.2.0\"\nomeka_version_constraint = \"^4.0\"\n",
+            'Foo/Module.php' => "<?php\nnamespace Foo;\n",
+        ]);
+
+        $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
+
+        $this->assertSame(['name' => 'Foo', 'source' => './modules/Foo-1.2.0.zip', 'version' => '1.2.0'], $this->bundled()['modules'][0]);
+    }
+
+    public function testAZipWithoutTopFolderIsBundled(): void
+    {
+        $zip = $this->zip('flat.zip', [
+            'config/module.ini' => "[info]\nversion = \"1.0.0\"\nomeka_version_constraint = \"^4.0\"\n",
+            'Module.php' => "<?php\nnamespace Foo;\n",
+        ]);
+
+        $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
+
+        $this->assertSame('./modules/Foo-1.0.0.zip', $this->bundled()['modules'][0]['source']);
+        $this->assertSame(sha1_file($zip), sha1_file("{$this->dir}/out/modules/Foo-1.0.0.zip"));
+    }
+
+    public function testALookAlikeFolderIsNotTheIni(): void
+    {
+        $zip = $this->zip('foo.zip', ['Fooconfig/module.ini' => "[info]\nversion = \"1.0.0\"\n"]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[0] 'Foo': no config/module.ini found in {$zip}");
+        $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
+    }
+
+    public function testAThemeWithoutIniIsRefused(): void
+    {
+        $zip = $this->zip('x.zip', ['x/readme.txt' => 'hi']);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("themes[0] 'x': no config/theme.ini found in {$zip}");
+        $this->bundleAddons([], [['name' => 'x', 'source' => $zip]]);
+    }
+
+    public function testAnIniWithoutVersionIsRefused(): void
+    {
+        $zip = $this->zip('foo.zip', ['Foo/config/module.ini' => "[info]\nname = \"Foo\"\n", 'Foo/Module.php' => "<?php\nnamespace Foo;\n"]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[0] 'Foo': config/module.ini has no version");
+        $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
+    }
+
+    public function testAnEncryptedZipIsRefused(): void
+    {
+        if (!method_exists(ZipArchive::class, 'setEncryptionName')) {
+            $this->markTestSkipped('libzip has no encryption support');
+        }
+        $path = "{$this->dir}/fixtures/encrypted.zip";
+        $zip = new ZipArchive();
+        $zip->open($path, ZipArchive::CREATE);
+        $zip->addFromString('Foo/config/module.ini', "[info]\nversion = \"1.0.0\"\n");
+        $zip->setEncryptionName('Foo/config/module.ini', ZipArchive::EM_AES_256, 'secret');
+        $zip->close();
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[0] 'Foo': could not unpack {$path}");
+        $this->bundleAddons([['name' => 'Foo', 'source' => $path]]);
+    }
+
+    public function testNoTempFolderIsLeftBehind(): void
+    {
+        $before = glob(sys_get_temp_dir() . '/omeka-s-cli.*') ?: [];
+
+        $this->bundleAddons([['name' => 'Foo', 'source' => $this->releaseZip('foo.zip', 'Foo', 'Foo', '1.2.0')]]);
+        $this->assertSame($before, glob(sys_get_temp_dir() . '/omeka-s-cli.*') ?: []);
+
+        Path::removeFolder("{$this->dir}/out");
+        mkdir("{$this->dir}/out");
+        try {
+            $this->bundleAddons([['name' => 'Bar', 'source' => $this->releaseZip('foo.zip', 'Foo', 'Foo', '1.2.0')]]);
+            $this->fail('the namespace mismatch must be refused');
+        } catch (Exception $e) {
+            $this->assertStringContainsString("declares namespace 'Foo'", $e->getMessage());
+        }
+        $this->assertSame($before, glob(sys_get_temp_dir() . '/omeka-s-cli.*') ?: []);
     }
 
     public function testErrorsNameTheEntry(): void

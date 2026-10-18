@@ -11,11 +11,13 @@ use OSC\Blueprint\SelfContainedCheck;
 use OSC\Blueprint\SourceFields;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
-use OSC\Helper\AddonZip;
+use OSC\Helper\ModuleNamespace;
+use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\OmekaDotOrgApi;
 use stdClass;
 use Throwable;
+use ZipArchive;
 
 /**
  * Fetch every source a blueprint needs into one directory, and write a rewritten `blueprint.json`
@@ -46,7 +48,7 @@ class Bundler
     /** Content types of a web page, which is never a vocabulary. */
     private const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
 
-    /** @var Closure(string, string): ?string */
+    /** @var Closure(string, string, string[]): ?string */
     private Closure $download;
 
     /** @var string[] */
@@ -234,14 +236,14 @@ class Bundler
         try {
             $source = $resolved->downloader->getDownloadUrl();
             ($this->download)($source, $download, []);
-            $addon = AddonZip::read($download, $kind, $source);
+            $addon = $this->readRelease($kind, $download, $source);
 
             $warnings = [];
             if ($pinnedVersion !== null && $resolved->form === ResolvedAddon::ZIP
-                && self::normalizeVersion($pinnedVersion) !== self::normalizeVersion($addon->version)) {
-                $warnings[] = "version {$pinnedVersion} is pinned, but the ZIP contains {$addon->version}; the ZIP wins";
+                && self::normalizeVersion($pinnedVersion) !== self::normalizeVersion($addon['version'])) {
+                $warnings[] = "version {$pinnedVersion} is pinned, but the ZIP contains {$addon['version']}; the ZIP wins";
             }
-            $incompatibility = self::incompatibility($addon->constraint, $omeka);
+            $incompatibility = self::incompatibility($addon['constraint'], $omeka);
             if ($incompatibility !== null) {
                 if (!$allowIncompatible) {
                     throw new Exception("{$incompatibility}; use --allow-incompatible to bundle it anyway");
@@ -250,16 +252,16 @@ class Bundler
             }
 
             if ($kind === SourceFields::MODULE) {
-                if ($addon->namespace === null) {
+                if ($addon['namespace'] === null) {
                     throw new Exception('no namespace found in Module.php');
                 }
-                if (strcasecmp($addon->namespace, $name) !== 0) {
+                if (strcasecmp($addon['namespace'], $name) !== 0) {
                     throw new Exception(
-                        "Module.php declares namespace '{$addon->namespace}', but the blueprint name is '{$name}'; "
+                        "Module.php declares namespace '{$addon['namespace']}', but the blueprint name is '{$name}'; "
                         . "the name must be the module's folder name"
                     );
                 }
-                $folder = $addon->namespace;
+                $folder = $addon['namespace'];
             } else {
                 // a catalog theme lives in the catalog's folder; a sourced theme in the blueprint name
                 $folder = $resolved->dirname ?? $name;
@@ -269,7 +271,7 @@ class Bundler
             }
 
             $zipPath = ($kind === SourceFields::MODULE ? 'modules' : 'themes')
-                . "/{$folder}-" . preg_replace('/[^A-Za-z0-9._-]/', '_', $addon->version) . '.zip';
+                . "/{$folder}-" . preg_replace('/[^A-Za-z0-9._-]/', '_', $addon['version']) . '.zip';
             $zipDir = dirname("{$dir}/{$zipPath}");
             if (!is_dir($zipDir) && !mkdir($zipDir, 0777, true) && !is_dir($zipDir)) {
                 throw new Exception("could not create {$zipDir}");
@@ -277,12 +279,77 @@ class Bundler
             if (!rename($download, "{$dir}/{$zipPath}")) {
                 throw new Exception("could not write {$zipPath}");
             }
-            return [$folder, $addon->version, $zipPath, $warnings];
+            return [$folder, $addon['version'], $zipPath, $warnings];
         } finally {
             if (is_file($download)) {
                 @unlink($download);
             }
         }
+    }
+
+    /**
+     * Unpack a downloaded release ZIP into a temp folder and read the module or theme in it. The
+     * folder is found with Path::findSubpath(), the search a deploy uses after unpacking the same ZIP.
+     *
+     * @return array{version: string, constraint: string, namespace: ?string} namespace is null for a theme
+     * @throws Exception About the ZIP, which messages call $source
+     */
+    private function readRelease(string $kind, string $zipPath, string $source): array
+    {
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::RDONLY) !== true) {
+            throw new Exception("{$source} is not a ZIP archive");
+        }
+        $tmp = Path::createTempFolder('omeka-s-cli.');
+        try {
+            $unpacked = @$zip->extractTo($tmp);
+            $zip->close();
+            if (!$unpacked) {
+                throw new Exception("could not unpack {$source}");
+            }
+            return $kind === SourceFields::MODULE ? self::readModule($tmp, $source) : self::readTheme($tmp, $source) + ['namespace' => null];
+        } finally {
+            Path::removeFolder($tmp);
+        }
+    }
+
+    /** @return array{version: string, constraint: string, namespace: ?string} */
+    private static function readModule(string $tmp, string $source): array
+    {
+        $root = Path::findSubpath($tmp, 'config/module.ini');
+        if ($root === null) {
+            throw new Exception("no config/module.ini found in {$source}");
+        }
+        $moduleSrc = is_file("{$root}/Module.php") ? file_get_contents("{$root}/Module.php") : false;
+        return self::readIni($root, 'module.ini') + [
+            'namespace' => $moduleSrc !== false ? ModuleNamespace::fromModulePhp($moduleSrc) : null,
+        ];
+    }
+
+    /** @return array{version: string, constraint: string} */
+    private static function readTheme(string $tmp, string $source): array
+    {
+        $root = Path::findSubpath($tmp, 'config/theme.ini');
+        if ($root === null) {
+            throw new Exception("no config/theme.ini found in {$source}");
+        }
+        return self::readIni($root, 'theme.ini');
+    }
+
+    /**
+     * The version and Omeka S constraint ('' when absent) in an add-on's config/$iniName.
+     *
+     * @return array{version: string, constraint: string}
+     */
+    private static function readIni(string $root, string $iniName): array
+    {
+        $ini = @parse_ini_file("{$root}/config/{$iniName}", true);
+        $info = is_array($ini) ? ($ini['info'] ?? $ini) : [];
+        $version = trim((string) ($info['version'] ?? ''));
+        if ($version === '') {
+            throw new Exception("config/{$iniName} has no version");
+        }
+        return ['version' => $version, 'constraint' => trim((string) ($info['omeka_version_constraint'] ?? ''))];
     }
 
     /** Why the add-on does not fit the target Omeka S version, or null when it does (or has no constraint). */
