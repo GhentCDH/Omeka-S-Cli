@@ -148,6 +148,16 @@ class AddonZipTest extends TestCase
         AddonZip::read($path, SourceFields::MODULE);
     }
 
+    public function testMessagesUseTheGivenName(): void
+    {
+        $path = "{$this->dir}/broken.zip";
+        file_put_contents($path, 'not a zip');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('https://example.org/Foo-1.0.zip is not a ZIP archive');
+        AddonZip::read($path, SourceFields::MODULE, 'https://example.org/Foo-1.0.zip');
+    }
+
     public function testRejectsAnIniWithoutVersion(): void
     {
         $this->expectException(InvalidArgumentException::class);

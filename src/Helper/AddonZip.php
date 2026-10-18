@@ -30,24 +30,26 @@ final class AddonZip
     }
 
     /**
-     * @param string $kind SourceFields::MODULE or SourceFields::THEME
+     * @param string      $kind SourceFields::MODULE or SourceFields::THEME
+     * @param string|null $name What messages call the ZIP (e.g. the URL it was downloaded from); default $path
      * @throws InvalidArgumentException When the file is no ZIP, or has no readable ini with a version
      */
-    public static function read(string $path, string $kind): self
+    public static function read(string $path, string $kind, ?string $name = null): self
     {
+        $name ??= $path;
         $iniName = 'config/' . ($kind === SourceFields::MODULE ? 'module.ini' : 'theme.ini');
         $zip = new ZipArchive();
         if (!is_file($path) || $zip->open($path, ZipArchive::RDONLY) !== true) {
-            throw new InvalidArgumentException("{$path} is not a ZIP archive");
+            throw new InvalidArgumentException("{$name} is not a ZIP archive");
         }
         try {
             $folder = self::addonFolder($zip, $iniName);
             if ($folder === null) {
-                throw new InvalidArgumentException("no {$iniName} found in {$path}");
+                throw new InvalidArgumentException("no {$iniName} found in {$name}");
             }
             $iniSrc = $zip->getFromName("{$folder}{$iniName}");
             if ($iniSrc === false) {
-                throw new InvalidArgumentException("cannot read {$folder}{$iniName} in {$path}");
+                throw new InvalidArgumentException("cannot read {$folder}{$iniName} in {$name}");
             }
             $moduleSrc = $kind === SourceFields::MODULE ? $zip->getFromName("{$folder}Module.php") : false;
         } finally {

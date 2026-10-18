@@ -232,8 +232,9 @@ class Bundler
     ): array {
         $download = "{$dir}/.addon.download";
         try {
-            ($this->download)($resolved->downloader->getDownloadUrl(), $download, []);
-            $addon = AddonZip::read($download, $kind);
+            $source = $resolved->downloader->getDownloadUrl();
+            ($this->download)($source, $download, []);
+            $addon = AddonZip::read($download, $kind, $source);
 
             $warnings = [];
             if ($pinnedVersion !== null && $resolved->form === ResolvedAddon::ZIP

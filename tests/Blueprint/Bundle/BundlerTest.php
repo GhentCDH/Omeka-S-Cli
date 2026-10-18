@@ -380,6 +380,25 @@ class BundlerTest extends TestCase
         $this->assertSame([], $warnings);
     }
 
+    public function testErrorsAboutTheZipNameItsSource(): void
+    {
+        $notAZip = "{$this->dir}/fixtures/broken.zip";
+        file_put_contents($notAZip, 'not a zip');
+        $noIni = $this->zip('no-ini.zip', ['x/readme.txt' => 'hi']);
+        $cases = [
+            "modules[0] 'Foo': {$notAZip} is not a ZIP archive" => $notAZip,
+            "modules[0] 'Foo': no config/module.ini found in {$noIni}" => $noIni,
+        ];
+        foreach ($cases as $message => $source) {
+            try {
+                $this->bundleAddons([['name' => 'Foo', 'source' => $source]]);
+                $this->fail("'{$message}' must be refused");
+            } catch (Exception $e) {
+                $this->assertSame($message, $e->getMessage());
+            }
+        }
+    }
+
     public function testNoAddonDownloadIsLeftBehindOnError(): void
     {
         $notAZip = "{$this->dir}/fixtures/broken.zip";
