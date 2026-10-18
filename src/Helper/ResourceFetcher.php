@@ -90,10 +90,7 @@ class ResourceFetcher
         }
 
         if (!function_exists('curl_init')) {
-            if (file_put_contents($target, self::fetchFromUrl($source, $headers)) === false) {
-                throw new Exception("Failed to write '{$target}'.");
-            }
-            return null;
+            return self::downloadWithStreamWrapper($source, $target, $headers);
         }
 
         $handle = fopen($target, 'wb');
@@ -267,6 +264,56 @@ class ResourceFetcher
         }
 
         return $content;
+    }
+
+    /**
+     * Download a URL to $target with PHP's http stream wrapper, streaming it (the transport without
+     * cURL).
+     *
+     * @param string[] $headers Request headers as "Name: value" strings
+     * @return string|null The response Content-Type (lowercase, without parameters), if any
+     * @throws Exception If the URL is invalid or the download fails; $target is then removed
+     */
+    protected static function downloadWithStreamWrapper(string $url, string $target, array $headers = []): ?string
+    {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new InvalidArgumentException("Invalid URL: {$url}");
+        }
+        if (!ini_get('allow_url_fopen')) {
+            throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
+        }
+
+        $http = ['timeout' => 600, 'user_agent' => 'Omeka-S-CLI/1.0', 'follow_location' => true];
+        if ($headers) {
+            $http['header'] = $headers;
+        }
+        $in = @fopen($url, 'rb', false, stream_context_create(['http' => $http]));
+        if ($in === false) {
+            $reason = error_get_last()['message'] ?? '';
+            throw new Exception("Failed to download '{$url}'" . ($reason !== '' ? ": {$reason}" : ''));
+        }
+        try {
+            $out = @fopen($target, 'wb');
+            if ($out === false) {
+                throw new Exception("Failed to write '{$target}'.");
+            }
+            $copied = stream_copy_to_stream($in, $out);
+            fclose($out);
+            if ($copied === false) {
+                @unlink($target);
+                throw new Exception("Failed to download '{$url}'");
+            }
+            // the last Content-Type wins: the headers of every redirect are listed in order
+            $type = null;
+            foreach (stream_get_meta_data($in)['wrapper_data'] ?? [] as $header) {
+                if (is_string($header) && stripos($header, 'content-type:') === 0) {
+                    $type = strtolower(trim(explode(';', substr($header, 13))[0]));
+                }
+            }
+            return $type !== '' ? $type : null;
+        } finally {
+            fclose($in);
+        }
     }
 
     /**

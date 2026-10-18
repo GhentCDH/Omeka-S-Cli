@@ -140,4 +140,30 @@ class ResourceFetcherTest extends TestCase
         $this->expectExceptionMessage('File not found');
         ResourceFetcher::download($this->testFile . '.missing', $this->testFile . '.x');
     }
+
+    public function testStreamWrapperDownloadCopiesToTheTarget(): void
+    {
+        $download = new \ReflectionMethod(ResourceFetcher::class, 'downloadWithStreamWrapper');
+        $target = $this->testFile . '.copy';
+        try {
+            $download->invoke(null, 'file://' . $this->testFile, $target, []);
+            $this->assertSame('Test content', file_get_contents($target));
+        } finally {
+            @unlink($target);
+        }
+    }
+
+    public function testStreamWrapperDownloadOfAnUnreachableUrlFailsAndLeavesNoTarget(): void
+    {
+        $download = new \ReflectionMethod(ResourceFetcher::class, 'downloadWithStreamWrapper');
+        $target = $this->testFile . '.x';
+        try {
+            // must throw a plain exception, without emitting a PHP warning
+            $download->invoke(null, 'http://127.0.0.1:1/nope', $target, []);
+            $this->fail('an unreachable URL must fail');
+        } catch (Exception $e) {
+            $this->assertStringContainsString("Failed to download 'http://127.0.0.1:1/nope'", $e->getMessage());
+        }
+        $this->assertFileDoesNotExist($target);
+    }
 }
