@@ -7,15 +7,14 @@ use LogicException;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintLoader;
 use OSC\Blueprint\BlueprintValidator;
-use OSC\Blueprint\Bundle\AddonPackager;
 use OSC\Blueprint\Bundle\Bundler;
-use OSC\Blueprint\Bundle\PackagedAddon;
 use OSC\Blueprint\Bundle\VocabularyFormat;
 use OSC\Blueprint\SelfContainedCheck;
 use OSC\Blueprint\SourceFields;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
+use OSC\Helper\AddonZip;
 use OSC\Helper\Path;
 use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\ResourceFetcher;
@@ -39,8 +38,7 @@ use ZipArchive;
 #[UsesClass(Blueprint::class)]
 #[UsesClass(BlueprintLoader::class)]
 #[UsesClass(BlueprintValidator::class)]
-#[UsesClass(AddonPackager::class)]
-#[UsesClass(PackagedAddon::class)]
+#[UsesClass(AddonZip::class)]
 #[UsesClass(VocabularyFormat::class)]
 #[UsesClass(SelfContainedCheck::class)]
 #[UsesClass(SourceFields::class)]
@@ -145,7 +143,6 @@ class BundlerTest extends TestCase
             $this->resolver('theme', [new ThemeDetails('Freedom', 'freedom', '1.0.7', [
                 '1.0.7' => new ThemeVersion('1.0.7', '2024-01-01', $freedom, '^4.0'),
             ])]),
-            new AddonPackager(),
             $latest ?? fn() => throw new LogicException('the latest Omeka S version must not be looked up'),
             function (string $source, string $target, array $headers = []) use ($remote): ?string {
                 $this->downloads[] = $source;
@@ -292,6 +289,115 @@ class BundlerTest extends TestCase
             'preferredVersions' => ['omeka' => '4.1.1'],
             'modules' => ['Common', ['name' => 'Foo', 'source' => 'https://example.org/dl?id=5']],
         ]), "{$this->dir}/out");
+    }
+
+    /** A module release ZIP whose single folder is $folder. */
+    private function releaseZip(string $file, string $folder, string $namespace, string $version, string $constraint = '^4.0'): string
+    {
+        return $this->zip($file, [
+            "{$folder}/config/module.ini" => "[info]\nversion = \"{$version}\"\nomeka_version_constraint = \"{$constraint}\"\n",
+            "{$folder}/Module.php" => "<?php\nnamespace {$namespace};\n",
+        ]);
+    }
+
+    /** Bundle a blueprint with only these modules and themes into out/. */
+    private function bundleAddons(array $modules, array $themes = [], bool $allowIncompatible = false): array
+    {
+        return $this->bundler()->bundle(new Blueprint([
+            'preferredVersions' => ['omeka' => '4.1.1'],
+            'modules' => $modules,
+            'themes' => $themes,
+        ]), "{$this->dir}/out", $allowIncompatible);
+    }
+
+    public function testCopiesTheReleaseZipUnchanged(): void
+    {
+        $zip = $this->releaseZip('foo-release.zip', 'release-1.2.0', 'Foo', '1.2.0');
+
+        $warnings = $this->bundleAddons([['name' => 'foo', 'source' => $zip]]);
+
+        $this->assertSame(
+            ['name' => 'Foo', 'source' => './modules/Foo-1.2.0.zip', 'version' => '1.2.0'],
+            $this->bundled()['modules'][0]
+        );
+        $this->assertSame(sha1_file($zip), sha1_file("{$this->dir}/out/modules/Foo-1.2.0.zip"));
+        $this->assertContains($zip, $this->downloads);
+        $this->assertSame(["modules[0] 'foo': renamed to 'Foo', its folder name"], $warnings);
+    }
+
+    public function testRejectsAModuleWhoseNamespaceIsNotTheName(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[0] 'Bar': Module.php declares namespace 'Foo', but the blueprint name is 'Bar'");
+        $this->bundleAddons([['name' => 'Bar', 'source' => $this->releaseZip('foo.zip', 'Foo', 'Foo', '1.2.0')]]);
+    }
+
+    public function testRejectsAModuleWithoutNamespace(): void
+    {
+        $zip = $this->zip('foo.zip', ['Foo/config/module.ini' => "[info]\nversion = \"1.0.0\"\n"]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[0] 'Foo': no namespace found in Module.php");
+        $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
+    }
+
+    public function testRejectsAnIncompatibleAddonUnlessAllowed(): void
+    {
+        $zip = $this->releaseZip('foo.zip', 'Foo', 'Foo', '1.2.0', '^5.0');
+
+        $warnings = $this->bundleAddons([['name' => 'Foo', 'source' => $zip]], [], true);
+        $this->assertSame(["modules[0] 'Foo': requires Omeka S ^5.0, but the bundle targets 4.1.1"], $warnings);
+
+        Path::removeFolder("{$this->dir}/out");
+        mkdir("{$this->dir}/out");
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[0] 'Foo': requires Omeka S ^5.0, but the bundle targets 4.1.1; use --allow-incompatible to bundle it anyway");
+        $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
+    }
+
+    public function testAZipWinsOverAPinnedVersion(): void
+    {
+        $zip = $this->releaseZip('foo.zip', 'Foo', 'Foo', '1.2.0');
+
+        $warnings = $this->bundleAddons([['name' => 'Foo', 'source' => $zip, 'version' => '1.0.0']]);
+
+        $this->assertSame('1.2.0', $this->bundled()['modules'][0]['version']);
+        $this->assertSame(["modules[0] 'Foo': version 1.0.0 is pinned, but the ZIP contains 1.2.0; the ZIP wins"], $warnings);
+    }
+
+    public function testACatalogThemeUsesTheCatalogFolderName(): void
+    {
+        $this->bundleAddons([], ['Freedom']);
+
+        $this->assertSame(['name' => 'freedom', 'version' => '1.0.7', 'source' => './themes/freedom-1.0.7.zip'], $this->bundled()['themes'][0]);
+    }
+
+    public function testASourcedThemeKeepsTheBlueprintName(): void
+    {
+        $warnings = $this->bundleAddons([], [['name' => 'my-theme', 'source' => $this->themeZip('whatever-1.0', 'My Theme', '1.0')]]);
+
+        $this->assertSame('./themes/my-theme-1.0.zip', $this->bundled()['themes'][0]['source']);
+        $this->assertSame([], $warnings);
+    }
+
+    public function testNoAddonDownloadIsLeftBehindOnError(): void
+    {
+        $notAZip = "{$this->dir}/fixtures/broken.zip";
+        file_put_contents($notAZip, 'not a zip');
+        $cases = [
+            'is not a ZIP archive' => $notAZip,
+            "declares namespace 'Foo'" => $this->releaseZip('foo.zip', 'Foo', 'Foo', '1.2.0'),
+        ];
+        foreach ($cases as $message => $source) {
+            try {
+                $this->bundleAddons([['name' => 'Bar', 'source' => $source]]);
+                $this->fail("'{$message}' must be refused");
+            } catch (Exception $e) {
+                $this->assertStringContainsString($message, $e->getMessage());
+            }
+            $this->assertFileDoesNotExist("{$this->dir}/out/.addon.download");
+            $this->assertDirectoryDoesNotExist("{$this->dir}/out/modules");
+        }
     }
 
     public function testErrorsNameTheEntry(): void

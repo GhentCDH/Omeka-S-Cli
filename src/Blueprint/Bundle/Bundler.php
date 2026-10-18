@@ -2,6 +2,7 @@
 namespace OSC\Blueprint\Bundle;
 
 use Closure;
+use Composer\Semver\Semver;
 use Exception;
 use InvalidArgumentException;
 use OSC\Blueprint\Blueprint;
@@ -9,6 +10,8 @@ use OSC\Blueprint\BlueprintValidator;
 use OSC\Blueprint\SelfContainedCheck;
 use OSC\Blueprint\SourceFields;
 use OSC\Downloader\AddonResolver;
+use OSC\Downloader\ResolvedAddon;
+use OSC\Helper\AddonZip;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\OmekaDotOrgApi;
 use stdClass;
@@ -17,8 +20,11 @@ use Throwable;
 /**
  * Fetch every source a blueprint needs into one directory, and write a rewritten `blueprint.json`
  * there whose sources are relative paths inside it. The bundle then deploys without the catalogs or
- * remote URLs the original refers to (see SourceFields for where sources live). Add-ons are bundled
- * as their release ZIPs, unchanged; a git source is refused.
+ * remote URLs the original refers to (see SourceFields for where sources live).
+ *
+ * Add-ons are bundled as their release ZIPs, unchanged, after checking that each fits the target
+ * Omeka S version and that a module's namespace is its name. A git source is refused: a checkout may
+ * need build steps before it can be installed.
  *
  * Versions are pinned on the way: the Omeka S version (the latest release when the blueprint has
  * none) and every add-on's version. Add-on names become their folder names (catalog dirname or
@@ -54,7 +60,6 @@ class Bundler
     public function __construct(
         private AddonResolver $modules,
         private AddonResolver $themes,
-        private AddonPackager $packager,
         private Closure $latestOmekaVersion,
         ?Closure $download = null,
         private ?Closure $progress = null,
@@ -195,17 +200,107 @@ class Bundler
             foreach ($resolved->notes as $note) {
                 $this->progress("  {$note}");
             }
-            $packaged = $this->packager->package($kind, $name, $resolved, $version, $omeka, $allowIncompatible, $dir);
+            [$folder, $addonVersion, $zipPath, $warnings] = $this->copyRelease($kind, $name, $resolved, $version, $omeka, $allowIncompatible, $dir);
         } catch (Throwable $e) {
             throw new Exception("{$label}: {$e->getMessage()}", 0, $e);
         }
-        foreach (array_merge($resolved->warnings, $packaged->warnings) as $warning) {
+        foreach (array_merge($resolved->warnings, $warnings) as $warning) {
             $this->warnings[] = "{$label}: {$warning}";
         }
-        if ($kind === SourceFields::THEME && $packaged->name !== $name) {
-            $renamedThemes[strtolower($name)] = $packaged->name;
+        if ($kind === SourceFields::THEME && $folder !== $name) {
+            $renamedThemes[strtolower($name)] = $folder;
         }
-        return array_merge($item, ['name' => $packaged->name, 'version' => $packaged->version, 'source' => './' . $packaged->zipPath]);
+        return array_merge($item, ['name' => $folder, 'version' => $addonVersion, 'source' => './' . $zipPath]);
+    }
+
+    /**
+     * Download an add-on's release ZIP, check it, and save it unchanged as
+     * `<modules|themes>/<Folder>-<version>.zip`. <Folder> is the add-on's folder name: a module's
+     * namespace (Omeka requires it to be the folder), a catalog theme's dirname, else the blueprint name.
+     *
+     * @return array{string, string, string, string[]} [folder, version, ZIP path relative to $dir, warnings]
+     * @throws Exception About the add-on (the caller adds which entry it is)
+     */
+    private function copyRelease(
+        string $kind,
+        string $name,
+        ResolvedAddon $resolved,
+        ?string $pinnedVersion,
+        string $omeka,
+        bool $allowIncompatible,
+        string $dir,
+    ): array {
+        $download = "{$dir}/.addon.download";
+        try {
+            ($this->download)($resolved->downloader->getDownloadUrl(), $download, []);
+            $addon = AddonZip::read($download, $kind);
+
+            $warnings = [];
+            if ($pinnedVersion !== null && $resolved->form === ResolvedAddon::ZIP
+                && self::normalizeVersion($pinnedVersion) !== self::normalizeVersion($addon->version)) {
+                $warnings[] = "version {$pinnedVersion} is pinned, but the ZIP contains {$addon->version}; the ZIP wins";
+            }
+            $incompatibility = self::incompatibility($addon->constraint, $omeka);
+            if ($incompatibility !== null) {
+                if (!$allowIncompatible) {
+                    throw new Exception("{$incompatibility}; use --allow-incompatible to bundle it anyway");
+                }
+                $warnings[] = $incompatibility;
+            }
+
+            if ($kind === SourceFields::MODULE) {
+                if ($addon->namespace === null) {
+                    throw new Exception('no namespace found in Module.php');
+                }
+                if (strcasecmp($addon->namespace, $name) !== 0) {
+                    throw new Exception(
+                        "Module.php declares namespace '{$addon->namespace}', but the blueprint name is '{$name}'; "
+                        . "the name must be the module's folder name"
+                    );
+                }
+                $folder = $addon->namespace;
+            } else {
+                // a catalog theme lives in the catalog's folder; a sourced theme in the blueprint name
+                $folder = $resolved->dirname ?? $name;
+            }
+            if ($folder !== $name) {
+                $warnings[] = "renamed to '{$folder}', its folder name";
+            }
+
+            $zipPath = ($kind === SourceFields::MODULE ? 'modules' : 'themes')
+                . "/{$folder}-" . preg_replace('/[^A-Za-z0-9._-]/', '_', $addon->version) . '.zip';
+            $zipDir = dirname("{$dir}/{$zipPath}");
+            if (!is_dir($zipDir) && !mkdir($zipDir, 0777, true) && !is_dir($zipDir)) {
+                throw new Exception("could not create {$zipDir}");
+            }
+            if (!rename($download, "{$dir}/{$zipPath}")) {
+                throw new Exception("could not write {$zipPath}");
+            }
+            return [$folder, $addon->version, $zipPath, $warnings];
+        } finally {
+            if (is_file($download)) {
+                @unlink($download);
+            }
+        }
+    }
+
+    /** Why the add-on does not fit the target Omeka S version, or null when it does (or has no constraint). */
+    private static function incompatibility(string $constraint, string $omekaVersion): ?string
+    {
+        if ($constraint === '') {
+            return null;
+        }
+        try {
+            $compatible = Semver::satisfies($omekaVersion, $constraint);
+        } catch (Throwable) {
+            return "has an unreadable Omeka S version constraint '{$constraint}'";
+        }
+        return $compatible ? null : "requires Omeka S {$constraint}, but the bundle targets {$omekaVersion}";
+    }
+
+    private static function normalizeVersion(string $version): string
+    {
+        return ltrim(trim($version), 'vV');
     }
 
     private function bundleVocabulary(string $label, array $vocabulary, string $dir): array
