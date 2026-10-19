@@ -291,6 +291,7 @@ class ResourceFetcher
         if ($in === false) {
             // "fopen(<url>): Failed to open stream: HTTP request failed! HTTP/1.1 404 Not Found\r\n" -> the reason
             $reason = trim(preg_replace('/^.*?Failed to open stream: /is', '', error_get_last()['message'] ?? ''));
+            @unlink($target);
             throw new Exception("Failed to download '{$url}'" . ($reason !== '' ? ": {$reason}" : ''));
         }
         try {

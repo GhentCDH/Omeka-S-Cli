@@ -157,6 +157,7 @@ class ResourceFetcherTest extends TestCase
     {
         $download = new \ReflectionMethod(ResourceFetcher::class, 'downloadWithStreamWrapper');
         $target = $this->testFile . '.x';
+        touch($target); // e.g. the temp file a caller created for the download
         try {
             // must throw a plain exception, without emitting a PHP warning
             $download->invoke(null, 'http://127.0.0.1:1/nope', $target, []);
