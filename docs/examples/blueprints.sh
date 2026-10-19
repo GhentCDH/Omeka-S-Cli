@@ -100,6 +100,20 @@ omeka-s-cli blueprint:export --include site-permissions | grep -v '^//' | jq -e 
     and any(.sites[] | select(.slug == "collections") | .permissions[]; .user == "editor@example.org" and .role == "editor")'
 ! omeka-s-cli blueprint:export --include settings 2> /dev/null || exit 1
 
+# --8<-- [start:deploy-content]
+omeka-s-cli blueprint:deploy ~/blueprints/content.blueprint.jsonc --skip core --force
+# --8<-- [end:deploy-content]
+omeka-s-cli item:list --json | jq -e 'any(.[]; .title == "Harbour at dawn" and .media == 2 and .itemSets == 1)
+    and any(.[]; .title == "Market square" and .media == 1 and .itemSets == 1)' > /dev/null
+# a second deploy skips what exists
+omeka-s-cli blueprint:deploy ~/blueprints/content.blueprint.jsonc --skip core --force 2>&1 | grep -q "Item 'Harbour at dawn' already exists"
+
+# --8<-- [start:export-content]
+omeka-s-cli item:export --property dcterms:identifier=ph-1 --reference-by dcterms:identifier \
+    --output-dir ~/content/items
+# --8<-- [end:export-content]
+ls ~/content/items/*.jsonld > /dev/null
+
 # --8<-- [start:bundle]
 omeka-s-cli blueprint:bundle ~/blueprints/site.blueprint.jsonc ~/bundle
 # --8<-- [end:bundle]

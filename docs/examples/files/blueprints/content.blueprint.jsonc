@@ -1,0 +1,21 @@
+{
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
+    "meta": { "title": "Content", "description": "Item sets and items, in both notations." },
+    // the shared format: a few fields, written in the blueprint
+    "itemSets": [ { "title": "Postcards", "description": "Postcards of the town" } ],
+    "items": [
+        { "title": "Market square", "creator": "Anonymous", "itemSets": ["Postcards"],
+          "media": [ { "url": "./content/media/market.png", "title": "Front" } ] }
+    ],
+    // the CLI's own entries: one portable JSON-LD file per resource, with any media
+    "x-omeka-s-cli": {
+        "itemSets": [ { "source": "./content/item-sets/photographs.jsonld", "title": "Photographs" } ],
+        "items": [
+            { "source": "./content/items/harbour.jsonld", "title": "Harbour at dawn",
+              "media": [
+                  { "ingester": "upload", "source": "./content/media/harbour.png", "altText": "A harbour at dawn" },
+                  { "ingester": "html", "source": "<p>Glass plate negative.</p>" }
+              ] }
+        ]
+    }
+}
