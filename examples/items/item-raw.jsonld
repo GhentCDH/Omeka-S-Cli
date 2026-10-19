@@ -1,0 +1,13 @@
+{
+    "@context": "http://localhost/api-context",
+    "@id": "http://localhost/api/items/999",
+    "@type": "o:Item",
+    "o:id": 999,
+    "o:is_public": true,
+    "o:owner": {"@id": "http://localhost/api/users/1", "o:id": 1},
+    "o:resource_class": null,
+    "o:title": "Raw Omeka export",
+    "o:media": [],
+    "o:item_set": [],
+    "dcterms:title": [{"type": "literal", "property_id": 1, "property_label": "Title", "is_public": true, "@value": "Raw Omeka export"}]
+}
