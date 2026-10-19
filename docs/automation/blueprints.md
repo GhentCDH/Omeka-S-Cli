@@ -125,8 +125,9 @@ ways to write them, and a blueprint can mix both:
 The simple entries come first, then the `x-omeka-s-cli` entries, each in blueprint order. An item is
 created together with its media: if Omeka S rejects a media file, the item is not created either and
 the deploy stops. An item or item set that already exists (by its `o-ref:id`, else by its title) is
-skipped, so a deploy can run again. A simple item that names an `x-omeka-s-cli` item set finds it by the
-entry's `title`, so give that entry one.
+skipped, so a deploy can run again. A simple item names its item sets by title, and the item set is
+found by the title in its JSON-LD file. Validation only sees the blueprint, so when a simple item names
+an `x-omeka-s-cli` item set, give that entry a `title` equal to the title in its file.
 
 To build the JSON-LD files, curate the content on an instance and export it, one file per item:
 
