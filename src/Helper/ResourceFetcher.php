@@ -80,7 +80,7 @@ class ResourceFetcher
      */
     public static function download(string $source, string $target, array $headers = []): ?string
     {
-        if (self::isFile($source)) {
+        if (self::detectType($source) === self::FILE) {
             if (!is_file($source)) {
                 throw new InvalidArgumentException("File not found: {$source}");
             }
@@ -114,25 +114,54 @@ class ResourceFetcher
     }
 
     /**
-     * Detect if source is a file or URL
+     * Whether a source is an http(s) URL or a file path. Any other scheme (php://, phar://, data://,
+     * ftp://, gopher://, ...) is refused: PHP's stream wrappers and libcurl would open it, reading
+     * local files or reaching other services.
      *
-     * @param string $source
-     * @return string 'file' or 'url'
+     * @return string self::URL or self::FILE
+     * @throws InvalidArgumentException For a source with another scheme
      */
     public static function detectType(string $source): string
     {
-        // Check if it's a URL
-        if (filter_var($source, FILTER_VALIDATE_URL)) {
-            return self::URL;
-        }
+        self::assertSupported($source);
+        return self::isUrl($source) ? self::URL : self::FILE;
+    }
 
-        // Check if it starts with http:// or https://
-        if (preg_match('/^https?:\/\//i', $source)) {
-            return 'url';
+    /**
+     * Refuse a source that is neither an http(s) URL nor a file path (see detectType()).
+     *
+     * @throws InvalidArgumentException When $source has another scheme
+     */
+    public static function assertSupported(string $source): void
+    {
+        if (!self::isUrl($source) && self::hasScheme($source)) {
+            throw self::unsupported($source);
         }
+    }
 
-        // Otherwise treat as file
-        return self::FILE;
+    /**
+     * Whether a string starts with a URI scheme (two characters or more, so a Windows drive letter
+     * such as C: is not one).
+     */
+    public static function hasScheme(string $source): bool
+    {
+        return preg_match('#^[A-Za-z][A-Za-z0-9+.-]+:#', $source) === 1;
+    }
+
+    private static function unsupported(string $source): InvalidArgumentException
+    {
+        return new InvalidArgumentException("Unsupported source '{$source}': use an http(s) URL or a file path.");
+    }
+
+    /**
+     * @throws InvalidArgumentException When $url is not a valid http(s) URL
+     */
+    private static function assertHttpUrl(string $url): void
+    {
+        self::assertSupported($url);
+        if (!self::isUrl($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new InvalidArgumentException("Invalid URL: {$url}");
+        }
     }
 
     /**
@@ -173,9 +202,7 @@ class ResourceFetcher
      */
     protected static function fetchFromUrl(string $url, array $headers = []): string
     {
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new InvalidArgumentException("Invalid URL: {$url}");
-        }
+        self::assertHttpUrl($url);
 
         // cURL is the preferred transport: it reports the HTTP status code explicitly
         if (function_exists('curl_init')) {
@@ -201,14 +228,7 @@ class ResourceFetcher
     {
         $ch = curl_init($url);
 
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_HTTPHEADER => $headers,
-        ]);
+        curl_setopt_array($ch, [CURLOPT_HTTPHEADER => $headers] + self::curlFetchOptions());
 
         $content = curl_exec($ch);
         $error = curl_error($ch);
@@ -274,6 +294,27 @@ class ResourceFetcher
         return "the connection closed after {$copied} of {$length} bytes";
     }
 
+    /** The cURL options of fetch(), apart from the request headers. */
+    protected static function curlFetchOptions(): array
+    {
+        return [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
+            CURLOPT_SSL_VERIFYPEER => true,
+        ] + self::curlHttpOnly();
+    }
+
+    /** Limit cURL, and any redirect it follows, to http(s): libcurl also speaks file, gopher, dict, smb, ... */
+    private static function curlHttpOnly(): array
+    {
+        return [
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        ];
+    }
+
     /** The cURL options of download(), apart from the target and the request headers. */
     protected static function curlDownloadOptions(): array
     {
@@ -286,7 +327,7 @@ class ResourceFetcher
             CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_FAILONERROR => true,
-        ];
+        ] + self::curlHttpOnly();
     }
 
     /**
@@ -299,14 +340,13 @@ class ResourceFetcher
      */
     protected static function downloadWithStreamWrapper(string $url, string $target, array $headers = []): ?string
     {
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new InvalidArgumentException("Invalid URL: {$url}");
-        }
+        self::assertHttpUrl($url);
         if (!ini_get('allow_url_fopen')) {
             throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
         }
 
-        // timeout is an idle timeout here: the stream wrapper has no total limit
+        // timeout is an idle timeout here: the stream wrapper has no total limit. A redirect to anything
+        // but http(s) is refused by the wrapper itself ("Invalid redirect URL").
         $http = ['timeout' => 60, 'user_agent' => 'Omeka-S-CLI/1.0', 'follow_location' => true];
         if ($headers) {
             $http['header'] = $headers;
@@ -375,7 +415,7 @@ class ResourceFetcher
      */
     public static function isFile(string $source): bool
     {
-        return self::detectType($source) === self::FILE;
+        return !self::isUrl($source) && !self::hasScheme($source);
     }
 
     /**
@@ -386,7 +426,7 @@ class ResourceFetcher
      */
     public static function isUrl(string $source): bool
     {
-        return self::detectType($source) === self::URL;
+        return preg_match('#^https?://#i', $source) === 1;
     }
 
     /**

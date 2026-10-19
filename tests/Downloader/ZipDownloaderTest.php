@@ -72,17 +72,32 @@ class ZipDownloaderTest extends TestCase
 
     public function testAUrlDownloadLeavesNoTempFile(): void
     {
-        // a file:// URL takes the download path (a temp ZIP, then extract) without a network
-        $url = 'file://' . $this->zip(['Foo/config/module.ini' => 'version = "1.0"']);
-        $this->assertTrue(ResourceFetcher::isUrl($url));
+        // the download is injected, so the URL path (a temp ZIP, then extract) runs without a network
+        $zip = $this->zip(['Foo/config/module.ini' => 'version = "1.0"']);
+        $downloader = new ZipDownloader('https://example.org/Foo.zip', function (string $source, string $target) use ($zip): ?string {
+            $this->assertSame('https://example.org/Foo.zip', $source);
+            copy($zip, $target);
+            return 'application/zip';
+        });
 
-        $folder = (new ZipDownloader($url))->download();
+        $folder = $downloader->download();
         try {
             $this->assertFileExists("{$folder}/Foo/config/module.ini");
             $this->assertNoNewTempEntries($folder);
         } finally {
             Path::removeFolder($folder);
         }
+    }
+
+    public function testAnUnsupportedSchemeIsRefused(): void
+    {
+        try {
+            (new ZipDownloader('ftp://example.org/Foo.zip'))->download();
+            $this->fail('ftp:// must be refused');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString("Unsupported source 'ftp://example.org/Foo.zip'", $e->getMessage());
+        }
+        $this->assertNoNewTempEntries();
     }
 
     public function testALocalZipIsLeftUnchanged(): void
