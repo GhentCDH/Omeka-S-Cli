@@ -362,6 +362,13 @@ class BlueprintLoader
                 "Reference '{$raw}' in '{$base}' is an absolute path or file: URL; use a relative path or a URL."
             );
         }
+        // only http(s) URLs and repo references (gh:, gl:) may carry a scheme: php://, phar://, ftp://,
+        // gopher://, ... would let a blueprint read local files or reach other services
+        if (ResourceFetcher::hasScheme($raw) && !ResourceFetcher::isUrl($raw) && !$this->resolver->isRepoReference($raw)) {
+            throw new Exception(
+                "Reference '{$raw}' in '{$base}' uses an unsupported URL scheme; use an http(s) URL or a relative path."
+            );
+        }
         if ($this->selfContained && !$this->isRelative($raw)) {
             return $this->violation($label, $raw, $base, 'is not a relative path inside the blueprint');
         }

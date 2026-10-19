@@ -15,6 +15,14 @@ class VocabularyConfigTest extends TestCase
         return ['label' => 'Example', 'namespaceUri' => 'http://example.org/ns#', 'prefix' => 'ex'];
     }
 
+    public function testAnUnsupportedSchemeIsRefused(): void
+    {
+        // it must not fall back to the file strategy, which the importer would open with file_get_contents()
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Unsupported source 'ftp://example.org/ns.ttl'");
+        VocabularyConfig::fromArray(['source' => 'ftp://example.org/ns.ttl'] + $this->identity());
+    }
+
     public function testSourceUrlMapsToUrlStrategy(): void
     {
         $config = VocabularyConfig::fromArray(['source' => 'https://example.org/ns.rdf'] + $this->identity());
