@@ -61,7 +61,7 @@ class MediaConfig
 
         $extra = array_diff_key($data, array_flip(['ingester', 'source', 'title', 'altText', 'public']));
         foreach ($extra as $key => $value) {
-            if (PortableJsonLd::splitTerm((string) $key) !== null && self::values($value) === null) {
+            if (self::isPropertyTerm((string) $key) && self::values($value) === null) {
                 throw new InvalidArgumentException(
                     "A media '{$key}' must be a string, a list of strings or JSON-LD values."
                 );
@@ -145,7 +145,7 @@ class MediaConfig
         }
         // raw keys last: they win over the mapped ones
         foreach ($this->extra as $key => $value) {
-            $payload[$key] = PortableJsonLd::splitTerm((string) $key) !== null ? self::values($value) : $value;
+            $payload[$key] = self::isPropertyTerm((string) $key) ? self::values($value) : $value;
         }
         return $payload;
     }
@@ -156,6 +156,15 @@ class MediaConfig
             ['ingester' => $this->ingester, 'source' => $this->source, 'title' => $this->title, 'altText' => $this->altText, 'public' => $this->public],
             fn($value) => $value !== null
         ) + $this->extra;
+    }
+
+    /**
+     * Whether a key is a property term (`dcterms:description`). `o:` keys and module data keys
+     * (`o-module-<name>:<key>`, Omeka's convention) are not: they go to the ingester as given.
+     */
+    private static function isPropertyTerm(string $key): bool
+    {
+        return PortableJsonLd::splitTerm($key) !== null && !str_starts_with($key, 'o-module-');
     }
 
     /**

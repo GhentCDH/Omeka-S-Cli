@@ -73,6 +73,16 @@ class MediaConfigTest extends TestCase
         $this->assertFalse($payload['store_original']);
     }
 
+    public function testAModuleKeyIsPassedRaw(): void
+    {
+        // Omeka's convention for module data: o-module-<name>:<key>; it is no property term
+        $payload = MediaConfig::fromArray([
+            'ingester' => 'mapping', 'o-module-mapping:mode' => 'x', 'o-module-mapping:flag' => true,
+        ])->toApiPayload();
+        $this->assertSame('x', $payload['o-module-mapping:mode']);
+        $this->assertTrue($payload['o-module-mapping:flag']);
+    }
+
     public function testPropertyTermsUseTheSimpleNotation(): void
     {
         $payload = MediaConfig::fromArray([
