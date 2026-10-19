@@ -8,6 +8,7 @@ use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintLoader;
 use OSC\Blueprint\BlueprintValidator;
 use OSC\Blueprint\Bundle\Bundler;
+use OSC\Blueprint\Bundle\MediaExtension;
 use OSC\Blueprint\Bundle\VocabularyFormat;
 use OSC\Blueprint\SelfContainedCheck;
 use OSC\Blueprint\SourceFields;
@@ -35,6 +36,7 @@ use PHPUnit\Framework\TestCase;
 use ZipArchive;
 
 #[CoversClass(Bundler::class)]
+#[UsesClass(MediaExtension::class)]
 #[UsesClass(Blueprint::class)]
 #[UsesClass(BlueprintLoader::class)]
 #[UsesClass(BlueprintValidator::class)]
@@ -254,6 +256,95 @@ class BundlerTest extends TestCase
         $this->bundler([], fn() => '4.1.1')->bundle(new Blueprint(['modules' => ['Common']]), "{$this->dir}/out");
 
         $this->assertSame('4.1.1', $this->bundled()['preferredVersions']['omeka']);
+    }
+
+    /** A blueprint with only the given content keys, pinned to Omeka S 4.1.1. */
+    private function contentBlueprint(array $data): Blueprint
+    {
+        return new Blueprint(['preferredVersions' => ['omeka' => '4.1.1']] + $data);
+    }
+
+    public function testExtensionItemsAndMediaAreBundled(): void
+    {
+        $item = "{$this->dir}/fixtures/a.jsonld";
+        file_put_contents($item, '{"dcterms:title": [{"type": "literal", "@value": "A"}]}');
+        $png = "{$this->dir}/fixtures/a.png";
+        file_put_contents($png, 'png');
+
+        $this->bundler(['https://example.org/sets/paintings.jsonld' => ['{"o:title": "P"}', 'application/ld+json']])
+            ->bundle($this->contentBlueprint(['x-omeka-s-cli' => [
+                'itemSets' => [['source' => 'https://example.org/sets/paintings.jsonld', 'title' => 'Paintings']],
+                'items' => [['source' => $item, 'title' => 'A', 'media' => [
+                    ['ingester' => 'upload', 'source' => $png, 'title' => 'Front'],
+                    ['ingester' => 'iiif', 'source' => 'https://example.org/iiif/info.json'],
+                ]]],
+            ]]), "{$this->dir}/out");
+
+        $bundled = $this->bundled()['x-omeka-s-cli'];
+        $this->assertSame('./item-sets/paintings.jsonld', $bundled['itemSets'][0]['source']);
+        $this->assertSame('Paintings', $bundled['itemSets'][0]['title']);
+        $this->assertSame('./items/a.jsonld', $bundled['items'][0]['source']);
+        $this->assertSame(['ingester' => 'upload', 'source' => './media/a.png', 'title' => 'Front'], $bundled['items'][0]['media'][0]);
+        $this->assertSame('https://example.org/iiif/info.json', $bundled['items'][0]['media'][1]['source']);
+        $this->assertFileExists("{$this->dir}/out/items/a.jsonld");
+        $this->assertSame('png', file_get_contents("{$this->dir}/out/media/a.png"));
+        $this->assertSame('{"o:title": "P"}', file_get_contents("{$this->dir}/out/item-sets/paintings.jsonld"));
+    }
+
+    public function testRelativeSimpleMediaIsBundled(): void
+    {
+        $png = "{$this->dir}/fixtures/m.png";
+        file_put_contents($png, 'png');
+
+        $this->bundler()->bundle($this->contentBlueprint([
+            'items' => [['title' => 'Sketch', 'media' => [['type' => 'url', 'url' => $png, 'title' => 'Scan']]]],
+        ]), "{$this->dir}/out");
+
+        $this->assertSame(['type' => 'url', 'url' => './media/m.png', 'title' => 'Scan'], $this->bundled()['items'][0]['media'][0]);
+        $this->assertFileExists("{$this->dir}/out/media/m.png");
+    }
+
+    public function testLinkMediaAreLeftAlone(): void
+    {
+        $item = "{$this->dir}/fixtures/a.jsonld";
+        file_put_contents($item, '{}');
+        $media = [
+            ['ingester' => 'youtube', 'source' => 'https://youtu.be/abc', 'start' => '30'],
+            ['ingester' => 'html', 'source' => '<p>x</p>'],
+            ['ingester' => 'url', 'source' => 'https://example.org/a.jpg'],
+        ];
+
+        $this->bundler()->bundle($this->contentBlueprint([
+            'items' => [['title' => 'S', 'media' => [['type' => 'url', 'url' => 'https://example.org/b.jpg']]]],
+            'x-omeka-s-cli' => ['items' => [['source' => $item, 'media' => $media]]],
+        ]), "{$this->dir}/out");
+
+        $bundled = $this->bundled();
+        $this->assertSame($media, $bundled['x-omeka-s-cli']['items'][0]['media']);
+        $this->assertSame('https://example.org/b.jpg', $bundled['items'][0]['media'][0]['url']);
+        $this->assertSame([self::CORE_URL, $item], $this->downloads);
+        $this->assertDirectoryDoesNotExist("{$this->dir}/out/media");
+    }
+
+    public function testMediaWithoutExtensionGetsOneFromTheContentType(): void
+    {
+        $item = "{$this->dir}/fixtures/a.jsonld";
+        file_put_contents($item, '{}');
+
+        $warnings = $this->bundler([
+            'https://example.org/image?id=3' => ['jpeg', 'image/jpeg; charset=binary'],
+            'https://example.org/blob' => ['bytes', 'application/octet-stream'],
+        ])->bundle($this->contentBlueprint(['x-omeka-s-cli' => ['items' => [['source' => $item, 'media' => [
+            ['ingester' => 'upload', 'source' => 'https://example.org/image?id=3'],
+            ['ingester' => 'upload', 'source' => 'https://example.org/blob'],
+        ]]]]]), "{$this->dir}/out");
+
+        $media = $this->bundled()['x-omeka-s-cli']['items'][0]['media'];
+        $this->assertSame('./media/image.jpg', $media[0]['source']);
+        $this->assertSame('jpeg', file_get_contents("{$this->dir}/out/media/image.jpg"));
+        $this->assertSame('./media/blob', $media[1]['source']);
+        $this->assertContains('x-omeka-s-cli.items[0].media[1]: no file extension; Omeka may reject the file', $warnings);
+        $this->assertFileDoesNotExist("{$this->dir}/out/.media.download");
     }
 
     public function testRejectsADevCore(): void

@@ -787,6 +787,12 @@ if [[ $SECTION_SKIP -eq 0 ]]; then CONTENT_ITEMS=$($CLI item:list --limit 1000 -
 assert_output_contains "a second deploy skips what exists"               "already exists"   $CLI blueprint:deploy $CONTENT_BP --skip core --force
 assert_output_is "a second deploy adds no items"                           "$CONTENT_ITEMS"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
 assert_success "--skip items skips the items phase"                        bash -c "$CLI blueprint:deploy $CONTENT_BP --skip core,items --force | grep -q 'Items.*skipped (--skip)'"
+run            "remove a content bundle left by an earlier run"           rm -rf /tmp/bp-content-bundle
+assert_success "blueprint:bundle bundles item sets, items and media"      $CLI blueprint:bundle $CONTENT_BP /tmp/bp-content-bundle
+assert_success "the content bundle is self-contained"                      $CLI blueprint:validate /tmp/bp-content-bundle/blueprint.json --self-contained
+assert_success "the bundle holds the JSON-LD files and the media files"   bash -c "test -f /tmp/bp-content-bundle/items/bp-print-1.jsonld && test -f /tmp/bp-content-bundle/item-sets/bp-prints.jsonld && test \$(ls /tmp/bp-content-bundle/media | wc -l) -eq 2"
+assert_success "a link media stays a link in the bundle"                   bash -c "jq -e '.\"x-omeka-s-cli\".items[0].media[1].ingester == \"html\"' /tmp/bp-content-bundle/blueprint.json"
+run            "remove the content bundle"                                 rm -rf /tmp/bp-content-bundle
 
 # files: a relative source resolves against the blueprint, not the working directory
 if [[ $SECTION_SKIP -eq 0 ]]; then
