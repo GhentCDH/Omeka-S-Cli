@@ -259,6 +259,21 @@ class ResourceFetcher
         return $content;
     }
 
+    /**
+     * Why a body of $copied bytes is incomplete according to the response headers, or null when it
+     * is complete or nothing can be told (no Content-Length, or an encoded body).
+     *
+     * @param array<string,string> $headers lowercase header name => value (see finalHeaders())
+     */
+    private static function truncation(int $copied, array $headers): ?string
+    {
+        $length = $headers['content-length'] ?? '';
+        if (isset($headers['content-encoding']) || !ctype_digit($length) || $copied >= (int) $length) {
+            return null;
+        }
+        return "the connection closed after {$copied} of {$length} bytes";
+    }
+
     /** The cURL options of download(), apart from the target and the request headers. */
     private static function curlDownloadOptions(): array
     {
@@ -314,8 +329,14 @@ class ResourceFetcher
                 @unlink($target);
                 throw new Exception("Failed to download '{$url}'");
             }
-            $type = self::finalHeaders(stream_get_meta_data($in)['wrapper_data'] ?? [])['content-type'] ?? '';
-            $type = strtolower(trim(explode(';', $type)[0]));
+            $final = self::finalHeaders(stream_get_meta_data($in)['wrapper_data'] ?? []);
+            // the wrapper reports a connection closed early as the end of the body
+            $truncation = self::truncation($copied, $final);
+            if ($truncation !== null) {
+                @unlink($target);
+                throw new Exception("Failed to download '{$url}': {$truncation}");
+            }
+            $type = strtolower(trim(explode(';', $final['content-type'] ?? '')[0]));
             return $type !== '' ? $type : null;
         } finally {
             fclose($in);

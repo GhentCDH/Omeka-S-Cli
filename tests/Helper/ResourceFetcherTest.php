@@ -194,4 +194,16 @@ class ResourceFetcherTest extends TestCase
         $this->assertSame(1024, $options[CURLOPT_LOW_SPEED_LIMIT]);
         $this->assertSame(60, $options[CURLOPT_LOW_SPEED_TIME]);
     }
+
+    public function testATruncatedResponseIsDetected(): void
+    {
+        $truncation = new \ReflectionMethod(ResourceFetcher::class, 'truncation');
+
+        $this->assertSame('the connection closed after 100 of 100000 bytes', $truncation->invoke(null, 100, ['content-length' => '100000']));
+        $this->assertNull($truncation->invoke(null, 100000, ['content-length' => '100000']));
+        // without a length, or for an encoded body whose length is not the decoded size, nothing can be told
+        $this->assertNull($truncation->invoke(null, 100, []));
+        $this->assertNull($truncation->invoke(null, 100, ['content-length' => '100000', 'content-encoding' => 'gzip']));
+        $this->assertNull($truncation->invoke(null, 100, ['content-length' => 'n/a']));
+    }
 }
