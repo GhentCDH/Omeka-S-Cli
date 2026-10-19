@@ -11,13 +11,13 @@ use OSC\Blueprint\SelfContainedCheck;
 use OSC\Blueprint\SourceFields;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
+use OSC\Downloader\ZipDownloader;
 use OSC\Helper\ModuleNamespace;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\OmekaDotOrgApi;
 use stdClass;
 use Throwable;
-use ZipArchive;
 
 /**
  * Fetch every source a blueprint needs into one directory, and write a rewritten `blueprint.json`
@@ -288,25 +288,17 @@ class Bundler
     }
 
     /**
-     * Unpack a downloaded release ZIP into a temp folder and read the module or theme in it. The
-     * folder is found with Path::findSubpath(), the search a deploy uses after unpacking the same ZIP.
+     * Unpack a downloaded release ZIP with ZipDownloader::extract(), as a deploy does, and read the
+     * module or theme in it. The folder is found with Path::findSubpath(), the search a deploy uses
+     * after unpacking the same ZIP.
      *
      * @return array{version: string, constraint: string, namespace: ?string} namespace is null for a theme
      * @throws Exception About the ZIP, which messages call $source
      */
     private function readRelease(string $kind, string $zipPath, string $source): array
     {
-        $zip = new ZipArchive();
-        if ($zip->open($zipPath, ZipArchive::RDONLY) !== true) {
-            throw new Exception("{$source} is not a ZIP archive");
-        }
-        $tmp = Path::createTempFolder('omeka-s-cli.');
+        $tmp = ZipDownloader::extract($zipPath, $source);
         try {
-            $unpacked = @$zip->extractTo($tmp);
-            $zip->close();
-            if (!$unpacked) {
-                throw new Exception("could not unpack {$source}");
-            }
             return $kind === SourceFields::MODULE ? self::readModule($tmp, $source) : self::readTheme($tmp, $source) + ['namespace' => null];
         } finally {
             Path::removeFolder($tmp);

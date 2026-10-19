@@ -69,8 +69,9 @@ class ResourceFetcher
     }
 
     /**
-     * Copy a file, or download a URL, to $target, streaming it (no memory limit; a 10-minute timeout
-     * suits release ZIPs).
+     * Copy a file, or download a URL, to $target, streaming it (no memory limit). A download is
+     * aborted when it stalls, not after a fixed time, so a large release on a slow link still arrives:
+     * with cURL when it stays below 1 KB/s for 60 s, without cURL when no data arrives for 60 s.
      *
      * @param string[] $headers Request headers for a URL (e.g. "Accept: text/turtle")
      * @return string|null The response Content-Type of a URL (lowercase, without parameters); null for a file
@@ -90,10 +91,7 @@ class ResourceFetcher
         }
 
         if (!function_exists('curl_init')) {
-            if (file_put_contents($target, self::fetchFromUrl($source, $headers)) === false) {
-                throw new Exception("Failed to write '{$target}'.");
-            }
-            return null;
+            return self::downloadWithStreamWrapper($source, $target, $headers);
         }
 
         $handle = fopen($target, 'wb');
@@ -101,15 +99,7 @@ class ResourceFetcher
             throw new Exception("Failed to write '{$target}'.");
         }
         $ch = curl_init($source);
-        curl_setopt_array($ch, [
-            CURLOPT_FILE => $handle,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 600,
-            CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_FAILONERROR => true,
-            CURLOPT_HTTPHEADER => $headers,
-        ]);
+        curl_setopt_array($ch, [CURLOPT_FILE => $handle, CURLOPT_HTTPHEADER => $headers] + self::curlDownloadOptions());
         $ok = curl_exec($ch);
         $error = curl_error($ch);
         $type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
@@ -267,6 +257,114 @@ class ResourceFetcher
         }
 
         return $content;
+    }
+
+    /**
+     * Why a body of $copied bytes is incomplete according to the response headers, or null when it
+     * is complete or nothing can be told (no Content-Length, or an encoded body).
+     *
+     * @param array<string,string> $headers lowercase header name => value (see finalHeaders())
+     */
+    protected static function truncation(int $copied, array $headers): ?string
+    {
+        $length = $headers['content-length'] ?? '';
+        if (isset($headers['content-encoding']) || !ctype_digit($length) || $copied >= (int) $length) {
+            return null;
+        }
+        return "the connection closed after {$copied} of {$length} bytes";
+    }
+
+    /** The cURL options of download(), apart from the target and the request headers. */
+    protected static function curlDownloadOptions(): array
+    {
+        return [
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            // abort a stalled transfer (below 1 KB/s for 60 s) instead of capping the whole download
+            CURLOPT_LOW_SPEED_LIMIT => 1024,
+            CURLOPT_LOW_SPEED_TIME => 60,
+            CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_FAILONERROR => true,
+        ];
+    }
+
+    /**
+     * Download a URL to $target with PHP's http stream wrapper, streaming it (the transport without
+     * cURL).
+     *
+     * @param string[] $headers Request headers as "Name: value" strings
+     * @return string|null The response Content-Type (lowercase, without parameters), if any
+     * @throws Exception If the URL is invalid or the download fails; $target is then removed
+     */
+    protected static function downloadWithStreamWrapper(string $url, string $target, array $headers = []): ?string
+    {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new InvalidArgumentException("Invalid URL: {$url}");
+        }
+        if (!ini_get('allow_url_fopen')) {
+            throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
+        }
+
+        // timeout is an idle timeout here: the stream wrapper has no total limit
+        $http = ['timeout' => 60, 'user_agent' => 'Omeka-S-CLI/1.0', 'follow_location' => true];
+        if ($headers) {
+            $http['header'] = $headers;
+        }
+        $in = @fopen($url, 'rb', false, stream_context_create(['http' => $http]));
+        if ($in === false) {
+            // "fopen(<url>): Failed to open stream: HTTP request failed! HTTP/1.1 404 Not Found\r\n" -> the reason
+            $reason = trim(preg_replace('/^.*?Failed to open stream: /is', '', error_get_last()['message'] ?? ''));
+            @unlink($target);
+            throw new Exception("Failed to download '{$url}'" . ($reason !== '' ? ": {$reason}" : ''));
+        }
+        try {
+            $out = @fopen($target, 'wb');
+            if ($out === false) {
+                throw new Exception("Failed to write '{$target}'.");
+            }
+            $copied = stream_copy_to_stream($in, $out);
+            fclose($out);
+            if ($copied === false) {
+                @unlink($target);
+                throw new Exception("Failed to download '{$url}'");
+            }
+            $final = self::finalHeaders(stream_get_meta_data($in)['wrapper_data'] ?? []);
+            // the wrapper reports a connection closed early as the end of the body
+            $truncation = self::truncation($copied, $final);
+            if ($truncation !== null) {
+                @unlink($target);
+                throw new Exception("Failed to download '{$url}': {$truncation}");
+            }
+            $type = strtolower(trim(explode(';', $final['content-type'] ?? '')[0]));
+            return $type !== '' ? $type : null;
+        } finally {
+            fclose($in);
+        }
+    }
+
+    /**
+     * The headers of the final response in a stream wrapper's header list, which holds the status
+     * line and headers of every redirect in order.
+     *
+     * @param mixed[] $headerLines e.g. ['HTTP/1.1 302 Found', 'Location: …', 'HTTP/1.1 200 OK', 'Content-Type: …']
+     * @return array<string,string> lowercase header name => value
+     */
+    protected static function finalHeaders(array $headerLines): array
+    {
+        $headers = [];
+        foreach ($headerLines as $line) {
+            if (!is_string($line)) {
+                continue;
+            }
+            if (preg_match('#^HTTP/#i', $line)) {
+                $headers = []; // a new response starts
+            } elseif (str_contains($line, ':')) {
+                [$name, $value] = explode(':', $line, 2);
+                $headers[strtolower(trim($name))] = trim($value);
+            }
+        }
+        return $headers;
     }
 
     /**

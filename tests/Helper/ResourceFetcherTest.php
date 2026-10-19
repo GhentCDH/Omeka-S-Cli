@@ -140,4 +140,72 @@ class ResourceFetcherTest extends TestCase
         $this->expectExceptionMessage('File not found');
         ResourceFetcher::download($this->testFile . '.missing', $this->testFile . '.x');
     }
+
+    public function testStreamWrapperDownloadCopiesToTheTarget(): void
+    {
+        $download = new \ReflectionMethod(ResourceFetcher::class, 'downloadWithStreamWrapper');
+        $target = $this->testFile . '.copy';
+        try {
+            $download->invoke(null, 'file://' . $this->testFile, $target, []);
+            $this->assertSame('Test content', file_get_contents($target));
+        } finally {
+            @unlink($target);
+        }
+    }
+
+    public function testStreamWrapperDownloadOfAnUnreachableUrlFailsAndLeavesNoTarget(): void
+    {
+        $download = new \ReflectionMethod(ResourceFetcher::class, 'downloadWithStreamWrapper');
+        $target = $this->testFile . '.x';
+        touch($target); // e.g. the temp file a caller created for the download
+        try {
+            // must throw a plain exception, without emitting a PHP warning
+            $download->invoke(null, 'http://127.0.0.1:1/nope', $target, []);
+            $this->fail('an unreachable URL must fail');
+        } catch (Exception $e) {
+            // the reason only (its wording is the OS's), without PHP's "fopen(<url>): Failed to open stream:" prefix
+            $this->assertStringStartsWith("Failed to download 'http://127.0.0.1:1/nope': ", $e->getMessage());
+            $this->assertStringNotContainsString('fopen(', $e->getMessage());
+            $this->assertSame(rtrim($e->getMessage()), $e->getMessage());
+        }
+        $this->assertFileDoesNotExist($target);
+    }
+
+    public function testOnlyTheFinalResponseHeadersCount(): void
+    {
+        $finalHeaders = new \ReflectionMethod(ResourceFetcher::class, 'finalHeaders');
+
+        // a redirect page's Content-Type must not survive into a final response without one
+        $this->assertSame([], $finalHeaders->invoke(null, [
+            'HTTP/1.1 302 Found', 'Content-Type: text/html', 'Location: /x.ttl',
+            'HTTP/1.1 200 OK',
+        ]));
+        $this->assertSame(['content-type' => 'text/turtle; charset=utf-8', 'content-length' => '42'], $finalHeaders->invoke(null, [
+            'HTTP/1.1 301 Moved Permanently', 'Content-Type: text/html',
+            'HTTP/1.1 200 OK', 'Content-Type: text/turtle; charset=utf-8', 'Content-Length: 42',
+        ]));
+    }
+
+    public function testADownloadIsAbortedWhenItStallsNotWhenItIsSlow(): void
+    {
+        $options = (new \ReflectionMethod(ResourceFetcher::class, 'curlDownloadOptions'))->invoke(null);
+
+        // no limit on the whole transfer: a large release on a slow link must still arrive
+        $this->assertArrayNotHasKey(CURLOPT_TIMEOUT, $options);
+        $this->assertSame(30, $options[CURLOPT_CONNECTTIMEOUT]);
+        $this->assertSame(1024, $options[CURLOPT_LOW_SPEED_LIMIT]);
+        $this->assertSame(60, $options[CURLOPT_LOW_SPEED_TIME]);
+    }
+
+    public function testATruncatedResponseIsDetected(): void
+    {
+        $truncation = new \ReflectionMethod(ResourceFetcher::class, 'truncation');
+
+        $this->assertSame('the connection closed after 100 of 100000 bytes', $truncation->invoke(null, 100, ['content-length' => '100000']));
+        $this->assertNull($truncation->invoke(null, 100000, ['content-length' => '100000']));
+        // without a length, or for an encoded body whose length is not the decoded size, nothing can be told
+        $this->assertNull($truncation->invoke(null, 100, []));
+        $this->assertNull($truncation->invoke(null, 100, ['content-length' => '100000', 'content-encoding' => 'gzip']));
+        $this->assertNull($truncation->invoke(null, 100, ['content-length' => 'n/a']));
+    }
 }
