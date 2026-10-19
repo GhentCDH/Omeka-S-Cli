@@ -7,114 +7,6 @@ Exports are *portable* JSON-LD: one resource per file, which you can import into
 This is how you seed a demo or test installation with content that you curated on another one. See
 [Export items](#export-items) for what the format keeps.
 
-## Import an item set
-
-`item-set:import` creates an item set from a JSON-LD file or URL that holds one item set:
-
-```bash
---8<-- "docs/examples/items.sh:import-item-set"
-```
-
-??? example "`~/content/paintings.jsonld`"
-
-    ```json
-    --8<-- "docs/examples/files/items/paintings.jsonld"
-    ```
-
-Import the item sets before the items that belong to them.
-
-## Import an item
-
-`item:import` creates an item from a JSON-LD file or URL that holds one item. Add media with `--media`
-(`-m`), as `ingester=source`, once per media:
-
-```bash
---8<-- "docs/examples/items.sh:import"
-```
-
-??? example "`~/content/mona-lisa.jsonld`"
-
-    ```json
-    --8<-- "docs/examples/files/items/mona-lisa.jsonld"
-    ```
-
-```text
-Item 'Mona Lisa' created (id 1).
-```
-
-The `upload` ingester takes a local path or a URL. The other ingesters take what Omeka S expects: a URL
-for `url`, `iiif`, `iiif_presentation`, `oembed` and `youtube`, and HTML for `html`. The item and its
-media are created together: if Omeka S rejects a media file (for example, an extension that is not
-allowed), the item is not created either.
-
-Options for a media follow its source, separated by `;`: `title`, `altText`, `public`, a property
-term such as `dcterms:description`, or anything else the ingester takes, such as YouTube's `start` (see
-[Add media to an item](#add-media-to-an-item)). Write a `;` inside a value as `\;`. A `--media` value
-can also be a JSON media object.
-
-```bash
---8<-- "docs/examples/items.sh:import-media-options"
-```
-
-References in the file are resolved on the installation you import into:
-
-- `o:item_set` and links to other items (`"o-ref:ref": {"dcterms:identifier": "obj-1"}`) name a property
-  and a value. Import the records they point to first.
-- `o:resource_class` is a term and `o:resource_template` a label.
-- Properties are matched by vocabulary namespace, so a file may use another prefix than the
-  installation does.
-
-A reference that matches nothing, or more than one record, is skipped with a warning; the item is still
-created.
-
-```bash
---8<-- "docs/examples/items.sh:import-linked"
-```
-
-## Import without creating duplicates
-
-Before creating a resource, `item:import` looks for it on the installation: by its `o-ref:id` (a property
-and a value, written by `item:export`), else by its title. When it exists, the command changes nothing,
-prints a notice and exits with code 0. So you can run the same import again:
-
-```bash
---8<-- "docs/examples/items.sh:import-again"
-```
-
-```text
-Item 'Mona Lisa' already exists (id 1); skipped.
-```
-
-A resource with neither an `o-ref:id` nor a title cannot be matched: it is created on every import, and
-the command warns about it.
-
-`--dry-run` reports what would happen without creating anything. `--identify-by <term>` matches on
-another property of the file, and `--json` prints the result (`created`, `exists`, `ambiguous` or
-`would create`) as JSON.
-
-## When an import fails
-
-The command checks what Omeka S cannot handle on its own, and reports every problem of the file at once.
-Nothing is created:
-
-```bash
---8<-- "docs/examples/items.sh:missing-vocabulary"
-```
-
-```text
-letter.jsonld: property "letters:recipient" uses vocabulary https://example.org/ns/letters#, which is not installed (vocabulary:import)
-letter.jsonld: property "dcterms:date": data type "numeric:timestamp" is not available (install the NumericDataTypes module)
-```
-
-??? example "`~/content/letter.jsonld`"
-
-    ```json
-    --8<-- "docs/examples/files/items/letter.jsonld"
-    ```
-
-Install the vocabulary (see [Vocabularies](vocabularies.md)) or the module (see [Modules](modules.md)) and
-import again. Omeka S checks the rest itself, such as the properties a resource template requires.
-
 ## List and search items
 
 ```bash
@@ -224,6 +116,114 @@ or pipe it.
 --8<-- "docs/examples/items.sh:export-item-sets"
 ```
 
+## Import an item set
+
+`item-set:import` creates an item set from a JSON-LD file or URL that holds one item set:
+
+```bash
+--8<-- "docs/examples/items.sh:import-item-set"
+```
+
+??? example "`~/content/paintings.jsonld`"
+
+    ```json
+    --8<-- "docs/examples/files/items/paintings.jsonld"
+    ```
+
+Import the item sets before the items that belong to them.
+
+## Import an item
+
+`item:import` creates an item from a JSON-LD file or URL that holds one item. Add media with `--media`
+(`-m`), as `ingester=source`, once per media:
+
+```bash
+--8<-- "docs/examples/items.sh:import"
+```
+
+??? example "`~/content/mona-lisa.jsonld`"
+
+    ```json
+    --8<-- "docs/examples/files/items/mona-lisa.jsonld"
+    ```
+
+```text
+Item 'Mona Lisa' created (id 1).
+```
+
+The `upload` ingester takes a local path or a URL. The other ingesters take what Omeka S expects: a URL
+for `url`, `iiif`, `iiif_presentation`, `oembed` and `youtube`, and HTML for `html`. The item and its
+media are created together: if Omeka S rejects a media file (for example, an extension that is not
+allowed), the item is not created either.
+
+Options for a media follow its source, separated by `;`: `title`, `altText`, `public`, a property
+term such as `dcterms:description`, or anything else the ingester takes, such as YouTube's `start` (see
+[Add media to an item](#add-media-to-an-item)). Write a `;` inside a value as `\;`. A `--media` value
+can also be a JSON media object.
+
+```bash
+--8<-- "docs/examples/items.sh:import-media-options"
+```
+
+References in the file are resolved on the installation you import into:
+
+- `o:item_set` and links to other items (`"o-ref:ref": {"dcterms:identifier": "obj-1"}`) name a property
+  and a value. Import the records they point to first.
+- `o:resource_class` is a term and `o:resource_template` a label.
+- Properties are matched by vocabulary namespace, so a file may use another prefix than the
+  installation does.
+
+A reference that matches nothing, or more than one record, is skipped with a warning; the item is still
+created.
+
+```bash
+--8<-- "docs/examples/items.sh:import-linked"
+```
+
+## Import without creating duplicates
+
+Before creating a resource, `item:import` looks for it on the installation: by its `o-ref:id` (a property
+and a value, written by `item:export`), else by its title. When it exists, the command changes nothing,
+prints a notice and exits with code 0. So you can run the same import again:
+
+```bash
+--8<-- "docs/examples/items.sh:import-again"
+```
+
+```text
+Item 'Mona Lisa' already exists (id 1); skipped.
+```
+
+A resource with neither an `o-ref:id` nor a title cannot be matched: it is created on every import, and
+the command warns about it.
+
+`--dry-run` reports what would happen without creating anything. `--identify-by <term>` matches on
+another property of the file, and `--json` prints the result (`created`, `exists`, `ambiguous` or
+`would create`) as JSON.
+
+## When an import fails
+
+The command checks what Omeka S cannot handle on its own, and reports every problem of the file at once.
+Nothing is created:
+
+```bash
+--8<-- "docs/examples/items.sh:missing-vocabulary"
+```
+
+```text
+letter.jsonld: property "letters:recipient" uses vocabulary https://example.org/ns/letters#, which is not installed (vocabulary:import)
+letter.jsonld: property "dcterms:date": data type "numeric:timestamp" is not available (install the NumericDataTypes module)
+```
+
+??? example "`~/content/letter.jsonld`"
+
+    ```json
+    --8<-- "docs/examples/files/items/letter.jsonld"
+    ```
+
+Install the vocabulary (see [Vocabularies](vocabularies.md)) or the module (see [Modules](modules.md)) and
+import again. Omeka S checks the rest itself, such as the properties a resource template requires.
+
 ## Add media to an item
 
 `media:ingesters` lists the ways media can be added on the installation:
@@ -278,17 +278,17 @@ All commands also accept the [global options](../reference/global-options.md).
 
 --8<-- "build/docs/commands/item-search.md"
 
---8<-- "build/docs/commands/item-import.md"
-
 --8<-- "build/docs/commands/item-export.md"
+
+--8<-- "build/docs/commands/item-import.md"
 
 --8<-- "build/docs/commands/item-set-list.md"
 
 --8<-- "build/docs/commands/item-set-search.md"
 
---8<-- "build/docs/commands/item-set-import.md"
-
 --8<-- "build/docs/commands/item-set-export.md"
+
+--8<-- "build/docs/commands/item-set-import.md"
 
 --8<-- "build/docs/commands/media-add.md"
 
