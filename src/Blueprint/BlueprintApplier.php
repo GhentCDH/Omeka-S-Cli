@@ -9,6 +9,7 @@ use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
+use OSC\Helper\MediaConfig;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Helper\SiteConfig;
@@ -38,6 +39,8 @@ class BlueprintApplier
         'resourceTemplates' => 'Resource templates',
         'users'             => 'Users',
         'sites'             => 'Sites',
+        'itemSets'          => 'Item sets',
+        'items'             => 'Items',
         'settings'          => 'Settings',
     ];
 
@@ -76,7 +79,7 @@ class BlueprintApplier
 
     /**
      * The phases that configure the instance (and may need the modules' services): vocabularies,
-     * resource templates, users, sites and settings.
+     * resource templates, users, sites, content (item sets, then items) and settings.
      */
     public function applyConfiguration(Blueprint $blueprint): void
     {
@@ -84,6 +87,17 @@ class BlueprintApplier
         $this->runPhase('resourceTemplates', $blueprint->resourceTemplates(), fn($d) => $this->applyResourceTemplates($d));
         $this->runPhase('users', $blueprint->users(), fn($d) => $this->applyUsers($d));
         $this->runPhase('sites', $blueprint->sites(), fn($d) => $this->applySites($d));
+        // simple entries first, then the CLI's own JSON-LD entries, each in blueprint order
+        $this->runPhase(
+            'itemSets',
+            $this->contentEntries($blueprint->itemSets(), $blueprint->extensionItemSets()),
+            fn($d) => $this->applyContent('item-set:import', 'item set', $d)
+        );
+        $this->runPhase(
+            'items',
+            $this->contentEntries($blueprint->items(), $blueprint->extensionItems()),
+            fn($d) => $this->applyContent('item:import', 'item', $d)
+        );
         $this->runPhase('settings', $blueprint->settings(), fn($d) => $this->applySettings($d));
     }
 
@@ -533,6 +547,64 @@ class BlueprintApplier
             }
             // json_encode round-trips losslessly through config:set's convertStringToType()
             $this->run('config:set', fn($c) => $c->execute((string) $id, json_encode($value)));
+        }
+    }
+
+    // --- item sets and items --------------------------------------------------------------------
+
+    /**
+     * The simple and the extension entries of a content phase, tagged with their notation.
+     *
+     * @return array<int,array{0: string, 1: array}> [['simple'|'extension', entry], ...]
+     */
+    private function contentEntries(array $simple, array $extension): array
+    {
+        return array_merge(
+            array_map(fn($entry) => ['simple', is_array($entry) ? $entry : []], array_values($simple)),
+            array_map(fn($entry) => ['extension', is_array($entry) ? $entry : []], array_values($extension))
+        );
+    }
+
+    /**
+     * Import each entry with item:import / item-set:import --config, so deploy and the commands share
+     * one import path. A simple entry is mapped onto portable JSON-LD first (SimpleContentMapper); an
+     * extension entry already is an import config. An item and its media are created together, all or
+     * nothing; an existing item or item set is skipped with a warning (deploy goes on).
+     *
+     * @param array<int,array{0: string, 1: array}> $entries See contentEntries()
+     */
+    private function applyContent(string $command, string $kind, array $entries): void
+    {
+        foreach ($entries as [$form, $entry]) {
+            $label = $form === 'simple'
+                ? (string) ($entry['title'] ?? '?')
+                : (string) ($entry['title'] ?? basename((string) ($entry['source'] ?? '?')));
+            if ($this->dryRun) {
+                // no instance query: on a fresh instance the blueprint's vocabularies are not there yet
+                $this->command->note("would import {$kind} '{$label}'", true);
+                continue;
+            }
+
+            $temp = [];
+            try {
+                if ($form === 'simple') {
+                    [$document, $media] = $kind === 'item'
+                        ? SimpleContentMapper::item($entry)
+                        : [SimpleContentMapper::itemSet($entry), []];
+                    $temp[] = $documentFile = Path::createTempFile('bp-item-');
+                    file_put_contents($documentFile, json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+                    $config = ['source' => $documentFile, 'title' => $label, 'media' => array_map(fn(MediaConfig $m) => $m->toArray(), $media)];
+                } else {
+                    $config = $entry;
+                }
+                $temp[] = $configFile = Path::createTempFile('bp-item-');
+                file_put_contents($configFile, json_encode($config, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+                $this->run($command, fn($cmd) => $cmd->execute(null, $configFile));
+            } finally {
+                foreach ($temp as $file) {
+                    @unlink($file);
+                }
+            }
         }
     }
 

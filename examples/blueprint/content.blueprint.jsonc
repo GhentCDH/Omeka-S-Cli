@@ -1,0 +1,22 @@
+{
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
+    "meta": { "title": "Content demo", "description": "Item sets and items in both notations." },
+    // the shared format's simple notation
+    "itemSets": [ { "title": "BP Drawings", "description": "A simple item set" } ],
+    "items": [
+        { "title": "BP Simple Sketch", "creator": "Leonardo", "itemSets": ["BP Drawings"],
+          "media": [ { "type": "url", "url": "./content/media/pixel.png", "title": "Scan" } ] }
+    ],
+    // the CLI's own entries: one portable JSON-LD file each, with media
+    "x-omeka-s-cli": {
+        "itemSets": [ { "source": "./content/item-sets/bp-prints.jsonld", "title": "BP Prints" } ],
+        "items": [
+            { "source": "./content/items/bp-print-1.jsonld", "title": "BP Print 1",
+              "media": [
+                  { "ingester": "upload", "source": "./content/media/pixel.png", "title": "Front" },
+                  { "ingester": "html", "source": "<p>Printed in 1520.</p>" }
+              ] },
+            { "source": "./content/items/bp-print-2.jsonld", "title": "BP Print 2" }
+        ]
+    }
+}

@@ -776,6 +776,18 @@ assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI
 assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
 assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force "${BP_ROOT[@]}"
 
+# content: item sets and items, in the shared simple notation and as the CLI's JSON-LD entries
+CONTENT_BP=/app/omeka-s-cli/examples/blueprint/content.blueprint.jsonc
+assert_success "blueprint:deploy imports item sets and items"              $CLI blueprint:deploy $CONTENT_BP --skip core --force
+assert_success "both item sets are there"                                  bash -c "$CLI item-set:list --limit 1000 --json | jq -e '[.[] | select(.title == \"BP Drawings\" or .title == \"BP Prints\")] | length == 2'"
+assert_success "the items have their item sets and media (upload, simple url, html)" \
+    bash -c "$CLI item:list --limit 1000 --json | jq -e '[.[] | select((.title == \"BP Simple Sketch\" and .media == 1 and .itemSets == 1) or (.title == \"BP Print 1\" and .media == 2 and .itemSets == 1) or (.title == \"BP Print 2\" and .itemSets == 1))] | length == 3'"
+CONTENT_ITEMS=""
+if [[ $SECTION_SKIP -eq 0 ]]; then CONTENT_ITEMS=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length'); fi
+assert_output_contains "a second deploy skips what exists"               "already exists"   $CLI blueprint:deploy $CONTENT_BP --skip core --force
+assert_output_is "a second deploy adds no items"                           "$CONTENT_ITEMS"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
+assert_success "--skip items skips the items phase"                        bash -c "$CLI blueprint:deploy $CONTENT_BP --skip core,items --force | grep -q 'Items.*skipped (--skip)'"
+
 # files: a relative source resolves against the blueprint, not the working directory
 if [[ $SECTION_SKIP -eq 0 ]]; then
     mkdir -p /tmp/bp-files
