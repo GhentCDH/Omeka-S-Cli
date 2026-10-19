@@ -1,0 +1,11 @@
+{
+    "@context": {
+        "dcterms": "http://purl.org/dc/terms/",
+        "letters": "https://example.org/ns/letters#"
+    },
+    "@type": "o:Item",
+    "o:title": "Letter to Ludovico Sforza",
+    "dcterms:title": [{"type": "literal", "@value": "Letter to Ludovico Sforza"}],
+    "letters:recipient": [{"type": "literal", "@value": "Ludovico Sforza"}],
+    "dcterms:date": [{"type": "numeric:timestamp", "@value": "1482"}]
+}
