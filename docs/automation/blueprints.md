@@ -197,7 +197,8 @@ public files can be fetched.
 ### Local references stay inside the root
 
 A blueprint must not be able to read any file on the server it is deployed on. Inside a blueprint,
-absolute paths and `file:` URLs are rejected, and a relative path must stay inside the blueprint root:
+absolute paths, `file:` URLs and URLs other than `http(s)` (such as `php://` or `ftp://`) are
+rejected; `gh:` and `gl:` references are allowed. A relative path must stay inside the blueprint root:
 the directory of the blueprint given on the command line. The library blueprint above imports
 `../shared/modules.jsonc`, outside its own directory, so it needs `--root`:
 

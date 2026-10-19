@@ -475,6 +475,48 @@ class BlueprintLoaderTest extends TestCase
         (new BlueprintLoader())->load($base);
     }
 
+    public function testAPhpFilterSourceIsRejected(): void
+    {
+        $base = $this->write('base.jsonc', json_encode([
+            'files' => [['source' => 'php://filter/resource=/etc/hostname', 'destination' => 'files/x.txt']],
+        ]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage(
+            "Reference 'php://filter/resource=/etc/hostname' in '{$base}' uses an unsupported URL scheme; use an http(s) URL or a relative path."
+        );
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testOtherSchemesAreRejectedEverywhere(): void
+    {
+        $cases = [
+            ['modules' => [['$import' => 'ftp://example.org/modules.jsonc']]],
+            ['vocabularies' => [$this->vocab(['source' => 'gopher://127.0.0.1:6379/_x'])]],
+            ['resourceTemplates' => [['source' => 'data://text/plain;base64,e30=']]],
+        ];
+        foreach ($cases as $i => $blueprint) {
+            $base = $this->write("base{$i}.jsonc", json_encode($blueprint));
+            try {
+                (new BlueprintLoader())->load($base);
+                $this->fail('case ' . $i . ' must be rejected');
+            } catch (Exception $e) {
+                $this->assertStringContainsString('uses an unsupported URL scheme', $e->getMessage(), "case {$i}");
+            }
+        }
+    }
+
+    public function testAnUnsupportedSchemeIsRejectedBeforeTheSelfContainedCheck(): void
+    {
+        $base = $this->write('base.jsonc', json_encode([
+            'files' => [['source' => 'phar:///tmp/x.phar/y', 'destination' => 'files/x.txt']],
+        ]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('uses an unsupported URL scheme');
+        (new BlueprintLoader(null, null, true))->load($base);
+    }
+
     public function testAbsoluteSettingsImportIsRejected(): void
     {
         $this->write('s.jsonc', '{ "a": 1 }');

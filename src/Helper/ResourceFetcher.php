@@ -345,8 +345,9 @@ class ResourceFetcher
             throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
         }
 
-        // timeout is an idle timeout here: the stream wrapper has no total limit. A redirect to anything
-        // but http(s) is refused by the wrapper itself ("Invalid redirect URL").
+        // timeout is an idle timeout here: the stream wrapper has no total limit. The wrapper never
+        // switches protocol on a redirect: a Location such as file:///etc/x is requested as a path on
+        // the same http(s) server.
         $http = ['timeout' => 60, 'user_agent' => 'Omeka-S-CLI/1.0', 'follow_location' => true];
         if ($headers) {
             $http['header'] = $headers;

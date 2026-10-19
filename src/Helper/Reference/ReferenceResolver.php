@@ -90,6 +90,12 @@ class ReferenceResolver
         return ($isAbsolute ? '/' : '') . implode('/', $segments);
     }
 
+    /** Whether a provider recognizes $reference as a repo reference (gh:, gl:, a blob URL, ...). */
+    public function isRepoReference(string $reference): bool
+    {
+        return $this->toRawUrl(trim($reference)) !== null;
+    }
+
     /** Convert a repo-aware reference to a raw URL, or null if no provider recognizes it. */
     private function toRawUrl(string $reference): ?string
     {

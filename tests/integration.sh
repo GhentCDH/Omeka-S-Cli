@@ -874,6 +874,9 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
   "sites": [ { "title": "Bundle Site", "slug": "bp-bundle-site", "theme": "freedom" } ],
   "settings": { "installation_title": "Bundle Demo" } }
 JSON
+    cat > "$BUNDLE_SRC/php.blueprint.json" <<'JSON'
+{ "files": [ { "source": "php://filter/resource=/etc/hostname", "destination": "files/leak.txt" } ] }
+JSON
     cat > "$BUNDLE_SRC/git.blueprint.json" <<JSON
 { "preferredVersions": { "omeka": "$OMEKA_VERSION" },
   "modules": [ { "name": "CustomVocab", "source": "gh:omeka-s-modules/CustomVocab" } ] }
@@ -881,6 +884,8 @@ JSON
 fi
 assert_output_contains "blueprint:validate --self-contained flags catalog sources" "has no source" \
     $CLI blueprint:validate "$BUNDLE_SRC/site.blueprint.json" --self-contained
+assert_output_contains "blueprint:validate rejects a php:// source" "uses an unsupported URL scheme" \
+    $CLI blueprint:validate "$BUNDLE_SRC/php.blueprint.json"
 assert_output_contains "blueprint:validate --self-contained flags a git source" "is not a relative path inside the blueprint" \
     $CLI blueprint:validate "$BUNDLE_SRC/git.blueprint.json" --self-contained
 assert_output_contains "blueprint:bundle refuses a git source" "can't be bundled" \
