@@ -21,7 +21,11 @@ class ImportCommand extends AbstractResourceCommand
         $this->argument('[source]', "JSON-LD file or URL holding one {$label}");
         $this->option('--config', "JSON file or URL describing the import: {\"source\", \"title\"" . ($type === ResourceType::Item ? ', "media"' : '') . '}');
         if ($type === ResourceType::Item) {
-            $this->option('-m --media [spec...]', 'Media to attach, as ingester=source, e.g. upload=./photo.jpg or url=https://... (repeatable)');
+            $this->option(
+                '-m --media [spec...]',
+                'Media to attach, as ingester=source[;key=value...] (e.g. upload=./photo.jpg;title=Front or '
+                . 'youtube=https://youtu.be/ID;start=30) or a JSON media object (repeatable)'
+            );
         }
         $this->option('--identify-by', "Property whose value identifies an existing {$label} (default: the file's o-ref:id, else the title)");
         $this->optionDryRun();
@@ -37,6 +41,8 @@ class ImportCommand extends AbstractResourceCommand
             . ($type === ResourceType::Item
                 ? '<eol/>* Import an item with a local image and a IIIF image:<eol/>'
                     . "{$prefix}:import mona-lisa.jsonld --media upload=./mona-lisa.jpg --media iiif=https://example.org/iiif/ml/info.json<eol/>"
+                    . '<eol/>* Import an item with a titled YouTube video that starts at 30 s:<eol/>'
+                    . "{$prefix}:import talk.jsonld --media 'youtube=https://youtu.be/ID;start=30;title=The talk'<eol/>"
                 : '')
             . '<eol/>* Check what would happen:<eol/>'
             . "{$prefix}:import mona-lisa.jsonld --dry-run<eol/>"
@@ -104,14 +110,11 @@ class ImportCommand extends AbstractResourceCommand
         };
     }
 
-    /** A --media value "ingester=source" as a media config array. */
+    /** A --media value (see MediaConfig::parseSpec()) as a media config array. */
     private function mediaSpec(string $spec): array
     {
-        if (!str_contains($spec, '=')) {
-            throw new InvalidArgumentException("--media expects ingester=source, got \"{$spec}\".");
-        }
-        [$ingester, $mediaSource] = explode('=', $spec, 2);
-        MediaConfig::fromArray(['ingester' => $ingester, 'source' => $mediaSource]); // validate early
-        return ['ingester' => $ingester, 'source' => $mediaSource];
+        $data = MediaConfig::parseSpec($spec);
+        MediaConfig::fromArray($data); // validate early
+        return $data;
     }
 }

@@ -2,6 +2,7 @@
 namespace OSC\Commands\Media;
 
 use Exception;
+use InvalidArgumentException;
 use Omeka\Api\Exception\NotFoundException;
 use Omeka\Api\Exception\ValidationException;
 use OSC\Commands\AbstractCommand;
@@ -17,6 +18,8 @@ class AddCommand extends AbstractCommand
     {
         parent::__construct('media:add', 'Add a media to an item');
         $this->argument('<item>', 'ID of the item');
+        $this->option('--data', 'The media as a JSON object: {"ingester", "source", "title", "altText", "public", <property terms>, <ingester options>}');
+        $this->option('--json-file', 'JSON file or URL holding the media object (see --data)');
         $this->option('--ingester', 'Media ingester, e.g. upload, url, html, iiif, youtube (see media:ingesters)');
         $this->option('--source', 'What to ingest: a local path or URL (upload), a URL (url, iiif, oembed, youtube) or HTML (html)');
         $this->option('--title', 'Title of the media');
@@ -30,23 +33,45 @@ class AddCommand extends AbstractCommand
             . '<eol/>'
             . '* Add a IIIF image:<eol/>'
             . 'media:add 12 --ingester iiif --source https://example.org/iiif/ml/info.json<eol/>'
+            . '<eol/>'
+            . '* Add a YouTube video that starts at 30 s (any key the ingester takes can be given):<eol/>'
+            . 'media:add 12 --data \'{"ingester": "youtube", "source": "https://youtu.be/ID", "start": "30", "title": "The talk"}\'<eol/>'
         );
     }
 
     public function execute(
         string $item,
+        ?string $data = null,
+        ?string $jsonFile = null,
         ?string $ingester = null,
         ?string $source = null,
         ?string $title = null,
         ?string $altText = null,
         ?bool $json = false
     ): void {
+        if ($data !== null && $jsonFile !== null) {
+            throw new InvalidArgumentException('Give --data or --json-file, not both.');
+        }
+        // a relative upload source is relative to the JSON file, else to the working directory
+        $base = $this->getCwd();
+        $object = [];
+        if ($data !== null) {
+            $object = json_decode($data, true);
+        } elseif ($jsonFile !== null) {
+            $file = ResourceFetcher::isUrl($jsonFile) ? $jsonFile : Path::toAbsolutePath($jsonFile, $this->getCwd());
+            $object = ResourceFetcher::fetchJson($file);
+            $base = ResourceFetcher::isUrl($file) ? $base : dirname($file);
+        }
+        if (!is_array($object) || ($object !== [] && array_is_list($object))) {
+            throw new InvalidArgumentException('The media must be a JSON object.');
+        }
+        // the flags are shortcuts, merged over the JSON
         $media = MediaConfig::fromArray(array_filter(
             ['ingester' => $ingester, 'source' => $source, 'title' => $title, 'altText' => $altText],
             fn($value) => $value !== null
-        ));
+        ) + $object);
         if ($media->isFile() && !ResourceFetcher::isUrl($media->source())) {
-            $media = $media->withSource(Path::toAbsolutePath($media->source(), $this->getCwd()));
+            $media = $media->withSource(Path::toAbsolutePath($media->source(), $base));
         }
 
         $instance = $this->getOmekaInstance();

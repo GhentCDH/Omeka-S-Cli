@@ -18,6 +18,12 @@ omeka-s-cli item:import ~/content/mona-lisa.jsonld --media "upload=$HOME/content
 omeka-s-cli item:list --property dcterms:identifier=obj-1 --json \
     | jq -e '.[0].title == "Mona Lisa" and .[0].media >= 1 and .[0].itemSets == 1' > /dev/null
 
+# --8<-- [start:import-media-options]
+omeka-s-cli item:import ~/content/lecture.jsonld \
+    --media 'youtube=https://www.youtube.com/watch?v=dQw4w9WgXcQ;start=30;title=Recording'
+# --8<-- [end:import-media-options]
+omeka-s-cli item:list --property dcterms:identifier=obj-4 --json | jq -e '.[0].media >= 1' > /dev/null
+
 # --8<-- [start:import-linked]
 omeka-s-cli item:import ~/content/study.jsonld
 # --8<-- [end:import-linked]
@@ -76,3 +82,14 @@ omeka-s-cli media:ingesters --json | jq -e 'any(.[]; .name == "iiif")' > /dev/nu
 omeka-s-cli media:add "$id" --ingester html --source '<p>Preparatory drawing, about 1503.</p>'
 # --8<-- [end:media-add]
 omeka-s-cli item:list --property dcterms:identifier=obj-2 --json | jq -e '.[0].media >= 1' > /dev/null
+
+# --8<-- [start:media-add-data]
+omeka-s-cli media:add "$id" --data '{
+    "ingester": "youtube",
+    "source": "https://youtu.be/dQw4w9WgXcQ",
+    "start": "30",
+    "title": "Recording",
+    "dcterms:description": "The first minute of the talk"
+}'
+# --8<-- [end:media-add-data]
+omeka-s-cli media:add "$id" --data '{"ingester": "html", "source": "<p>x</p>", "start": "30"}' --json | jq -e '.id > 0' > /dev/null

@@ -676,6 +676,26 @@ assert_success "item-set:list lists the item set"                bash -c "$CLI i
 assert_success "media:ingesters lists upload"                    bash -c "$CLI media:ingesters --json | jq -e 'any(.[]; .name == \"upload\")'"
 assert_success "media:add adds an html media"                    bash -c "$CLI media:add \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --ingester html --source '<p>Note</p>' --json | jq -e '.ingester == \"html\"'"
 assert_fail    "media:add to a missing item fails"               $CLI media:add 999999 --ingester html --source '<p>x</p>'
+# media options: any key reaches the ingester; title and properties in the simple notation
+SQL="mysql --raw -u root -proot -h db -N omeka"
+MEDIA_TITLE_SQL="select group_concat(v.value) from value v join property p on p.id = v.property_id join vocabulary vo on vo.id = p.vocabulary_id where vo.prefix = 'dcterms' and p.local_name = 'title' and v.resource_id ="
+YT_ID=""; OPT_ITEM=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    YT_ID=$($CLI media:add $($CLI item:list -p dcterms:identifier=it-obj-2 --json 2>/dev/null | jq '.[0].id') \
+        --data '{"ingester": "youtube", "source": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "start": "30", "title": "Clip"}' --json 2>/dev/null | jq '.id')
+    rm -rf /tmp/osc-media-file && mkdir -p /tmp/osc-media-file && cp $ITEMS/media/pixel.png /tmp/osc-media-file/
+    echo '{"ingester": "upload", "source": "pixel.png", "title": "From a file", "dcterms:description": "Relative to the JSON file"}' > /tmp/osc-media-file/media.json
+fi
+assert_success "media:add --data passes start to the youtube ingester" bash -c "echo 'select data from media where id = $YT_ID' | $SQL | jq -e '.start == \"30\"'"
+assert_output_is "media:add --data sets the media title" "Clip"  bash -c "echo \"$MEDIA_TITLE_SQL $YT_ID\" | $SQL"
+assert_success "media:add --json-file resolves an upload relative to the file" bash -c "cd / && $CLI media:add \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --json-file /tmp/osc-media-file/media.json --json | jq -e '.ingester == \"upload\"'"
+assert_success "item:import -m takes options after the source" bash -c "$CLI item:import $ITEMS/item-media-options.jsonld -m 'html=<p>a\\;b</p>;title=Note' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    OPT_ITEM=$($CLI item:list -p dcterms:identifier=it-media-options --json 2>/dev/null | jq '.[0].id')
+fi
+assert_output_is "the -m option set the media title" "Note"   bash -c "echo \"$MEDIA_TITLE_SQL (select id from media where item_id = $OPT_ITEM limit 1)\" | $SQL"
+assert_output_contains "the -m source kept its escaped semicolon" "<p>a;b</p>"   bash -c "echo \"select data from media where item_id = $OPT_ITEM\" | $SQL | jq -r .html"
+run    "remove the media JSON file"                              rm -rf /tmp/osc-media-file
 
 # ── config ───────────────────────────────────────────────────────
 

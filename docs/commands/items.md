@@ -47,6 +47,15 @@ for `url`, `iiif`, `iiif_presentation`, `oembed` and `youtube`, and HTML for `ht
 media are created together: if Omeka S rejects a media file (for example, an extension that is not
 allowed), the item is not created either.
 
+Options for a media follow its source, separated by `;`: `title`, `altText`, `public`, a property
+term such as `dcterms:description`, or anything else the ingester takes, such as YouTube's `start` (see
+[Add media to an item](#add-media-to-an-item)). Write a `;` inside a value as `\;`. A `--media` value
+can also be a JSON media object.
+
+```bash
+--8<-- "docs/examples/items.sh:import-media-options"
+```
+
 References in the file are resolved on the installation you import into:
 
 - `o:item_set` and links to other items (`"o-ref:ref": {"dcterms:identifier": "obj-1"}`) name a property
@@ -242,6 +251,24 @@ or pipe it.
 ```bash
 --8<-- "docs/examples/items.sh:media-add"
 ```
+
+What an ingester takes can't be predicted, especially for ingesters added by modules. Give the media as
+a JSON object with `--data`, or in a file with `--json-file`:
+
+```bash
+--8<-- "docs/examples/items.sh:media-add-data"
+```
+
+- `ingester` is required.
+- `source` goes where the ingester reads it: `ingest_source` for `upload`, `ingest_url` for `url`,
+  `html` for `html`, `o:source` for any other ingester.
+- `title`, `altText` and `public` set the media's `dcterms:title`, `o:alt_text` and `o:is_public`.
+- A property term (`dcterms:description`) takes a string, a list of strings or JSON-LD values.
+- Every other key is passed to the ingester unchanged, for example YouTube's `start` and `end`, or a
+  module ingester's own key. A raw key such as `o:source` wins over a mapped one.
+
+The flags (`--ingester`, `--source`, `--title`, `--alt-text`) are shortcuts and override the JSON. With
+`--json-file`, a relative `upload` source is relative to the file.
 
 ## Reference
 

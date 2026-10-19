@@ -26,7 +26,7 @@ class ItemImportConfigTest extends TestCase
         $this->expectExceptionMessage('media[1]: ');
         ItemImportConfig::fromArray(['source' => 'a.jsonld', 'media' => [
             ['ingester' => 'url', 'source' => 'https://x.org/a'],
-            ['ingester' => 'url'],
+            ['ingester' => 'upload'], // an upload needs a source; other ingesters may not
         ]]);
     }
 
