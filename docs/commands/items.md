@@ -76,6 +76,9 @@ prints a notice and exits with code 0. So you can run the same import again:
 Item 'Mona Lisa' already exists (id 1); skipped.
 ```
 
+A resource with neither an `o-ref:id` nor a title cannot be matched: it is created on every import, and
+the command warns about it.
+
 `--dry-run` reports what would happen without creating anything. `--identify-by <term>` matches on
 another property of the file, and `--json` prints the result (`created`, `exists`, `ambiguous` or
 `would create`) as JSON.
@@ -202,7 +205,9 @@ The export is Omeka S's JSON-LD, made portable:
   values are unique, such as an identifier. A record without a value for it is reported, and its link
   is left out.
 
-Media and data from modules (such as the Mapping module) are not exported.
+Media and data from modules (such as the Mapping module) are not exported; the command lists what it
+left out. Warnings go to standard error when the export goes to standard output, so you can redirect
+or pipe it.
 
 `item-set:export` exports item sets the same way:
 

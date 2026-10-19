@@ -10,6 +10,7 @@ use OSC\Resource\Identity;
 use OSC\Resource\ImportResult;
 use OSC\Resource\PayloadBuilder;
 use OSC\Resource\PortableJsonLd;
+use OSC\Resource\ResourceImportException;
 use OSC\Resource\ResourceImporter;
 use OSC\Resource\ResourceType;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -27,7 +28,7 @@ class ResourceImporterTest extends TestCase
 {
     private function importer(?FakeCatalog $catalog = null, ?\Closure $fetchJson = null): ResourceImporter
     {
-        return new ResourceImporter(null, $catalog ?? PayloadBuilderTest::catalog(), $fetchJson);
+        return new ResourceImporter(null, $catalog ?? FakeCatalog::sample(), $fetchJson);
     }
 
     public function testContextUrlIsFetched(): void
@@ -78,7 +79,7 @@ class ResourceImporterTest extends TestCase
 
     public function testAmbiguousTitleSkips(): void
     {
-        $catalog = PayloadBuilderTest::catalog();
+        $catalog = FakeCatalog::sample();
         $catalog->titles['items'][43] = 'Lady with an Ermine';
         $result = $this->importer($catalog)->import(['o:title' => 'Lady with an Ermine'], ResourceType::Item, 'x');
         $this->assertSame('ambiguous', $result->status());
@@ -108,5 +109,30 @@ class ResourceImporterTest extends TestCase
     {
         $this->expectException(LogicException::class);
         $this->importer()->import(['o:title' => 'Brand new'], ResourceType::Item, 'x');
+    }
+
+    public function testMediaProblemsStopTheImportBeforeAnythingIsCreated(): void
+    {
+        $checked = [];
+        $importer = new ResourceImporter(null, FakeCatalog::sample(), null, function (array $media) use (&$checked) {
+            $checked = $media;
+            return ['media[1]: Cannot store files with the resolved extension "sh".'];
+        });
+        $media = [MediaConfig::fromArray(['ingester' => 'upload', 'source' => '/tmp/a.sh'])];
+        try {
+            $importer->import(['o:title' => 'Brand new'], ResourceType::Item, 'new.jsonld', $media);
+            $this->fail('expected ResourceImportException');
+        } catch (ResourceImportException $e) {
+            $this->assertSame('new.jsonld: media[1]: Cannot store files with the resolved extension "sh".', $e->getMessage());
+        }
+        $this->assertSame($media, $checked);
+    }
+
+    public function testMediaAreNotCheckedForAnExistingItem(): void
+    {
+        $importer = new ResourceImporter(null, FakeCatalog::sample(), null, fn(array $media) => $this->fail('checked'));
+        $media = [MediaConfig::fromArray(['ingester' => 'upload', 'source' => '/tmp/a.sh'])];
+        $result = $importer->import(['o:title' => 'Lady with an Ermine'], ResourceType::Item, 'x', $media);
+        $this->assertSame('exists', $result->status());
     }
 }

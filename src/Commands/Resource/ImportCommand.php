@@ -78,7 +78,13 @@ class ImportCommand extends AbstractResourceCommand
             MediaIngesters::useLocalFiles($instance->getServiceManager());
         }
         $label = basename($entry->source()) . ($entry->title() !== null ? " (\"{$entry->title()}\")" : '');
-        $importer = new ResourceImporter($instance->getApi(), $this->catalog($instance));
+        $services = $instance->getServiceManager();
+        $importer = new ResourceImporter(
+            $instance->getApi(),
+            $this->catalog($instance),
+            null,
+            fn(array $media) => MediaIngesters::check($services, $media)
+        );
         $result = $importer->import($document, $this->type, $label, $entry->media(), $identifyBy, (bool) $dryRun);
 
         if ($json) {

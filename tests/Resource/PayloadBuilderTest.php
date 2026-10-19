@@ -19,28 +19,6 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(PortableJsonLd::class)]
 class PayloadBuilderTest extends TestCase
 {
-    public static function catalog(): FakeCatalog
-    {
-        $catalog = new FakeCatalog();
-        $catalog->vocabularies = [
-            'dcterms' => 'http://purl.org/dc/terms/',
-            'dctype' => 'http://purl.org/dc/dcmitype/',
-            'schema' => 'https://schema.org/',
-        ];
-        $catalog->properties = ['dcterms:title', 'dcterms:description', 'dcterms:relation', 'dcterms:identifier', 'dcterms:date', 'dcterms:subject', 'schema:name'];
-        $catalog->dataTypes = ['literal', 'uri', 'resource', 'resource:item', 'resource:itemset', 'customvocab:7'];
-        $catalog->classes = [5 => 'dctype:StillImage'];
-        $catalog->templates = [3 => 'Artwork'];
-        $catalog->sites = [1 => ['collections', 'Collections']];
-        $catalog->customVocabs = [7 => 'Colours'];
-        $catalog->values = [
-            'items' => [42 => ['dcterms:identifier' => 'obj-42', 'dcterms:title' => 'Lady with an Ermine']],
-            'item_sets' => [9 => ['dcterms:title' => 'Paintings', 'dcterms:identifier' => 'set-1']],
-        ];
-        $catalog->titles = ['items' => [42 => 'Lady with an Ermine']];
-        return $catalog;
-    }
-
     public static function monaLisa(): array
     {
         return [
@@ -65,7 +43,7 @@ class PayloadBuilderTest extends TestCase
 
     private function builder(?FakeCatalog $catalog = null): PayloadBuilder
     {
-        return new PayloadBuilder($catalog ?? self::catalog());
+        return new PayloadBuilder($catalog ?? FakeCatalog::sample());
     }
 
     /** @return string[] */
@@ -162,23 +140,17 @@ class PayloadBuilderTest extends TestCase
         $doc = ['dcterms:relation' => [['type' => 'resource:item', 'o-ref:ref' => ['dcterms:identifier' => 'missing']]]];
         $result = $this->builder()->build($doc, ResourceType::Item, 'x');
         $this->assertArrayNotHasKey('dcterms:relation', $result->payload());
-        $this->assertSame(
-            ['x: link "dcterms:relation" to items with dcterms:identifier = "missing" not found; the value is skipped'],
-            $result->warnings()
-        );
+        $this->assertContains('x: link "dcterms:relation" to items with dcterms:identifier = "missing" not found; the value is skipped', $result->warnings());
     }
 
     public function testAmbiguousReferenceWarnsAndDropsTheValue(): void
     {
-        $catalog = self::catalog();
+        $catalog = FakeCatalog::sample();
         $catalog->values['items'][43] = ['dcterms:identifier' => 'obj-42'];
         $doc = ['dcterms:relation' => [['type' => 'resource:item', 'o-ref:ref' => ['dcterms:identifier' => 'obj-42']]]];
         $result = $this->builder($catalog)->build($doc, ResourceType::Item, 'x');
         $this->assertArrayNotHasKey('dcterms:relation', $result->payload());
-        $this->assertSame(
-            ['x: link "dcterms:relation" to items with dcterms:identifier = "obj-42" matches 2 items; the value is skipped'],
-            $result->warnings()
-        );
+        $this->assertContains('x: link "dcterms:relation" to items with dcterms:identifier = "obj-42" matches 2 items; the value is skipped', $result->warnings());
     }
 
     public function testRefKeyIsFoundByNamespace(): void
@@ -249,11 +221,11 @@ class PayloadBuilderTest extends TestCase
 
     public function testUnresolvedSitesFallBackToTheDefaultSite(): void
     {
-        $catalog = self::catalog();
+        $catalog = FakeCatalog::sample();
         $catalog->defaultSite = 1;
         $result = $this->builder($catalog)->build(['o:site' => [['o:slug' => 'nope']]], ResourceType::Item, 'x');
         $this->assertSame([['o:id' => 1]], $result->payload()['o:site']);
-        $this->assertSame(['x: site "nope" not found; the item is not added to it'], $result->warnings());
+        $this->assertContains('x: site "nope" not found; the item is not added to it', $result->warnings());
 
         $result = $this->builder()->build(['o:site' => [['o:slug' => 'nope']]], ResourceType::Item, 'x');
         $this->assertArrayNotHasKey('o:site', $result->payload());
@@ -298,5 +270,24 @@ class PayloadBuilderTest extends TestCase
             'x'
         )->payload();
         $this->assertSame(['o:is_open' => true], $p);
+    }
+
+    public function testModuleDataIsDroppedWithAWarning(): void
+    {
+        $doc = self::monaLisa();
+        $doc['o-module-mapping:marker'] = [['@id' => 'http://localhost/api/mapping_markers/1', 'o:id' => 1]];
+        $result = $this->builder()->build($doc, ResourceType::Item, 'x');
+        $this->assertArrayNotHasKey('o-module-mapping:marker', $result->payload());
+        $this->assertSame(['x: "o-module-mapping:marker" is module data and is not imported'], $result->warnings());
+    }
+
+    public function testResourceWithoutIdentityWarns(): void
+    {
+        $result = $this->builder()->build(['dcterms:description' => [['type' => 'literal', '@value' => 'No title']]], ResourceType::Item, 'x');
+        $this->assertNull($result->identity());
+        $this->assertSame(
+            ['x: the item has no o-ref:id and no title, so it cannot be matched: it is created on every import'],
+            $result->warnings()
+        );
     }
 }

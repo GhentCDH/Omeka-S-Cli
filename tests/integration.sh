@@ -650,9 +650,10 @@ ITEMS=/app/omeka-s-cli/examples/items
 assert_success "item-set:import an item set"                     bash -c "$CLI item-set:import $ITEMS/item-set-paintings.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 assert_output_contains "item-set:import again skips it"          "already exists"   $CLI item-set:import $ITEMS/item-set-paintings.jsonld
 assert_success "item:import with a local upload and an html media" bash -c "$CLI item:import $ITEMS/item-mona-lisa.jsonld -m upload=$ITEMS/media/pixel.png -m 'html=<p>Note</p>' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
-assert_success "the item has its 2 media, its item set and its class" bash -c "$CLI item:list -p dcterms:identifier=obj-1 --json | jq -e '.[0].media == 2 and .[0].itemSets == 1 and .[0].class == \"dctype:StillImage\"'"
+assert_success "the item has its 2 media, its item set and its class" bash -c "$CLI item:list -p dcterms:identifier=it-obj-1 --json | jq -e '.[0].media == 2 and .[0].itemSets == 1 and .[0].class == \"dctype:StillImage\"'"
 assert_success "item:import a link to an item imported earlier" bash -c "$CLI item:import $ITEMS/item-linked.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
-assert_success "item:export writes the link as an o-ref:ref"    bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=obj-2 --json | jq '.[0].id') --reference-by dcterms:identifier | jq -e '.\"dcterms:relation\"[0].\"o-ref:ref\".\"dcterms:identifier\" == \"obj-1\"'"
+assert_success "item:export keeps warnings out of the JSON on stdout" bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --reference-by dcterms:alternative 2>/dev/null | jq -e '.\"o:title\"'"
+assert_success "item:export writes the link as an o-ref:ref"    bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --reference-by dcterms:identifier | jq -e '.\"dcterms:relation\"[0].\"o-ref:ref\".\"dcterms:identifier\" == \"it-obj-1\"'"
 run    "item:import an item without o-ref:id"                    $CLI item:import $ITEMS/item-no-id.jsonld
 assert_output_contains "item:import again skips it by title"     "already exists"   $CLI item:import $ITEMS/item-no-id.jsonld
 assert_output_contains "a missing vocabulary is a clean error"   "which is not installed (vocabulary:import)"   $CLI item:import $ITEMS/item-missing-vocab.jsonld
@@ -662,15 +663,18 @@ assert_success "item:import a raw Omeka export"                  bash -c "$CLI i
 ITEM_COUNT=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length')
 assert_fail    "a rejected media file fails the import"          $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/not-allowed.sh
 assert_output_is "a rejected media file leaves no item behind"   "$ITEM_COUNT"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
+ORIGINALS=$(ls /var/www/omeka-s/files/original 2>/dev/null | wc -l)
+assert_fail    "a rejected file among valid ones fails the import" $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/pixel.png -m upload=$ITEMS/media/not-allowed.sh
+assert_output_is "a failed import stores no file"                "$ORIGINALS"   bash -c "ls /var/www/omeka-s/files/original 2>/dev/null | wc -l"
 run    "clear the export directory"                              rm -rf /tmp/osc-items-export
-assert_success "item:export --output-dir writes one file per item" bash -c "$CLI item:export -p dcterms:identifier=obj-1 --output-dir /tmp/osc-items-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-items-export | wc -l) -eq 1"
+assert_success "item:export --output-dir writes one file per item" bash -c "$CLI item:export -p dcterms:identifier=it-obj-1 --output-dir /tmp/osc-items-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-items-export | wc -l) -eq 1"
 assert_output_contains "re-importing the export skips the item" "already exists"   bash -c "$CLI item:import /tmp/osc-items-export/*.jsonld"
 assert_output_contains "item:export of several items needs --output-dir" "use --output-dir"   $CLI item:export
 assert_success "item:search finds the item"                      bash -c "$CLI item:search 'Mona' --json | jq -e 'any(.[]; .title == \"Mona Lisa\")'"
 assert_output_contains "item:list --class with an unknown class" "Unknown resource class"   $CLI item:list --class dctype:Foo
 assert_success "item-set:list lists the item set"                bash -c "$CLI item-set:list --json | jq -e 'any(.[]; .title == \"Paintings\")'"
 assert_success "media:ingesters lists upload"                    bash -c "$CLI media:ingesters --json | jq -e 'any(.[]; .name == \"upload\")'"
-assert_success "media:add adds an html media"                    bash -c "$CLI media:add \$($CLI item:list -p dcterms:identifier=obj-2 --json | jq '.[0].id') --ingester html --source '<p>Note</p>' --json | jq -e '.ingester == \"html\"'"
+assert_success "media:add adds an html media"                    bash -c "$CLI media:add \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --ingester html --source '<p>Note</p>' --json | jq -e '.ingester == \"html\"'"
 assert_fail    "media:add to a missing item fails"               $CLI media:add 999999 --ingester html --source '<p>x</p>'
 
 # ── config ───────────────────────────────────────────────────────

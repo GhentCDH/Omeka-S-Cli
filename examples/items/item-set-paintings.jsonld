@@ -1,9 +1,9 @@
 {
     "@context": {"dcterms": "http://purl.org/dc/terms/", "dctype": "http://purl.org/dc/dcmitype/", "o": "http://omeka.org/s/vocabs/o#", "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"},
     "@type": "o:ItemSet",
-    "o-ref:id": {"dcterms:identifier": "set-paintings"},
+    "o-ref:id": {"dcterms:identifier": "it-set-paintings"},
     "o:is_public": true,
     "o:is_open": true,
     "dcterms:title": [{"type": "literal", "is_public": true, "@value": "Paintings"}],
-    "dcterms:identifier": [{"type": "literal", "is_public": true, "@value": "set-paintings"}]
+    "dcterms:identifier": [{"type": "literal", "is_public": true, "@value": "it-set-paintings"}]
 }

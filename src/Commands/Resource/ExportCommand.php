@@ -70,7 +70,7 @@ class ExportCommand extends AbstractResourceCommand
         foreach ($resources as $resource) {
             $result = $exporter->export(json_decode(json_encode($resource), true), $this->type);
             foreach ($result->warnings() as $warning) {
-                $this->warn($warning, true);
+                $this->warnExport($warning, $dir === null && $output === null);
             }
             $json = json_encode($result->document(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
             if ($dir !== null) {
@@ -85,6 +85,19 @@ class ExportCommand extends AbstractResourceCommand
         }
         if ($dir !== null) {
             $this->ok(sprintf('Exported %d %s to %s.', count($resources), count($resources) === 1 ? $this->type->label() : $this->plural(), $outputDir), true);
+        }
+    }
+
+    /**
+     * A warning about the export. When the document itself goes to standard output, the warning goes
+     * to standard error, so `item:export 12 > item.jsonld` or `| jq` gets valid JSON.
+     */
+    private function warnExport(string $message, bool $toStderr): void
+    {
+        if (!$toStderr) {
+            $this->warn($message, true);
+        } elseif ($this->isVerbose(self::VERBOSITY_OUTCOMES)) {
+            $this->io()->writer()->warnError($message, true);
         }
     }
 }

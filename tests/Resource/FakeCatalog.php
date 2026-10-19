@@ -29,6 +29,29 @@ class FakeCatalog implements Catalog
     /** @var array<string,array<int,string>> resource name => id => title */
     public array $titles = [];
 
+    /** The catalog the import/export tests share: Dublin Core, a class, a template, a site, a few records. */
+    public static function sample(): FakeCatalog
+    {
+        $catalog = new self();
+        $catalog->vocabularies = [
+            'dcterms' => 'http://purl.org/dc/terms/',
+            'dctype' => 'http://purl.org/dc/dcmitype/',
+            'schema' => 'https://schema.org/',
+        ];
+        $catalog->properties = ['dcterms:title', 'dcterms:description', 'dcterms:relation', 'dcterms:identifier', 'dcterms:date', 'dcterms:subject', 'schema:name'];
+        $catalog->dataTypes = ['literal', 'uri', 'resource', 'resource:item', 'resource:itemset', 'customvocab:7'];
+        $catalog->classes = [5 => 'dctype:StillImage'];
+        $catalog->templates = [3 => 'Artwork'];
+        $catalog->sites = [1 => ['collections', 'Collections']];
+        $catalog->customVocabs = [7 => 'Colours'];
+        $catalog->values = [
+            'items' => [42 => ['dcterms:identifier' => 'obj-42', 'dcterms:title' => 'Lady with an Ermine']],
+            'item_sets' => [9 => ['dcterms:title' => 'Paintings', 'dcterms:identifier' => 'set-1']],
+        ];
+        $catalog->titles = ['items' => [42 => 'Lady with an Ermine']];
+        return $catalog;
+    }
+
     public function namespaceForPrefix(string $prefix): ?string
     {
         return $this->vocabularies[$prefix] ?? null;

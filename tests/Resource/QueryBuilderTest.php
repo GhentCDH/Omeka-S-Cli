@@ -13,7 +13,7 @@ class QueryBuilderTest extends TestCase
 {
     private function builder(): QueryBuilder
     {
-        return new QueryBuilder(PayloadBuilderTest::catalog());
+        return new QueryBuilder(FakeCatalog::sample());
     }
 
     public function testFiltersBecomeAnOmekaQuery(): void

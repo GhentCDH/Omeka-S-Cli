@@ -95,6 +95,10 @@ final class PayloadBuilder
                     break;
                 default:
                     if (PortableJsonLd::splitTerm($key) !== null && PortableJsonLd::isValueList($value)) {
+                        if ($this->isModuleData($key, $value)) {
+                            $this->warnings[] = "\"{$key}\" is module data and is not imported";
+                            break;
+                        }
                         [$term, $values] = $this->property($key, $value, '');
                         if ($term !== null && $values) {
                             $payload[$term] = $values;
@@ -108,6 +112,9 @@ final class PayloadBuilder
 
         $title = $this->title($document, $payload);
         $identity = $this->identity($document, $payload, $identifyBy, $title);
+        if ($identity === null && !$this->problems) {
+            $this->warnings[] = "the {$type->label()} has no o-ref:id and no title, so it cannot be matched: it is created on every import";
+        }
         if ($this->problems) {
             throw new ResourceImportException($label, $this->problems);
         }
@@ -388,6 +395,20 @@ final class PayloadBuilder
             return [null, " uses vocabulary {$namespace}, which is not installed (vocabulary:import)", $namespace];
         }
         return ["{$target}:{$local}", '', $namespace];
+    }
+
+    /**
+     * Whether a key that looks like a property is a module's data instead (e.g. Mapping's
+     * "o-module-mapping:marker": references with an @id, no typed values), from no known vocabulary.
+     */
+    private function isModuleData(string $key, array $values): bool
+    {
+        foreach ($values as $value) {
+            if (isset($value['type']) || isset($value['@value']) || isset($value[$this->refKey])) {
+                return false;
+            }
+        }
+        return $this->mapTerm($key)[0] === null;
     }
 
     /** Whether a key belongs to the o-ref vocabulary (matched by namespace). */

@@ -23,11 +23,17 @@ class ResourceImporter
     private Closure $fetchJson;
 
     /**
-     * @param ApiManager|null $api       Null only where nothing is created (dry run, existing resources)
-     * @param Closure|null    $fetchJson Fetches a context URL (default ResourceFetcher::fetchJson)
+     * @param ApiManager|null $api        Null only where nothing is created (dry run, existing resources)
+     * @param Closure|null    $fetchJson  Fetches a context URL (default ResourceFetcher::fetchJson)
+     * @param Closure|null    $checkMedia Checks the media before anything is created: receives the
+     *                                    MediaConfig list, returns problems (see MediaIngesters::check())
      */
-    public function __construct(private ?ApiManager $api, private Catalog $catalog, ?Closure $fetchJson = null)
-    {
+    public function __construct(
+        private ?ApiManager $api,
+        private Catalog $catalog,
+        ?Closure $fetchJson = null,
+        private ?Closure $checkMedia = null,
+    ) {
         $this->fetchJson = $fetchJson ?? ResourceFetcher::fetchJson(...);
     }
 
@@ -65,6 +71,15 @@ class ResourceImporter
                 return ImportResult::ambiguous(count($ids), $built->title());
             }
         }
+        if ($media && $this->checkMedia !== null) {
+            // Omeka stores a media's file while it builds the item, before it knows the item will
+            // validate: a file it then rejects would leave the files stored before it behind
+            $problems = ($this->checkMedia)($media);
+            if ($problems) {
+                throw new ResourceImportException($label, $problems);
+            }
+        }
+
         if ($dryRun) {
             return ImportResult::wouldCreate($built->title(), $built->warnings());
         }

@@ -6,7 +6,8 @@ namespace OSC\Resource;
  * replaced by references another instance can resolve (class term, template label, site slug, and
  * o-ref:ref / o-ref:id naming a property value), and the API's output-only keys dropped.
  *
- * Only core fields and properties are exported; module data (e.g. Mapping's) is left out.
+ * Only core fields and properties are exported; module data (e.g. Mapping's) is left out, with a
+ * warning.
  */
 final class Exporter
 {
@@ -33,11 +34,17 @@ final class Exporter
 
         $properties = [];
         foreach ($jsonLd as $key => $values) {
-            if (is_string($key) && PortableJsonLd::splitTerm($key) !== null && PortableJsonLd::isValueList($values)) {
-                $values = $this->values($values, $key);
-                if ($values) {
-                    $properties[$key] = $values;
-                }
+            $term = is_string($key) ? PortableJsonLd::splitTerm($key) : null;
+            if ($term === null) {
+                continue;
+            }
+            if (!PortableJsonLd::isValueList($values) || $this->catalog->namespaceForPrefix($term[0]) === null) {
+                $this->warnings[] = "{$this->subject}: \"{$key}\" is module data and is not exported";
+                continue;
+            }
+            $values = $this->values($values, $key);
+            if ($values) {
+                $properties[$key] = $values;
             }
         }
 
@@ -46,11 +53,14 @@ final class Exporter
             $doc['@type'] = $jsonLd['@type'];
         }
         $identity = $this->firstValue($jsonLd[$this->referenceBy] ?? null);
-        if ($identity === null) {
+        if ($identity !== null) {
+            $doc[PortableJsonLd::PREFIX . ':' . PortableJsonLd::ID] = [$this->referenceBy => $identity];
+        } elseif ($title !== null) {
             $this->warnings[] = "{$this->subject} has no {$this->referenceBy} value; it will be matched by title on import";
         } else {
-            $doc[PortableJsonLd::PREFIX . ':' . PortableJsonLd::ID] = [$this->referenceBy => $identity];
+            $this->warnings[] = "{$this->subject} has no {$this->referenceBy} value and no title; it cannot be matched on import and is created again each time";
         }
+        $this->warnIfNotUnique($type, $identity, $title);
         if ($title !== null) {
             $doc['o:title'] = $title;
         }
@@ -82,6 +92,26 @@ final class Exporter
         $doc['@context'] = $this->context($doc, $classTerm);
 
         return new ExportResult($doc, $this->warnings);
+    }
+
+    /**
+     * Warn when what identifies the resource on import (its reference value, else its title) is shared
+     * by other resources here: on import, it would be taken for one of them.
+     */
+    private function warnIfNotUnique(ResourceType $type, ?string $identity, ?string $title): void
+    {
+        if ($identity !== null) {
+            $count = count($this->catalog->findByValue($type->value, $this->referenceBy, $identity));
+            $what = "{$this->referenceBy} \"{$identity}\"";
+        } elseif ($title !== null) {
+            $count = count($this->catalog->findByTitle($type->value, $title));
+            $what = "the title \"{$title}\"";
+        } else {
+            return;
+        }
+        if ($count > 1) {
+            $this->warnings[] = "{$this->subject}: {$what} is not unique ({$count} {$type->label()}s); on import it can be taken for another one";
+        }
     }
 
     private function values(array $values, string $key): array

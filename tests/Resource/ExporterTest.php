@@ -56,7 +56,7 @@ class ExporterTest extends TestCase
 
     private function exporter(string $referenceBy = 'dcterms:title', ?FakeCatalog $catalog = null): Exporter
     {
-        return new Exporter($catalog ?? PayloadBuilderTest::catalog(), $referenceBy);
+        return new Exporter($catalog ?? FakeCatalog::sample(), $referenceBy);
     }
 
     public function testExportDropsInstanceIdsAndInlinesTheContext(): void
@@ -83,7 +83,7 @@ class ExporterTest extends TestCase
             [['type' => 'resource:item', 'is_public' => true, 'o-ref:ref' => ['dcterms:identifier' => 'obj-42']]],
             $doc['dcterms:relation']
         );
-        $this->assertSame([], $result->warnings());
+        $this->assertSame(['"Mona Lisa" (item 7): "o-module-mapping:features" is module data and is not exported'], $result->warnings());
     }
 
     public function testMissingIdentityValueWarnsAndOmitsId(): void
@@ -98,14 +98,11 @@ class ExporterTest extends TestCase
 
     public function testLinkWithoutReferenceValueIsOmittedWithWarning(): void
     {
-        $catalog = PayloadBuilderTest::catalog();
+        $catalog = FakeCatalog::sample();
         unset($catalog->values['items'][42]['dcterms:title']);
         $result = $this->exporter('dcterms:title', $catalog)->export(self::omekaJsonLd(), ResourceType::Item);
         $this->assertArrayNotHasKey('dcterms:relation', $result->document());
-        $this->assertSame(
-            ['"Mona Lisa" (item 7): the link "dcterms:relation" to item 42 has no dcterms:title value and is not exported'],
-            $result->warnings()
-        );
+        $this->assertContains('"Mona Lisa" (item 7): the link "dcterms:relation" to item 42 has no dcterms:title value and is not exported', $result->warnings());
     }
 
     public function testGenericResourceValuesKeepTheirResourceName(): void
@@ -138,7 +135,7 @@ class ExporterTest extends TestCase
 
     public function testExportedDocumentRoundTripsThroughThePayloadBuilder(): void
     {
-        $catalog = PayloadBuilderTest::catalog();
+        $catalog = FakeCatalog::sample();
         $doc = $this->exporter('dcterms:identifier', $catalog)->export(self::omekaJsonLd(), ResourceType::Item)->document();
         $result = (new PayloadBuilder($catalog))->build($doc, ResourceType::Item, 'x');
         $payload = $result->payload();
@@ -148,5 +145,46 @@ class ExporterTest extends TestCase
         $this->assertSame(['o:id' => 3], $payload['o:resource_template']);
         $this->assertSame([['o:id' => 1]], $payload['o:site']);
         $this->assertEquals(new Identity('dcterms:identifier', 'obj-7'), $result->identity());
+    }
+
+    public function testModuleDataIsLeftOutWithAWarning(): void
+    {
+        $jsonLd = self::omekaJsonLd();
+        $jsonLd['o-module-mapping:marker'] = [['@id' => 'http://localhost/api/mapping_markers/1', 'o:id' => 1]];
+        $result = $this->exporter('dcterms:identifier')->export($jsonLd, ResourceType::Item);
+        $this->assertArrayNotHasKey('o-module-mapping:marker', $result->document());
+        $this->assertArrayNotHasKey('o-module-mapping', $result->document()['@context']);
+        $this->assertContains('"Mona Lisa" (item 7): "o-module-mapping:marker" is module data and is not exported', $result->warnings());
+    }
+
+    public function testUntitledItemWithoutIdentityCannotBeMatched(): void
+    {
+        $jsonLd = self::omekaJsonLd();
+        unset($jsonLd['o:title'], $jsonLd['dcterms:title']);
+        $result = $this->exporter('dcterms:description')->export($jsonLd, ResourceType::Item);
+        $this->assertContains(
+            '"[untitled]" (item 7) has no dcterms:description value and no title; it cannot be matched on import and is created again each time',
+            $result->warnings()
+        );
+    }
+
+    public function testNonUniqueIdentityIsReported(): void
+    {
+        $catalog = FakeCatalog::sample();
+        $catalog->values['items'][7] = ['dcterms:identifier' => 'obj-7'];
+        $catalog->values['items'][8] = ['dcterms:identifier' => 'obj-7'];
+        $result = $this->exporter('dcterms:identifier', $catalog)->export(self::omekaJsonLd(), ResourceType::Item);
+        $this->assertContains('"Mona Lisa" (item 7): dcterms:identifier "obj-7" is not unique (2 items); on import it can be taken for another one', $result->warnings());
+    }
+
+    public function testNonUniqueTitleIsReportedWhenTheTitleIdentifies(): void
+    {
+        $catalog = FakeCatalog::sample();
+        $catalog->titles['items'] = [7 => 'Mona Lisa', 8 => 'Mona Lisa'];
+        $result = $this->exporter('schema:name', $catalog)->export(self::omekaJsonLd(), ResourceType::Item);
+        $this->assertContains(
+            '"Mona Lisa" (item 7): the title "Mona Lisa" is not unique (2 items); on import it can be taken for another one',
+            $result->warnings()
+        );
     }
 }
