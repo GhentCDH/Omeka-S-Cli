@@ -207,7 +207,37 @@ class BlueprintLoader
         foreach (SourceFields::objects() as $path => $fields) {
             $blueprint = $this->resolveObject($blueprint, explode('.', $path), $source, $fields, $path);
         }
+        // lists inside an object: resolved entry by entry (no $import, no de-duplication)
+        foreach (SourceFields::dottedLists() as $path) {
+            $blueprint = $this->resolveDottedList($blueprint, explode('.', $path), $source, $path);
+        }
         return $blueprint;
+    }
+
+    /**
+     * Resolve the source fields of every entry of the list at $path (a list of keys) inside $data.
+     *
+     * @param string[] $path Keys leading to the list
+     * @throws Exception
+     */
+    private function resolveDottedList(array $data, array $path, string $source, string $label): array
+    {
+        $key = array_shift($path);
+        if (!isset($data[$key]) || !is_array($data[$key])) {
+            return $data;
+        }
+        if ($path !== []) {
+            $data[$key] = $this->resolveDottedList($data[$key], $path, $source, $label);
+            return $data;
+        }
+        if (array_is_list($data[$key])) {
+            foreach ($data[$key] as $i => $entry) {
+                if (is_array($entry)) {
+                    $data[$key][$i] = $this->resolveFields($entry, $source, SourceFields::forList($label), "{$label}[{$i}]");
+                }
+            }
+        }
+        return $data;
     }
 
     /**
@@ -442,6 +472,18 @@ class BlueprintLoader
     private function resolveFields(array $entry, string $source, array $fields, string $label): array
     {
         foreach ($fields as $field => $kind) {
+            // a field `a[].b`: the field `b` of every element of the list `a`
+            if (str_contains($field, '[].')) {
+                [$list, $inner] = explode('[].', $field, 2);
+                if (isset($entry[$list]) && is_array($entry[$list]) && array_is_list($entry[$list])) {
+                    foreach ($entry[$list] as $i => $element) {
+                        if (is_array($element)) {
+                            $entry[$list][$i] = $this->resolveNested($element, $source, $inner, $kind, "{$label} {$list}[{$i}]");
+                        }
+                    }
+                }
+                continue;
+            }
             if (!isset($entry[$field]) || !is_string($entry[$field]) || trim($entry[$field]) === '') {
                 continue;
             }
@@ -457,6 +499,26 @@ class BlueprintLoader
             }
         }
         return $entry;
+    }
+
+    /**
+     * Resolve one field of a nested element. A media field is a source only for a file (an upload);
+     * a link the ingester keeps is left as it is, and is never a self-contained violation.
+     */
+    private function resolveNested(array $element, string $source, string $field, string $kind, string $label): array
+    {
+        $value = $element[$field] ?? null;
+        if (!is_string($value) || trim($value) === '') {
+            return $element;
+        }
+        if ($kind === SourceFields::MEDIA && !SourceFields::isMediaFile($element, $field)) {
+            return $element;
+        }
+        $ref = $this->reference($value, $source, "{$label}.{$field}");
+        if ($ref !== null) {
+            $element[$field] = $ref;
+        }
+        return $element;
     }
 
     /**

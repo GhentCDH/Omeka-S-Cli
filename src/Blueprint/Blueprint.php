@@ -61,6 +61,43 @@ class Blueprint
         return $this->data['sites'] ?? [];
     }
 
+    /** @return array<int,array> The shared format's simple item sets */
+    public function itemSets(): array
+    {
+        return $this->data['itemSets'] ?? [];
+    }
+
+    /** @return array<int,array> The shared format's simple items */
+    public function items(): array
+    {
+        return $this->data['items'] ?? [];
+    }
+
+    /** @return array<int,array> The CLI's item-set entries ({source, title?}), see SourceFields::EXTENSION_ITEM_SETS */
+    public function extensionItemSets(): array
+    {
+        return $this->path(SourceFields::EXTENSION_ITEM_SETS) ?? [];
+    }
+
+    /** @return array<int,array> The CLI's item entries ({source, title?, media?}), see SourceFields::EXTENSION_ITEMS */
+    public function extensionItems(): array
+    {
+        return $this->path(SourceFields::EXTENSION_ITEMS) ?? [];
+    }
+
+    /** The value at a dotted path, or null when a key is missing. */
+    private function path(string $dotted): mixed
+    {
+        $value = $this->data;
+        foreach (explode('.', $dotted) as $key) {
+            if (!is_array($value) || !isset($value[$key])) {
+                return null;
+            }
+            $value = $value[$key];
+        }
+        return $value;
+    }
+
     /** @return array<string,mixed> */
     public function settings(): array
     {
