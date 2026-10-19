@@ -163,8 +163,10 @@ class ResourceFetcherTest extends TestCase
             $download->invoke(null, 'http://127.0.0.1:1/nope', $target, []);
             $this->fail('an unreachable URL must fail');
         } catch (Exception $e) {
-            // the reason only, without PHP's "fopen(<url>): Failed to open stream:" prefix
-            $this->assertSame("Failed to download 'http://127.0.0.1:1/nope': Connection refused", $e->getMessage());
+            // the reason only (its wording is the OS's), without PHP's "fopen(<url>): Failed to open stream:" prefix
+            $this->assertStringStartsWith("Failed to download 'http://127.0.0.1:1/nope': ", $e->getMessage());
+            $this->assertStringNotContainsString('fopen(', $e->getMessage());
+            $this->assertSame(rtrim($e->getMessage()), $e->getMessage());
         }
         $this->assertFileDoesNotExist($target);
     }

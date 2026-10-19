@@ -70,6 +70,32 @@ class ZipDownloaderTest extends TestCase
         }
     }
 
+    public function testAUrlDownloadLeavesNoTempFile(): void
+    {
+        // a file:// URL takes the download path (a temp ZIP, then extract) without a network
+        $url = 'file://' . $this->zip(['Foo/config/module.ini' => 'version = "1.0"']);
+        $this->assertTrue(ResourceFetcher::isUrl($url));
+
+        $folder = (new ZipDownloader($url))->download();
+        try {
+            $this->assertFileExists("{$folder}/Foo/config/module.ini");
+            $this->assertNoNewTempEntries($folder);
+        } finally {
+            Path::removeFolder($folder);
+        }
+    }
+
+    public function testALocalZipIsLeftUnchanged(): void
+    {
+        $path = $this->zip(['Foo/config/module.ini' => 'version = "1.0"']);
+        $md5 = md5_file($path);
+
+        Path::removeFolder((new ZipDownloader($path))->download());
+
+        $this->assertFileExists($path);
+        $this->assertSame($md5, md5_file($path));
+    }
+
     public function testAMissingLocalZipIsNotFound(): void
     {
         $this->expectException(Exception::class);
