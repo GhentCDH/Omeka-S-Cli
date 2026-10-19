@@ -2,7 +2,9 @@
 namespace OSC\Blueprint;
 
 use Exception;
+use InvalidArgumentException;
 use OSC\Cache;
+use OSC\Helper\ItemImportConfig;
 use OSC\Helper\ResourceFetcher;
 use OSC\Helper\SiteConfig;
 use Opis\JsonSchema\Errors\ErrorFormatter;
@@ -86,7 +88,8 @@ class BlueprintValidator
     {
         return array_merge(
             $this->validateAgainst($blueprint, self::SCHEMA_ID),
-            $this->referentialErrors($blueprint)
+            $this->referentialErrors($blueprint),
+            $this->extensionErrors($blueprint)
         );
     }
 
@@ -245,11 +248,48 @@ class BlueprintValidator
      * @param array $blueprint
      * @return string[]
      */
+    /**
+     * The shape of the CLI's item and item-set entries (x-omeka-s-cli.items / .itemSets), which the
+     * shared schema does not cover: each must be a valid ItemImportConfig, and an item set has no media.
+     *
+     * @return string[]
+     */
+    private function extensionErrors(array $blueprint): array
+    {
+        $errors = [];
+        foreach (['items' => SourceFields::EXTENSION_ITEMS, 'itemSets' => SourceFields::EXTENSION_ITEM_SETS] as $key => $label) {
+            if (!array_key_exists($key, $blueprint['x-omeka-s-cli'] ?? [])) {
+                continue;
+            }
+            $entries = $blueprint['x-omeka-s-cli'][$key];
+            if (!is_array($entries) || !array_is_list($entries)) {
+                $errors[] = "{$label} must be a list.";
+                continue;
+            }
+            foreach ($entries as $i => $entry) {
+                if ($key === 'itemSets' && is_array($entry) && !empty($entry['media'])) {
+                    $errors[] = "{$label}[{$i}]: item sets have no media.";
+                    continue;
+                }
+                try {
+                    ItemImportConfig::fromArray(is_array($entry) ? $entry : []);
+                } catch (InvalidArgumentException $e) {
+                    $errors[] = "{$label}[{$i}]: {$e->getMessage()}";
+                }
+            }
+        }
+        return $errors;
+    }
+
     private function referentialErrors(array $blueprint): array
     {
         $errors = [];
 
-        $itemSetTitles = $this->titlesLower($blueprint['itemSets'] ?? []);
+        // an item set may be a simple one or a CLI entry with a title
+        $itemSetTitles = array_merge(
+            $this->titlesLower($blueprint['itemSets'] ?? []),
+            $this->titlesLower(is_array($blueprint['x-omeka-s-cli']['itemSets'] ?? null) ? $blueprint['x-omeka-s-cli']['itemSets'] : [])
+        );
         foreach (($blueprint['items'] ?? []) as $i => $item) {
             if (!is_array($item)) {
                 continue;
