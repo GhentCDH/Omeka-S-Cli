@@ -167,4 +167,19 @@ class ResourceFetcherTest extends TestCase
         }
         $this->assertFileDoesNotExist($target);
     }
+
+    public function testOnlyTheFinalResponseHeadersCount(): void
+    {
+        $finalHeaders = new \ReflectionMethod(ResourceFetcher::class, 'finalHeaders');
+
+        // a redirect page's Content-Type must not survive into a final response without one
+        $this->assertSame([], $finalHeaders->invoke(null, [
+            'HTTP/1.1 302 Found', 'Content-Type: text/html', 'Location: /x.ttl',
+            'HTTP/1.1 200 OK',
+        ]));
+        $this->assertSame(['content-type' => 'text/turtle; charset=utf-8', 'content-length' => '42'], $finalHeaders->invoke(null, [
+            'HTTP/1.1 301 Moved Permanently', 'Content-Type: text/html',
+            'HTTP/1.1 200 OK', 'Content-Type: text/turtle; charset=utf-8', 'Content-Length: 42',
+        ]));
+    }
 }

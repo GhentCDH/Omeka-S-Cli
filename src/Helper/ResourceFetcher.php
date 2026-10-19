@@ -304,17 +304,36 @@ class ResourceFetcher
                 @unlink($target);
                 throw new Exception("Failed to download '{$url}'");
             }
-            // the last Content-Type wins: the headers of every redirect are listed in order
-            $type = null;
-            foreach (stream_get_meta_data($in)['wrapper_data'] ?? [] as $header) {
-                if (is_string($header) && stripos($header, 'content-type:') === 0) {
-                    $type = strtolower(trim(explode(';', substr($header, 13))[0]));
-                }
-            }
+            $type = self::finalHeaders(stream_get_meta_data($in)['wrapper_data'] ?? [])['content-type'] ?? '';
+            $type = strtolower(trim(explode(';', $type)[0]));
             return $type !== '' ? $type : null;
         } finally {
             fclose($in);
         }
+    }
+
+    /**
+     * The headers of the final response in a stream wrapper's header list, which holds the status
+     * line and headers of every redirect in order.
+     *
+     * @param mixed[] $headerLines e.g. ['HTTP/1.1 302 Found', 'Location: …', 'HTTP/1.1 200 OK', 'Content-Type: …']
+     * @return array<string,string> lowercase header name => value
+     */
+    protected static function finalHeaders(array $headerLines): array
+    {
+        $headers = [];
+        foreach ($headerLines as $line) {
+            if (!is_string($line)) {
+                continue;
+            }
+            if (preg_match('#^HTTP/#i', $line)) {
+                $headers = []; // a new response starts
+            } elseif (str_contains($line, ':')) {
+                [$name, $value] = explode(':', $line, 2);
+                $headers[strtolower(trim($name))] = trim($value);
+            }
+        }
+        return $headers;
     }
 
     /**
