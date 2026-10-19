@@ -70,8 +70,8 @@ class ResourceFetcher
 
     /**
      * Copy a file, or download a URL, to $target, streaming it (no memory limit). A download is
-     * aborted when it stalls (below 1 KB/s for 60 s), not after a fixed time, so a large release on a
-     * slow link still arrives.
+     * aborted when it stalls, not after a fixed time, so a large release on a slow link still arrives:
+     * with cURL when it stays below 1 KB/s for 60 s, without cURL when no data arrives for 60 s.
      *
      * @param string[] $headers Request headers for a URL (e.g. "Accept: text/turtle")
      * @return string|null The response Content-Type of a URL (lowercase, without parameters); null for a file
@@ -265,7 +265,7 @@ class ResourceFetcher
      *
      * @param array<string,string> $headers lowercase header name => value (see finalHeaders())
      */
-    private static function truncation(int $copied, array $headers): ?string
+    protected static function truncation(int $copied, array $headers): ?string
     {
         $length = $headers['content-length'] ?? '';
         if (isset($headers['content-encoding']) || !ctype_digit($length) || $copied >= (int) $length) {
@@ -275,7 +275,7 @@ class ResourceFetcher
     }
 
     /** The cURL options of download(), apart from the target and the request headers. */
-    private static function curlDownloadOptions(): array
+    protected static function curlDownloadOptions(): array
     {
         return [
             CURLOPT_FOLLOWLOCATION => true,
