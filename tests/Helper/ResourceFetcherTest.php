@@ -183,4 +183,15 @@ class ResourceFetcherTest extends TestCase
             'HTTP/1.1 200 OK', 'Content-Type: text/turtle; charset=utf-8', 'Content-Length: 42',
         ]));
     }
+
+    public function testADownloadIsAbortedWhenItStallsNotWhenItIsSlow(): void
+    {
+        $options = (new \ReflectionMethod(ResourceFetcher::class, 'curlDownloadOptions'))->invoke(null);
+
+        // no limit on the whole transfer: a large release on a slow link must still arrive
+        $this->assertArrayNotHasKey(CURLOPT_TIMEOUT, $options);
+        $this->assertSame(30, $options[CURLOPT_CONNECTTIMEOUT]);
+        $this->assertSame(1024, $options[CURLOPT_LOW_SPEED_LIMIT]);
+        $this->assertSame(60, $options[CURLOPT_LOW_SPEED_TIME]);
+    }
 }

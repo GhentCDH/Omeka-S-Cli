@@ -69,8 +69,9 @@ class ResourceFetcher
     }
 
     /**
-     * Copy a file, or download a URL, to $target, streaming it (no memory limit; a 10-minute timeout
-     * suits release ZIPs).
+     * Copy a file, or download a URL, to $target, streaming it (no memory limit). A download is
+     * aborted when it stalls (below 1 KB/s for 60 s), not after a fixed time, so a large release on a
+     * slow link still arrives.
      *
      * @param string[] $headers Request headers for a URL (e.g. "Accept: text/turtle")
      * @return string|null The response Content-Type of a URL (lowercase, without parameters); null for a file
@@ -98,15 +99,7 @@ class ResourceFetcher
             throw new Exception("Failed to write '{$target}'.");
         }
         $ch = curl_init($source);
-        curl_setopt_array($ch, [
-            CURLOPT_FILE => $handle,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 600,
-            CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_FAILONERROR => true,
-            CURLOPT_HTTPHEADER => $headers,
-        ]);
+        curl_setopt_array($ch, [CURLOPT_FILE => $handle, CURLOPT_HTTPHEADER => $headers] + self::curlDownloadOptions());
         $ok = curl_exec($ch);
         $error = curl_error($ch);
         $type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
@@ -266,6 +259,21 @@ class ResourceFetcher
         return $content;
     }
 
+    /** The cURL options of download(), apart from the target and the request headers. */
+    private static function curlDownloadOptions(): array
+    {
+        return [
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            // abort a stalled transfer (below 1 KB/s for 60 s) instead of capping the whole download
+            CURLOPT_LOW_SPEED_LIMIT => 1024,
+            CURLOPT_LOW_SPEED_TIME => 60,
+            CURLOPT_USERAGENT => 'Omeka-S-CLI/1.0',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_FAILONERROR => true,
+        ];
+    }
+
     /**
      * Download a URL to $target with PHP's http stream wrapper, streaming it (the transport without
      * cURL).
@@ -283,7 +291,8 @@ class ResourceFetcher
             throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
         }
 
-        $http = ['timeout' => 600, 'user_agent' => 'Omeka-S-CLI/1.0', 'follow_location' => true];
+        // timeout is an idle timeout here: the stream wrapper has no total limit
+        $http = ['timeout' => 60, 'user_agent' => 'Omeka-S-CLI/1.0', 'follow_location' => true];
         if ($headers) {
             $http['header'] = $headers;
         }
