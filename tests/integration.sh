@@ -699,6 +699,13 @@ fi
 assert_success "media:add --source given on the command line is relative to the working directory, not the JSON file" \
     bash -c "set -o pipefail; cd /tmp/osc-media-flag && $CLI media:add $OBJ2_ID --base-path /var/www/omeka-s --json-file json/media.json --source ./pixel.png --json | jq -e '.ingester == \"upload\"'"
 run    "remove the flag test files"                              rm -rf /tmp/osc-media-flag
+# --site: the item goes to that site only, not to every site that takes new items
+run    "add a site for --site"                                    $CLI site:add "Items Site A" --slug osc-items-a --ignore-existing
+run    "add a second site that takes new items"                   $CLI site:add "Items Site B" --slug osc-items-b --ignore-existing
+assert_success "item:import --site assigns that site"             bash -c "set -o pipefail; $CLI item:import $ITEMS/item-site.jsonld --site osc-items-a --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+SITE_ITEM=""
+if [[ $SECTION_SKIP -eq 0 ]]; then SITE_ITEM=$($CLI item:list -p dcterms:identifier=it-site --json 2>/dev/null | jq '.[0].id'); fi
+assert_output_is "the item is on that site only"                  "osc-items-a"   bash -c "echo \"select group_concat(s.slug) from item_site i join site s on s.id = i.site_id where i.item_id = $SITE_ITEM\" | $SQL"
 assert_success "item:import -m takes options after the source" bash -c "set -o pipefail; $CLI item:import $ITEMS/item-media-options.jsonld -m 'html=<p>a\\;b</p>;title=Note' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 if [[ $SECTION_SKIP -eq 0 ]]; then
     OPT_ITEM=$($CLI item:list -p dcterms:identifier=it-media-options --json 2>/dev/null | jq '.[0].id')
@@ -794,6 +801,8 @@ assert_success "the items have their item sets and media (upload, simple url, ht
     bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e '[.[] | select((.title == \"BP Simple Sketch\" and .media == 1 and .itemSets == 1) or (.title == \"BP Print 1\" and .media == 2 and .itemSets == 1) or (.title == \"BP Print 2\" and .itemSets == 1))] | length == 3'"
 CONTENT_ITEMS=""
 if [[ $SECTION_SKIP -eq 0 ]]; then CONTENT_ITEMS=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length'); fi
+assert_output_is "a simple item without sites is on the default site only" "1" \
+    bash -c "echo \"select count(*) from item_site i join item it on it.id = i.item_id join resource r on r.id = it.id where r.title = 'BP Simple Sketch' and i.site_id = (select json_unquote(value) from setting where id = 'default_site') and (select count(*) from item_site i2 where i2.item_id = it.id) = 1\" | mysql --raw -u root -proot -h db -N omeka"
 assert_output_contains "a second deploy skips what exists"               "already exists"   $CLI blueprint:deploy $CONTENT_BP --skip core --force
 assert_output_is "a second deploy adds no items"                           "$CONTENT_ITEMS"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
 assert_success "--skip items skips the items phase"                        bash -c "$CLI blueprint:deploy $CONTENT_BP --skip core,items --force | grep -q 'Items.*skipped (--skip)'"

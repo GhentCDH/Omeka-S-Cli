@@ -594,6 +594,10 @@ class BlueprintApplier
                     $temp[] = $documentFile = Path::createTempFile('bp-item-');
                     file_put_contents($documentFile, json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
                     $config = ['source' => $documentFile, 'title' => $label, 'media' => array_map(fn(MediaConfig $m) => $m->toArray(), $media)];
+                    if ($kind === 'item') {
+                        // no sites: the default site, as in the shared format (not every site that takes new items)
+                        $config['sites'] = array_values(array_filter((array) ($entry['sites'] ?? []), 'is_string'));
+                    }
                 } else {
                     $config = $entry;
                 }

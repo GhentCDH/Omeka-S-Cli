@@ -33,7 +33,8 @@ class SimpleContentMapperTest extends TestCase
         $this->assertSame([['type' => 'literal', '@value' => 'Portrait']], $doc['dcterms:description']);
         $this->assertSame([['type' => 'literal', '@value' => 'Leonardo']], $doc['dcterms:creator']);
         $this->assertSame([['o-ref:ref' => ['dcterms:title' => 'Paintings']]], $doc['o:item_set']);
-        $this->assertSame([['o:slug' => 'collections']], $doc['o:site']);
+        // sites travel through the import config (ItemImportConfig::sites()), where no sites means the default site
+        $this->assertArrayNotHasKey('o:site', $doc);
         $this->assertArrayNotHasKey('o-ref:id', $doc);
 
         $this->assertSame('url', $media[0]->ingester());

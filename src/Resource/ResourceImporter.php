@@ -49,6 +49,7 @@ class ResourceImporter
         array $media = [],
         ?string $identifyBy = null,
         bool $dryRun = false,
+        ?array $sites = null,
     ): ImportResult {
         if ($media && $type !== ResourceType::Item) {
             throw new InvalidArgumentException('Media can only be added to items.');
@@ -57,6 +58,9 @@ class ResourceImporter
             $document['@context'] = $this->fetchContext($document['@context']);
         }
 
+        if ($type === ResourceType::Item) {
+            $document = $this->withSites($document, $sites);
+        }
         $built = (new PayloadBuilder($this->catalog))->build($document, $type, $label, $identifyBy);
 
         $identity = $built->identity();
@@ -99,6 +103,31 @@ class ResourceImporter
             throw new ResourceImportException($label, [$e->getMessage()]);
         }
         return ImportResult::created((int) $resource->id(), $built->title(), $built->warnings());
+    }
+
+    /**
+     * $document with its o:site replaced by $sites (slugs or titles, resolved by PayloadBuilder; none
+     * resolving → the default site). An empty list means the default site; without one, o:site is
+     * removed, so Omeka assigns the item to the sites that take new items. Null keeps the document's.
+     *
+     * @param string[]|null $sites
+     */
+    public function withSites(array $document, ?array $sites): array
+    {
+        if ($sites === null) {
+            return $document;
+        }
+        if ($sites !== []) {
+            $document['o:site'] = array_map(fn(string $site) => ['o:slug' => $site], array_values($sites));
+            return $document;
+        }
+        $default = $this->catalog->defaultSiteId();
+        if ($default === null) {
+            unset($document['o:site']);
+        } else {
+            $document['o:site'] = [['o:id' => $default]];
+        }
+        return $document;
     }
 
     /** The prefix map of a context URL; empty (the target's prefixes apply) when it cannot be read. */

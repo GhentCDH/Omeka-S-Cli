@@ -31,6 +31,35 @@ class ResourceImporterTest extends TestCase
         return new ResourceImporter(null, $catalog ?? FakeCatalog::sample(), $fetchJson);
     }
 
+    public function testSitesReplaceTheDocumentSites(): void
+    {
+        $document = ['o:site' => [['o:slug' => 'other']], 'dcterms:title' => [['type' => 'literal', '@value' => 'X']]];
+
+        $this->assertSame(
+            [['o:slug' => 'collections'], ['o:slug' => 'Archive']],
+            $this->importer()->withSites($document, ['collections', 'Archive'])['o:site']
+        );
+    }
+
+    public function testNoSitesMeansTheDefaultSite(): void
+    {
+        $catalog = FakeCatalog::sample();
+        $catalog->defaultSite = 1;
+
+        $this->assertSame([['o:id' => 1]], $this->importer($catalog)->withSites(['o:site' => [['o:slug' => 'x']]], [])['o:site']);
+    }
+
+    public function testNoSitesWithoutADefaultSiteLeavesItToOmeka(): void
+    {
+        $this->assertArrayNotHasKey('o:site', $this->importer()->withSites(['o:site' => [['o:slug' => 'x']]], []));
+    }
+
+    public function testNullSitesKeepTheDocument(): void
+    {
+        $document = ['o:site' => [['o:slug' => 'x']]];
+        $this->assertSame($document, $this->importer()->withSites($document, null));
+    }
+
     public function testContextUrlIsFetched(): void
     {
         $fetched = [];

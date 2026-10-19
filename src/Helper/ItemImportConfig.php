@@ -12,11 +12,16 @@ use InvalidArgumentException;
  */
 class ItemImportConfig
 {
-    /** @param MediaConfig[] $media */
+    /**
+     * @param MediaConfig[]  $media
+     * @param string[]|null  $sites Site slugs or titles replacing the source's o:site; [] = the default
+     *                              site; null = keep the source's o:site
+     */
     private function __construct(
         private string $source,
         private ?string $title,
         private array $media,
+        private ?array $sites = null,
     ) {
     }
 
@@ -44,7 +49,12 @@ class ItemImportConfig
                 throw new InvalidArgumentException("media[{$i}]: " . $e->getMessage(), 0, $e);
             }
         }
-        return new self($data['source'], $data['title'] ?? null, $configs);
+        $sites = $data['sites'] ?? null;
+        if ($sites !== null && (!is_array($sites) || !array_is_list($sites)
+            || array_filter($sites, fn($site) => !is_string($site) || trim($site) === ''))) {
+            throw new InvalidArgumentException("An import entry 'sites' must be a list of site slugs or titles.");
+        }
+        return new self($data['source'], $data['title'] ?? null, $configs, $sites);
     }
 
     public function source(): string
@@ -55,6 +65,12 @@ class ItemImportConfig
     public function title(): ?string
     {
         return $this->title;
+    }
+
+    /** @return string[]|null Site slugs or titles; [] = the default site; null = the source's o:site */
+    public function sites(): ?array
+    {
+        return $this->sites;
     }
 
     /** @return MediaConfig[] */
@@ -74,7 +90,8 @@ class ItemImportConfig
         return new self(
             $resolve($this->source),
             $this->title,
-            array_map(fn(MediaConfig $m) => $m->isFile() ? $m->withSource($resolve($m->source())) : $m, $this->media)
+            array_map(fn(MediaConfig $m) => $m->isFile() ? $m->withSource($resolve($m->source())) : $m, $this->media),
+            $this->sites
         );
     }
 
@@ -86,6 +103,9 @@ class ItemImportConfig
         }
         if ($this->media) {
             $data['media'] = array_map(fn(MediaConfig $m) => $m->toArray(), $this->media);
+        }
+        if ($this->sites !== null) {
+            $data['sites'] = $this->sites;
         }
         return $data;
     }

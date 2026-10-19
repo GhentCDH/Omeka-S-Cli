@@ -9,7 +9,8 @@ use OSC\Resource\PortableJsonLd;
  * imported the same way as the CLI's own JSON-LD entries:
  * - `title`, `description`, `creator` → Dublin Core literals;
  * - `itemSets` (titles) → `o:item_set` references by `dcterms:title`;
- * - `sites` (slugs or titles) → `o:site`;
+ * - `sites` are not mapped here: they travel through the import config (ItemImportConfig::sites()),
+ *   where no sites means the default site;
  * - `media[]` `{url, title, altText}`: an http(s) URL → the `url` ingester, anything else (a path the
  *   loader resolved) → `upload`.
  *
@@ -42,11 +43,6 @@ final class SimpleContentMapper
                 fn(string $title) => [PortableJsonLd::PREFIX . ':' . PortableJsonLd::REF => ['dcterms:title' => $title]],
                 $itemSets
             );
-        }
-        $sites = array_values(array_filter((array) ($entry['sites'] ?? []), 'is_string'));
-        if ($sites) {
-            // a slug or a title; PayloadBuilder looks both up, and falls back to the default site
-            $doc['o:site'] = array_map(fn(string $site) => ['o:slug' => $site], $sites);
         }
 
         $media = [];

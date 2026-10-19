@@ -1,6 +1,8 @@
 {
     "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
     "meta": { "title": "Content demo", "description": "Item sets and items in both notations." },
+    // the default site: a simple item without "sites" lands there only
+    "sites": [ { "title": "BP Content", "slug": "bp-content", "setAsDefault": true } ],
     // the shared format's simple notation
     "itemSets": [ { "title": "BP Drawings", "description": "A simple item set" } ],
     "items": [

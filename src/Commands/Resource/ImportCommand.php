@@ -26,6 +26,10 @@ class ImportCommand extends AbstractResourceCommand
                 'Media to attach, as ingester=source[;key=value...] (e.g. upload=./photo.jpg;title=Front or '
                 . 'youtube=https://youtu.be/ID;start=30) or a JSON media object (repeatable)'
             );
+            $this->option(
+                '-s --site [slug...]',
+                "Site (slug or title) to assign the item to, replacing the file's o:site; no match → the default site (repeatable)"
+            );
         }
         $this->option('--identify-by', "Property whose value identifies an existing {$label} (default: the file's o-ref:id, else the title)");
         $this->optionDryRun();
@@ -39,7 +43,9 @@ class ImportCommand extends AbstractResourceCommand
             . "* Import an exported {$label}:<eol/>"
             . "{$prefix}:import ./content/12-mona-lisa.jsonld<eol/>"
             . ($type === ResourceType::Item
-                ? '<eol/>* Import an item with a local image and a IIIF image:<eol/>'
+                ? '<eol/>* Import an item into the site "collections" only:<eol/>'
+                    . "{$prefix}:import mona-lisa.jsonld --site collections<eol/>"
+                    . '<eol/>* Import an item with a local image and a IIIF image:<eol/>'
                     . "{$prefix}:import mona-lisa.jsonld --media upload=./mona-lisa.jpg --media iiif=https://example.org/iiif/ml/info.json<eol/>"
                     . '<eol/>* Import an item with a titled YouTube video that starts at 30 s:<eol/>'
                     . "{$prefix}:import talk.jsonld --media 'youtube=https://youtu.be/ID;start=30;title=The talk'<eol/>"
@@ -53,6 +59,7 @@ class ImportCommand extends AbstractResourceCommand
         ?string $source = null,
         ?string $config = null,
         ?array $media = null,
+        ?array $site = null,
         ?string $identifyBy = null,
         ?bool $dryRun = false,
         ?bool $json = false
@@ -66,12 +73,17 @@ class ImportCommand extends AbstractResourceCommand
             if (!is_array($data)) {
                 throw new InvalidArgumentException("Invalid configuration file: {$config}");
             }
+            if ($site) {
+                throw new InvalidArgumentException("Give the sites in the configuration file ('sites') or with --site, not both.");
+            }
             $entry = ItemImportConfig::fromArray($data)->withSources(fn(string $s) => $this->resolveSource($s, $configPath));
         } else {
-            $entry = ItemImportConfig::fromArray([
+            $sites = array_values(array_filter((array) $site, 'is_string'));
+            $entry = ItemImportConfig::fromArray(array_filter([
                 'source' => $source,
                 'media' => array_map([$this, 'mediaSpec'], array_values(array_filter((array) $media, 'is_string'))),
-            ])->withSources(fn(string $s) => $this->resolveSource($s));
+                'sites' => $sites ?: null,
+            ], fn($value) => $value !== null))->withSources(fn(string $s) => $this->resolveSource($s));
         }
 
         $document = ResourceFetcher::fetchJson($entry->source());
@@ -91,7 +103,7 @@ class ImportCommand extends AbstractResourceCommand
             null,
             fn(array $media) => MediaIngesters::check($services, $media)
         );
-        $result = $importer->import($document, $this->type, $label, $entry->media(), $identifyBy, (bool) $dryRun);
+        $result = $importer->import($document, $this->type, $label, $entry->media(), $identifyBy, (bool) $dryRun, $entry->sites());
 
         if ($json) {
             $this->outputFormatted($result->toArray(), 'json');

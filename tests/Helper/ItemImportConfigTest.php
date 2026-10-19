@@ -20,6 +20,23 @@ class ItemImportConfigTest extends TestCase
         ItemImportConfig::fromArray(['title' => 'x']);
     }
 
+    public function testSitesAreValidatedAndRoundTripped(): void
+    {
+        $config = ItemImportConfig::fromArray(['source' => 'a.jsonld', 'sites' => ['collections', 'Archive']]);
+        $this->assertSame(['collections', 'Archive'], $config->sites());
+        $this->assertSame(['source' => 'a.jsonld', 'sites' => ['collections', 'Archive']], $config->toArray());
+
+        $this->assertNull(ItemImportConfig::fromArray(['source' => 'a.jsonld'])->sites());
+        $this->assertSame([], ItemImportConfig::fromArray(['source' => 'a.jsonld', 'sites' => []])->sites());
+    }
+
+    public function testSitesMustBeAListOfNames(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("An import entry 'sites' must be a list of site slugs or titles.");
+        ItemImportConfig::fromArray(['source' => 'a.jsonld', 'sites' => ['collections', 3]]);
+    }
+
     public function testMediaErrorsNameTheEntry(): void
     {
         $this->expectException(InvalidArgumentException::class);
