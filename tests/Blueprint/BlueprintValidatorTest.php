@@ -132,6 +132,18 @@ class BlueprintValidatorTest extends TestCase
         $this->assertContains("items[0]: references unknown item set 'Paintings'.", $errors);
     }
 
+    public function testANonObjectExtensionKeyIsReportedNotACrash(): void
+    {
+        $errors = $this->validator()->validateBlueprint(['x-omeka-s-cli' => 'foo', 'items' => [['title' => 'A', 'itemSets' => ['S']]]]);
+        $this->assertContains('x-omeka-s-cli must be an object.', $errors);
+    }
+
+    public function testANonStringItemSetTitleIsReportedNotACrash(): void
+    {
+        $errors = $this->validator()->validateBlueprint(['x-omeka-s-cli' => ['itemSets' => [['source' => './s.jsonld', 'title' => ['x']]]]]);
+        $this->assertContains("x-omeka-s-cli.itemSets[0]: An import entry 'title' must be a string.", $errors);
+    }
+
     public function testValidatesAStandaloneModulePartial(): void
     {
         $validator = $this->validator();

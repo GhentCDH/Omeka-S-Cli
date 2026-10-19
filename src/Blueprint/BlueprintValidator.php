@@ -243,12 +243,6 @@ class BlueprintValidator
     }
 
     /**
-     * Referential-integrity checks that the schema cannot express.
-     *
-     * @param array $blueprint
-     * @return string[]
-     */
-    /**
      * The shape of the CLI's item and item-set entries (x-omeka-s-cli.items / .itemSets), which the
      * shared schema does not cover: each must be a valid ItemImportConfig, and an item set has no media.
      *
@@ -256,12 +250,20 @@ class BlueprintValidator
      */
     private function extensionErrors(array $blueprint): array
     {
+        if (!array_key_exists('x-omeka-s-cli', $blueprint)) {
+            return [];
+        }
+        // the shared schema accepts any value under an x- key
+        $extension = $blueprint['x-omeka-s-cli'];
+        if (!is_array($extension) || ($extension !== [] && array_is_list($extension))) {
+            return ['x-omeka-s-cli must be an object.'];
+        }
         $errors = [];
         foreach (['items' => SourceFields::EXTENSION_ITEMS, 'itemSets' => SourceFields::EXTENSION_ITEM_SETS] as $key => $label) {
-            if (!array_key_exists($key, $blueprint['x-omeka-s-cli'] ?? [])) {
+            if (!array_key_exists($key, $extension)) {
                 continue;
             }
-            $entries = $blueprint['x-omeka-s-cli'][$key];
+            $entries = $extension[$key];
             if (!is_array($entries) || !array_is_list($entries)) {
                 $errors[] = "{$label} must be a list.";
                 continue;
@@ -281,6 +283,12 @@ class BlueprintValidator
         return $errors;
     }
 
+    /**
+     * Referential-integrity checks that the schema cannot express.
+     *
+     * @param array $blueprint
+     * @return string[]
+     */
     private function referentialErrors(array $blueprint): array
     {
         $errors = [];
@@ -288,7 +296,7 @@ class BlueprintValidator
         // an item set may be a simple one or a CLI entry with a title
         $itemSetTitles = array_merge(
             $this->titlesLower($blueprint['itemSets'] ?? []),
-            $this->titlesLower(is_array($blueprint['x-omeka-s-cli']['itemSets'] ?? null) ? $blueprint['x-omeka-s-cli']['itemSets'] : [])
+            $this->titlesLower(is_array($blueprint['x-omeka-s-cli'] ?? null) && is_array($blueprint['x-omeka-s-cli']['itemSets'] ?? null) ? $blueprint['x-omeka-s-cli']['itemSets'] : [])
         );
         foreach (($blueprint['items'] ?? []) as $i => $item) {
             if (!is_array($item)) {
@@ -358,7 +366,7 @@ class BlueprintValidator
     {
         $titles = [];
         foreach ($itemSets as $itemSet) {
-            if (is_array($itemSet) && isset($itemSet['title'])) {
+            if (is_array($itemSet) && isset($itemSet['title']) && is_string($itemSet['title'])) {
                 $titles[] = strtolower($itemSet['title']);
             }
         }
