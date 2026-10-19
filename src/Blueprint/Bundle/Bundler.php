@@ -113,7 +113,7 @@ class Bundler
         foreach ($data['files'] ?? [] as $i => $file) {
             $data['files'][$i]['source'] = './' . $this->bundleFile("files[{$i}]", (string) ($file['source'] ?? ''), $dir, 'files');
         }
-        $data = $this->bundleContent($data, $dir);
+        $data = $this->bundleContent($data, $dir, $blueprint);
 
         $this->writeBlueprint($data, $dir);
         return $this->warnings;
@@ -398,10 +398,10 @@ class Bundler
      * media file (an upload, or a simple media url that is not an http(s) URL) to media/. A link the
      * ingester keeps (url, iiif, youtube, html, ...) is left as it is.
      */
-    private function bundleContent(array $data, string $dir): array
+    private function bundleContent(array $data, string $dir, Blueprint $blueprint): array
     {
         foreach ($data['items'] ?? [] as $i => $item) {
-            $data['items'][$i] = $this->bundleMediaList(is_array($item) ? $item : [], 'url', "items[{$i}]", $dir);
+            $data['items'][$i] = $this->bundleMediaList(is_array($item) ? $item : [], 'url', "items[{$i}]", $dir, $blueprint);
         }
         $lists = [SourceFields::EXTENSION_ITEM_SETS => 'item-sets', SourceFields::EXTENSION_ITEMS => 'items'];
         foreach ($lists as $path => $subdir) {
@@ -412,17 +412,24 @@ class Bundler
                 }
                 $label = "{$path}[{$i}]";
                 $entry['source'] = './' . $this->bundleFile($label, (string) ($entry['source'] ?? ''), $dir, $subdir, 'jsonld');
-                $data[$object][$key][$i] = $this->bundleMediaList($entry, 'source', $label, $dir);
+                $data[$object][$key][$i] = $this->bundleMediaList($entry, 'source', $label, $dir, $blueprint);
             }
         }
         return $data;
     }
 
-    /** $entry with each media file in its `media` list bundled, the media's $field pointing to it. */
-    private function bundleMediaList(array $entry, string $field, string $label, string $dir): array
+    /**
+     * $entry with each media file in its `media` list bundled, the media's $field pointing to it. A file
+     * is an upload, a simple media url that is not an http(s) URL, or a value the loader recorded as a
+     * file (a relative simple media url of a remote blueprint, resolved to a URL).
+     */
+    private function bundleMediaList(array $entry, string $field, string $label, string $dir, Blueprint $blueprint): array
     {
         foreach ($entry['media'] ?? [] as $j => $media) {
-            if (is_array($media) && is_string($media[$field] ?? null) && SourceFields::isMediaFile($media, $field)) {
+            if (!is_array($media) || !is_string($media[$field] ?? null)) {
+                continue;
+            }
+            if (SourceFields::isMediaFile($media, $field) || (!isset($media['ingester']) && $blueprint->isFileSource($media[$field]))) {
                 $entry['media'][$j][$field] = './' . $this->bundleMedia("{$label}.media[{$j}]", $media[$field], $dir);
             }
         }

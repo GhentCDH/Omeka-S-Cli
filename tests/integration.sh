@@ -793,6 +793,18 @@ assert_success "the content bundle is self-contained"                      $CLI 
 assert_success "the bundle holds the JSON-LD files and the media files"   bash -c "test -f /tmp/bp-content-bundle/items/bp-print-1.jsonld && test -f /tmp/bp-content-bundle/item-sets/bp-prints.jsonld && test \$(ls /tmp/bp-content-bundle/media | wc -l) -eq 2"
 assert_success "a link media stays a link in the bundle"                   bash -c "jq -e '.\"x-omeka-s-cli\".items[0].media[1].ingester == \"html\"' /tmp/bp-content-bundle/blueprint.json"
 run            "remove the content bundle"                                 rm -rf /tmp/bp-content-bundle
+# a remote blueprint: its relative media are files next to it, so they are bundled too
+CONTENT_SERVER=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    php -S 127.0.0.1:8766 -t /app/omeka-s-cli/examples/blueprint > /dev/null 2>&1 &
+    CONTENT_SERVER=$!
+    sleep 1
+fi
+run            "remove a remote content bundle left by an earlier run"    rm -rf /tmp/bp-content-remote
+assert_success "blueprint:bundle bundles a remote blueprint's relative media" $CLI blueprint:bundle http://127.0.0.1:8766/content.blueprint.jsonc /tmp/bp-content-remote
+assert_success "the remote bundle holds both media files"                 bash -c "test \$(ls /tmp/bp-content-remote/media | wc -l) -eq 2 && jq -e '.items[0].media[0].url | startswith(\"./media/\")' /tmp/bp-content-remote/blueprint.json"
+if [[ -n "$CONTENT_SERVER" ]]; then kill "$CONTENT_SERVER" 2>/dev/null || true; fi
+run            "remove the remote content bundle"                          rm -rf /tmp/bp-content-remote
 
 # files: a relative source resolves against the blueprint, not the working directory
 if [[ $SECTION_SKIP -eq 0 ]]; then

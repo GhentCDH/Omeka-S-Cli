@@ -304,6 +304,21 @@ class BundlerTest extends TestCase
         $this->assertFileExists("{$this->dir}/out/media/m.png");
     }
 
+    public function testARelativeSimpleMediaOfARemoteBlueprintIsBundled(): void
+    {
+        // the loader resolved ./media/a.png of https://example.org/bp/blueprint.json to a URL and recorded it as a file
+        $url = 'https://example.org/bp/media/a.png';
+        $blueprint = new Blueprint(
+            ['preferredVersions' => ['omeka' => '4.1.1'], 'items' => [['title' => 'S', 'media' => [['url' => $url]]]]],
+            [$url]
+        );
+
+        $this->bundler([$url => ['png', 'image/png']])->bundle($blueprint, "{$this->dir}/out");
+
+        $this->assertSame('./media/a.png', $this->bundled()['items'][0]['media'][0]['url']);
+        $this->assertSame('png', file_get_contents("{$this->dir}/out/media/a.png"));
+    }
+
     public function testLinkMediaAreLeftAlone(): void
     {
         $item = "{$this->dir}/fixtures/a.jsonld";

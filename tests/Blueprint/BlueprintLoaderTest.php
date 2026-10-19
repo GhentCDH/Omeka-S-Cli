@@ -788,6 +788,20 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame('Paintings', $blueprint->itemSets()[0]['title']);
     }
 
+    public function testTheLoaderRecordsWhichMediaAreFiles(): void
+    {
+        $path = $this->writeIn('bp/blueprint.json', json_encode([
+            'items' => [['title' => 'A', 'media' => [['url' => './m.png'], ['url' => 'https://x.org/a.jpg']]]],
+            'x-omeka-s-cli' => ['items' => [['source' => './a.jsonld', 'media' => [['ingester' => 'upload', 'source' => './u.png']]]]],
+        ]));
+
+        $blueprint = (new BlueprintLoader())->load($path);
+
+        $this->assertTrue($blueprint->isFileSource($this->dir . '/bp/m.png'));
+        $this->assertTrue($blueprint->isFileSource($this->dir . '/bp/u.png'));
+        $this->assertFalse($blueprint->isFileSource('https://x.org/a.jpg'));
+    }
+
     public function testSelfContainedFlagsUploadUrlsButNotLinkMedia(): void
     {
         $base = $this->write('base.json', json_encode([

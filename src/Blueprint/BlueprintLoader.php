@@ -56,6 +56,9 @@ class BlueprintLoader
     /** Self-contained violations gathered during the current load (see takeViolations()). */
     private array $violations = [];
 
+    /** The resolved media values of the current load that are files (see Blueprint::isFileSource()). */
+    private array $fileSources = [];
+
     /**
      * @param ReferenceResolver|null $resolver      Resolver for repo-aware and relative references
      * @param string|null            $rootOverride  Directory local references must stay inside; defaults
@@ -83,7 +86,9 @@ class BlueprintLoader
         $source = $this->begin($source);
         return $this->guarded($source, function () use ($source) {
             $blueprint = $this->decodeObject(ResourceFetcher::fetch($source), $source);
-            return new Blueprint($this->resolve($blueprint, $source));
+            $this->fileSources = [];
+            $resolved = $this->resolve($blueprint, $source);
+            return new Blueprint($resolved, array_values(array_unique($this->fileSources)));
         });
     }
 
@@ -517,6 +522,9 @@ class BlueprintLoader
         $ref = $this->reference($value, $source, "{$label}.{$field}");
         if ($ref !== null) {
             $element[$field] = $ref;
+            if ($kind === SourceFields::MEDIA) {
+                $this->fileSources[] = $ref;
+            }
         }
         return $element;
     }
