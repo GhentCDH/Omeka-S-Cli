@@ -688,8 +688,18 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
 fi
 assert_success "media:add --data passes start to the youtube ingester" bash -c "echo 'select data from media where id = $YT_ID' | $SQL | jq -e '.start == \"30\"'"
 assert_output_is "media:add --data sets the media title" "Clip"  bash -c "echo \"$MEDIA_TITLE_SQL $YT_ID\" | $SQL"
-assert_success "media:add --json-file resolves an upload relative to the file" bash -c "cd / && $CLI media:add \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --json-file /tmp/osc-media-file/media.json --json | jq -e '.ingester == \"upload\"'"
-assert_success "item:import -m takes options after the source" bash -c "$CLI item:import $ITEMS/item-media-options.jsonld -m 'html=<p>a\\;b</p>;title=Note' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+# jq 1.6 -e exits 0 on empty input: pipefail makes a failing CLI fail the check
+OBJ2_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then OBJ2_ID=$($CLI item:list -p dcterms:identifier=it-obj-2 --json 2>/dev/null | jq '.[0].id'); fi
+assert_success "media:add --json-file resolves an upload relative to the file" bash -c "set -o pipefail; cd / && $CLI media:add $OBJ2_ID --base-path /var/www/omeka-s --json-file /tmp/osc-media-file/media.json --json | jq -e '.ingester == \"upload\"'"
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf /tmp/osc-media-flag && mkdir -p /tmp/osc-media-flag/json && cp $ITEMS/media/pixel.png /tmp/osc-media-flag/
+    echo '{"ingester": "upload", "title": "Flag source"}' > /tmp/osc-media-flag/json/media.json
+fi
+assert_success "media:add --source given on the command line is relative to the working directory, not the JSON file" \
+    bash -c "set -o pipefail; cd /tmp/osc-media-flag && $CLI media:add $OBJ2_ID --base-path /var/www/omeka-s --json-file json/media.json --source ./pixel.png --json | jq -e '.ingester == \"upload\"'"
+run    "remove the flag test files"                              rm -rf /tmp/osc-media-flag
+assert_success "item:import -m takes options after the source" bash -c "set -o pipefail; $CLI item:import $ITEMS/item-media-options.jsonld -m 'html=<p>a\\;b</p>;title=Note' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 if [[ $SECTION_SKIP -eq 0 ]]; then
     OPT_ITEM=$($CLI item:list -p dcterms:identifier=it-media-options --json 2>/dev/null | jq '.[0].id')
 fi
@@ -779,9 +789,9 @@ assert_success "blueprint:deploy is idempotent on a second run"            $CLI 
 # content: item sets and items, in the shared simple notation and as the CLI's JSON-LD entries
 CONTENT_BP=/app/omeka-s-cli/examples/blueprint/content.blueprint.jsonc
 assert_success "blueprint:deploy imports item sets and items"              $CLI blueprint:deploy $CONTENT_BP --skip core --force
-assert_success "both item sets are there"                                  bash -c "$CLI item-set:list --limit 1000 --json | jq -e '[.[] | select(.title == \"BP Drawings\" or .title == \"BP Prints\")] | length == 2'"
+assert_success "both item sets are there"                                  bash -c "set -o pipefail; $CLI item-set:list --limit 1000 --json | jq -e '[.[] | select(.title == \"BP Drawings\" or .title == \"BP Prints\")] | length == 2'"
 assert_success "the items have their item sets and media (upload, simple url, html)" \
-    bash -c "$CLI item:list --limit 1000 --json | jq -e '[.[] | select((.title == \"BP Simple Sketch\" and .media == 1 and .itemSets == 1) or (.title == \"BP Print 1\" and .media == 2 and .itemSets == 1) or (.title == \"BP Print 2\" and .itemSets == 1))] | length == 3'"
+    bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e '[.[] | select((.title == \"BP Simple Sketch\" and .media == 1 and .itemSets == 1) or (.title == \"BP Print 1\" and .media == 2 and .itemSets == 1) or (.title == \"BP Print 2\" and .itemSets == 1))] | length == 3'"
 CONTENT_ITEMS=""
 if [[ $SECTION_SKIP -eq 0 ]]; then CONTENT_ITEMS=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length'); fi
 assert_output_contains "a second deploy skips what exists"               "already exists"   $CLI blueprint:deploy $CONTENT_BP --skip core --force

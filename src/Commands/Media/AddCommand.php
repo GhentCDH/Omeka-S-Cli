@@ -52,7 +52,8 @@ class AddCommand extends AbstractCommand
         if ($data !== null && $jsonFile !== null) {
             throw new InvalidArgumentException('Give --data or --json-file, not both.');
         }
-        // a relative upload source is relative to the JSON file, else to the working directory
+        // a relative upload source from the JSON file is relative to that file; one typed on the
+        // command line (--source, or --data) is relative to the working directory
         $base = $this->getCwd();
         $object = [];
         if ($data !== null) {
@@ -60,7 +61,7 @@ class AddCommand extends AbstractCommand
         } elseif ($jsonFile !== null) {
             $file = ResourceFetcher::isUrl($jsonFile) ? $jsonFile : Path::toAbsolutePath($jsonFile, $this->getCwd());
             $object = ResourceFetcher::fetchJson($file);
-            $base = ResourceFetcher::isUrl($file) ? $base : dirname($file);
+            $base = ResourceFetcher::isUrl($file) || $source !== null ? $base : dirname($file);
         }
         if (!is_array($object) || ($object !== [] && array_is_list($object))) {
             throw new InvalidArgumentException('The media must be a JSON object.');
