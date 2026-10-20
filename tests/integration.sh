@@ -812,6 +812,8 @@ CONTENT_ITEMS=""
 if [[ $SECTION_SKIP -eq 0 ]]; then CONTENT_ITEMS=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length'); fi
 assert_output_is "a simple item without sites is on the default site only" "1" \
     bash -c "echo \"select count(*) from item_site i join item it on it.id = i.item_id join resource r on r.id = it.id where r.title = 'BP Simple Sketch' and i.site_id = (select json_unquote(value) from setting where id = 'default_site') and (select count(*) from item_site i2 where i2.item_id = it.id) = 1\" | mysql --raw -u root -proot -h db -N omeka"
+assert_output_is "an entry's sites (by title) replace its file's sites" "bp-archive" \
+    bash -c "echo \"select group_concat(s.slug) from item_site i join site s on s.id = i.site_id join resource r on r.id = i.item_id where r.title = 'BP Print 2'\" | mysql --raw -u root -proot -h db -N omeka"
 assert_output_contains "a second deploy skips what exists"               "already exists"   $CLI blueprint:deploy $CONTENT_BP --skip core --force
 assert_output_is "a second deploy adds no items"                           "$CONTENT_ITEMS"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
 assert_success "--skip items skips the items phase"                        bash -c "$CLI blueprint:deploy $CONTENT_BP --skip core,items --force | grep -q 'Items.*skipped (--skip)'"
