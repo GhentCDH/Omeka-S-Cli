@@ -1,0 +1,10 @@
+{
+    "source": "portrait.jsonld",
+    "title": "Portrait of a woman",
+    "sites": ["collections"],
+    "media": [
+        { "ingester": "upload", "source": "mona-lisa.png", "title": "Front", "altText": "A woman, half-length" },
+        { "ingester": "iiif",
+          "source": "https://iiif.io/api/image/3.0/example/reference/918ecd18c2592080851777620de9bcb5-gottingen/info.json" }
+    ]
+}

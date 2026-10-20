@@ -189,6 +189,40 @@ created.
 --8<-- "docs/examples/items.sh:import-linked"
 ```
 
+## Import with a configuration file
+
+To import an item with several media, or to keep an import repeatable, describe it in a JSON file and
+pass it with `--config`. Relative paths in it are relative to the file. It takes the JSON-LD `source`,
+the item's `sites`, and its `media` as [media objects](#add-media-to-an-item); the `title` is only used
+in messages:
+
+??? example "`~/content/portrait.import.json`"
+
+    ```json
+    --8<-- "docs/examples/files/items/portrait.import.json"
+    ```
+
+```bash
+--8<-- "docs/examples/items.sh:import-config"
+```
+
+Without a `source`, the file creates an item from a `title` alone (its `dcterms:title`), with its
+`itemSets` (by title), `sites` and `media`. Any other property needs a JSON-LD file:
+
+??? example "`~/content/notebook.import.json`"
+
+    ```json
+    --8<-- "docs/examples/files/items/notebook.import.json"
+    ```
+
+```bash
+--8<-- "docs/examples/items.sh:import-config-title-only"
+```
+
+`--site` can't be combined with a configuration file: put the sites in the file. A configuration file
+has the same shape as a blueprint's `x-omeka-s-cli.items` entry, see
+[Content](../automation/blueprints.md#content).
+
 ## Import without creating duplicates
 
 Before creating a resource, `item:import` looks for it on the installation: by its `o-ref:id` (a property
@@ -255,11 +289,63 @@ import again. Omeka S checks the rest itself, such as the properties a resource 
 +-------------------+-------------------+
 ```
 
-`media:add` adds one media to an existing item, with an optional `--title` and `--alt-text`:
+`media:add` adds one media to an existing item. `--source` is what the ingester ingests; `--title` and
+`--alt-text` are optional. The same `source` works for every core ingester:
 
-```bash
---8<-- "docs/examples/items.sh:media-add"
-```
+| Ingester | `source` | Other keys |
+| --- | --- | --- |
+| `upload` | a local path or a URL; the file is stored | |
+| `url` | the URL of a file; Omeka S downloads and stores it | `store_original` |
+| `html` | the HTML | |
+| `iiif` | the `info.json` URL of an IIIF image | |
+| `iiif_presentation` | the URL of an IIIF manifest | |
+| `oembed` | the URL of a page from a provider Omeka S allows (YouTube, Vimeo, Flickr, ...) | |
+| `youtube` | a `https://www.youtube.com/watch?v=...` or `https://youtu.be/...` URL | `start`, `end` (seconds) |
+
+`url`, `iiif`, `iiif_presentation`, `oembed` and `youtube` fetch from the internet when the media is
+added.
+
+=== "upload"
+
+    ```bash
+    --8<-- "docs/examples/items.sh:media-upload"
+    ```
+
+=== "url"
+
+    ```bash
+    --8<-- "docs/examples/items.sh:media-url"
+    ```
+
+=== "html"
+
+    ```bash
+    --8<-- "docs/examples/items.sh:media-html"
+    ```
+
+=== "iiif"
+
+    ```bash
+    --8<-- "docs/examples/items.sh:media-iiif"
+    ```
+
+=== "iiif_presentation"
+
+    ```bash
+    --8<-- "docs/examples/items.sh:media-iiif-presentation"
+    ```
+
+=== "oembed"
+
+    ```bash
+    --8<-- "docs/examples/items.sh:media-oembed"
+    ```
+
+=== "youtube"
+
+    ```bash
+    --8<-- "docs/examples/items.sh:media-youtube"
+    ```
 
 What an ingester takes can't be predicted, especially for ingesters added by modules. Give the media as
 a JSON object with `--data`, or in a file with `--json-file`:
@@ -277,7 +363,8 @@ a JSON object with `--data`, or in a file with `--json-file`:
   module ingester's own key. A raw key such as `o:source` wins over a mapped one.
 
 The flags (`--ingester`, `--source`, `--title`, `--alt-text`) are shortcuts and override the JSON. With
-`--json-file`, a relative `upload` source is relative to the file.
+`--json-file`, a relative `upload` source is relative to the file. The same media objects go in an
+`item:import` [configuration file](#import-with-a-configuration-file) and in `--media`.
 
 ## Reference
 
