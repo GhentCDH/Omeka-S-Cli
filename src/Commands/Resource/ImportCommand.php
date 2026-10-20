@@ -11,6 +11,7 @@ use OSC\Resource\ImportResult;
 use OSC\Resource\MediaIngesters;
 use OSC\Resource\ResourceImporter;
 use OSC\Resource\ResourceType;
+use OSC\Resource\SimpleContentMapper;
 
 class ImportCommand extends AbstractResourceCommand
 {
@@ -19,7 +20,11 @@ class ImportCommand extends AbstractResourceCommand
         $label = $type->label();
         parent::__construct($type, 'import', "Import one {$label} from a JSON-LD file or URL");
         $this->argument('[source]', "JSON-LD file or URL holding one {$label}");
-        $this->option('--config', "JSON file or URL describing the import: {\"source\", \"title\"" . ($type === ResourceType::Item ? ', "media"' : '') . '}');
+        $this->option(
+            '--config',
+            'JSON file or URL describing the import: {"source", "title"'
+            . ($type === ResourceType::Item ? ', "sites", "media"} or, without a source, {"title", "itemSets", "sites", "media"}' : '} or {"title"}')
+        );
         if ($type === ResourceType::Item) {
             $this->option(
                 '-m --media [spec...]',
@@ -86,16 +91,27 @@ class ImportCommand extends AbstractResourceCommand
             ], fn($value) => $value !== null))->withSources(fn(string $s) => $this->resolveSource($s));
         }
 
-        $document = ResourceFetcher::fetchJson($entry->source());
-        if (!is_array($document) || array_is_list($document)) {
-            throw new InvalidArgumentException("{$entry->source()} must hold one JSON-LD resource (an object).");
+        if ($this->type !== ResourceType::Item && $entry->itemSets()) {
+            throw new InvalidArgumentException('An item set has no item sets.');
+        }
+        if ($entry->hasSource()) {
+            $document = ResourceFetcher::fetchJson($entry->source());
+            if (!is_array($document) || array_is_list($document)) {
+                throw new InvalidArgumentException("{$entry->source()} must hold one JSON-LD resource (an object).");
+            }
+            $label = basename($entry->source()) . ($entry->title() !== null ? " (\"{$entry->title()}\")" : '');
+        } else {
+            // a title-only entry: only the title (dcterms:title) and, for an item, its item sets
+            $document = $this->type === ResourceType::Item
+                ? SimpleContentMapper::item(['title' => $entry->title(), 'itemSets' => $entry->itemSets()])[0]
+                : SimpleContentMapper::itemSet(['title' => $entry->title()]);
+            $label = "\"{$entry->title()}\"";
         }
 
         $instance = $this->getOmekaInstance();
         if ($entry->media()) {
             MediaIngesters::useLocalFiles($instance->getServiceManager());
         }
-        $label = basename($entry->source()) . ($entry->title() !== null ? " (\"{$entry->title()}\")" : '');
         $services = $instance->getServiceManager();
         $importer = new ResourceImporter(
             $instance->getApi(),
@@ -112,7 +128,7 @@ class ImportCommand extends AbstractResourceCommand
         foreach ($result->warnings() as $warning) {
             $this->warn($warning, true);
         }
-        $name = ucfirst($this->type->label()) . " '" . ($result->title() ?? $entry->title() ?? basename($entry->source())) . "'";
+        $name = ucfirst($this->type->label()) . " '" . ($result->title() ?? $entry->title() ?? basename((string) $entry->source())) . "'";
         match ($result->status()) {
             ImportResult::CREATED => $this->ok("{$name} created (id {$result->id()}).", true),
             ImportResult::WOULD_CREATE => $this->reportDryRun("would create {$name}"),

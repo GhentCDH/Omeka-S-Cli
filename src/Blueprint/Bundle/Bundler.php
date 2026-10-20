@@ -411,7 +411,10 @@ class Bundler
                     continue;
                 }
                 $label = "{$path}[{$i}]";
-                $entry['source'] = './' . $this->bundleFile($label, (string) ($entry['source'] ?? ''), $dir, $subdir, 'jsonld');
+                // a title-only entry has no JSON-LD file, only media
+                if (isset($entry['source'])) {
+                    $entry['source'] = './' . $this->bundleFile($label, (string) $entry['source'], $dir, $subdir, 'jsonld');
+                }
                 $data[$object][$key][$i] = $this->bundleMediaList($entry, 'source', $label, $dir, $blueprint);
             }
         }

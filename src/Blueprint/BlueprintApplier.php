@@ -14,6 +14,7 @@ use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Helper\SiteConfig;
 use OSC\Omeka\SiteApi;
+use OSC\Resource\SimpleContentMapper;
 use Throwable;
 
 /**

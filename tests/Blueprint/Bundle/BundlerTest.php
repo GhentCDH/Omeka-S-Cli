@@ -319,6 +319,22 @@ class BundlerTest extends TestCase
         $this->assertSame('png', file_get_contents("{$this->dir}/out/media/a.png"));
     }
 
+    public function testATitleOnlyEntryBundlesOnlyItsMedia(): void
+    {
+        $png = "{$this->dir}/fixtures/m.png";
+        file_put_contents($png, 'png');
+
+        $this->bundler()->bundle($this->contentBlueprint(['x-omeka-s-cli' => ['items' => [
+            ['title' => 'Market square', 'itemSets' => ['Postcards'], 'media' => [['ingester' => 'upload', 'source' => $png]]],
+        ]]]), "{$this->dir}/out");
+
+        $this->assertSame(
+            ['title' => 'Market square', 'itemSets' => ['Postcards'], 'media' => [['ingester' => 'upload', 'source' => './media/m.png']]],
+            $this->bundled()['x-omeka-s-cli']['items'][0]
+        );
+        $this->assertSame([self::CORE_URL, $png], $this->downloads);
+    }
+
     public function testLinkMediaAreLeftAlone(): void
     {
         $item = "{$this->dir}/fixtures/a.jsonld";

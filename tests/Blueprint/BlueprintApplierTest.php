@@ -292,7 +292,7 @@ class BlueprintApplierTest extends TestCase
             'items' => [['title' => 'Mona Lisa']],
             'x-omeka-s-cli' => [
                 'itemSets' => [['source' => '/bp/content/drawings.jsonld']],
-                'items' => [['source' => '/bp/content/study.jsonld', 'title' => 'Study']],
+                'items' => [['source' => '/bp/content/study.jsonld', 'title' => 'Study'], ['title' => 'Title only']],
             ],
         ]));
 
@@ -301,6 +301,7 @@ class BlueprintApplierTest extends TestCase
             "would import item set 'drawings.jsonld'",
             "would import item 'Mona Lisa'",
             "would import item 'Study'",
+            "would import item 'Title only'",
         ], $notes);
         $this->assertContains('Item sets', $sections);
         $this->assertContains('Items', $sections);

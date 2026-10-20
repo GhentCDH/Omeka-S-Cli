@@ -1,9 +1,9 @@
 <?php
-namespace Tests\Blueprint;
+namespace Tests\Resource;
 
-use OSC\Blueprint\SimpleContentMapper;
 use OSC\Helper\MediaConfig;
 use OSC\Resource\PortableJsonLd;
+use OSC\Resource\SimpleContentMapper;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;

@@ -699,6 +699,15 @@ fi
 assert_success "media:add --source given on the command line is relative to the working directory, not the JSON file" \
     bash -c "set -o pipefail; cd /tmp/osc-media-flag && $CLI media:add $OBJ2_ID --base-path /var/www/omeka-s --json-file json/media.json --source ./pixel.png --json | jq -e '.ingester == \"upload\"'"
 run    "remove the flag test files"                              rm -rf /tmp/osc-media-flag
+# a config without a source: only a title, its item sets and media
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    echo '{"title": "Title only item", "itemSets": ["Paintings"], "media": [{"ingester": "html", "source": "<p>Note</p>"}]}' > /tmp/osc-title-only.json
+fi
+assert_success "item:import --config without a source creates the item"   bash -c "set -o pipefail; $CLI item:import --config /tmp/osc-title-only.json --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+assert_success "the title-only item has its title, item set and media"    bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e 'any(.[]; .title == \"Title only item\" and .itemSets == 1 and .media == 1)'"
+assert_output_contains "a config without a source takes no other properties" "put other properties ('description') in a JSON-LD source" \
+    bash -c "echo '{\"title\": \"X\", \"description\": \"Y\"}' > /tmp/osc-title-bad.json && $CLI item:import --config /tmp/osc-title-bad.json"
+run    "remove the title-only configs"                           rm -f /tmp/osc-title-only.json /tmp/osc-title-bad.json
 # --site: the item goes to that site only, not to every site that takes new items
 run    "add a site for --site"                                    $CLI site:add "Items Site A" --slug osc-items-a --ignore-existing
 run    "add a second site that takes new items"                   $CLI site:add "Items Site B" --slug osc-items-b --ignore-existing
@@ -798,7 +807,7 @@ CONTENT_BP=/app/omeka-s-cli/examples/blueprint/content.blueprint.jsonc
 assert_success "blueprint:deploy imports item sets and items"              $CLI blueprint:deploy $CONTENT_BP --skip core --force
 assert_success "both item sets are there"                                  bash -c "set -o pipefail; $CLI item-set:list --limit 1000 --json | jq -e '[.[] | select(.title == \"BP Drawings\" or .title == \"BP Prints\")] | length == 2'"
 assert_success "the items have their item sets and media (upload, simple url, html)" \
-    bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e '[.[] | select((.title == \"BP Simple Sketch\" and .media == 1 and .itemSets == 1) or (.title == \"BP Print 1\" and .media == 2 and .itemSets == 1) or (.title == \"BP Print 2\" and .itemSets == 1))] | length == 3'"
+    bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e '[.[] | select((.title == \"BP Simple Sketch\" and .media == 1 and .itemSets == 1) or (.title == \"BP Print 1\" and .media == 2 and .itemSets == 1) or (.title == \"BP Print 2\" and .itemSets == 1) or (.title == \"BP Title Only\" and .media == 1 and .itemSets == 1))] | length == 4'"
 CONTENT_ITEMS=""
 if [[ $SECTION_SKIP -eq 0 ]]; then CONTENT_ITEMS=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length'); fi
 assert_output_is "a simple item without sites is on the default site only" "1" \
@@ -809,7 +818,7 @@ assert_success "--skip items skips the items phase"                        bash 
 run            "remove a content bundle left by an earlier run"           rm -rf /tmp/bp-content-bundle
 assert_success "blueprint:bundle bundles item sets, items and media"      $CLI blueprint:bundle $CONTENT_BP /tmp/bp-content-bundle
 assert_success "the content bundle is self-contained"                      $CLI blueprint:validate /tmp/bp-content-bundle/blueprint.json --self-contained
-assert_success "the bundle holds the JSON-LD files and the media files"   bash -c "test -f /tmp/bp-content-bundle/items/bp-print-1.jsonld && test -f /tmp/bp-content-bundle/item-sets/bp-prints.jsonld && test \$(ls /tmp/bp-content-bundle/media | wc -l) -eq 2"
+assert_success "the bundle holds the JSON-LD files and the media files"   bash -c "test -f /tmp/bp-content-bundle/items/bp-print-1.jsonld && test -f /tmp/bp-content-bundle/item-sets/bp-prints.jsonld && test \$(ls /tmp/bp-content-bundle/media | wc -l) -eq 3"
 assert_success "a link media stays a link in the bundle"                   bash -c "jq -e '.\"x-omeka-s-cli\".items[0].media[1].ingester == \"html\"' /tmp/bp-content-bundle/blueprint.json"
 run            "remove the content bundle"                                 rm -rf /tmp/bp-content-bundle
 # a remote blueprint: its relative media are files next to it, so they are bundled too
@@ -821,7 +830,7 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
 fi
 run            "remove a remote content bundle left by an earlier run"    rm -rf /tmp/bp-content-remote
 assert_success "blueprint:bundle bundles a remote blueprint's relative media" $CLI blueprint:bundle http://127.0.0.1:8766/content.blueprint.jsonc /tmp/bp-content-remote
-assert_success "the remote bundle holds both media files"                 bash -c "test \$(ls /tmp/bp-content-remote/media | wc -l) -eq 2 && jq -e '.items[0].media[0].url | startswith(\"./media/\")' /tmp/bp-content-remote/blueprint.json"
+assert_success "the remote bundle holds the media files"                    bash -c "test \$(ls /tmp/bp-content-remote/media | wc -l) -eq 3 && jq -e '.items[0].media[0].url | startswith(\"./media/\")' /tmp/bp-content-remote/blueprint.json"
 if [[ -n "$CONTENT_SERVER" ]]; then kill "$CONTENT_SERVER" 2>/dev/null || true; fi
 run            "remove the remote content bundle"                          rm -rf /tmp/bp-content-remote
 

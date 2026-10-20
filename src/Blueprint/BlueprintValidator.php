@@ -269,9 +269,14 @@ class BlueprintValidator
                 continue;
             }
             foreach ($entries as $i => $entry) {
-                if ($key === 'itemSets' && is_array($entry) && !empty($entry['media'])) {
-                    $errors[] = "{$label}[{$i}]: item sets have no media.";
-                    continue;
+                if ($key === 'itemSets' && is_array($entry)) {
+                    $extra = array_values(array_intersect(['media', 'itemSets', 'sites'], array_keys($entry)));
+                    if ($extra) {
+                        $errors[] = "{$label}[{$i}]: item sets have no " . match ($extra[0]) {
+                            'itemSets' => 'item sets', default => $extra[0],
+                        } . '.';
+                        continue;
+                    }
                 }
                 try {
                     ItemImportConfig::fromArray(is_array($entry) ? $entry : []);
@@ -305,6 +310,15 @@ class BlueprintValidator
             foreach (($item['itemSets'] ?? []) as $title) {
                 if (!in_array(strtolower((string) $title), $itemSetTitles, true)) {
                     $errors[] = "items[{$i}]: references unknown item set '{$title}'.";
+                }
+            }
+        }
+        // a title-only CLI item names its item sets the same way
+        $extensionItems = is_array($blueprint['x-omeka-s-cli'] ?? null) ? ($blueprint['x-omeka-s-cli']['items'] ?? []) : [];
+        foreach (is_array($extensionItems) ? $extensionItems : [] as $i => $item) {
+            foreach (is_array($item) && is_array($item['itemSets'] ?? null) ? $item['itemSets'] : [] as $title) {
+                if (is_string($title) && !in_array(strtolower($title), $itemSetTitles, true)) {
+                    $errors[] = SourceFields::EXTENSION_ITEMS . "[{$i}]: references unknown item set '{$title}'.";
                 }
             }
         }

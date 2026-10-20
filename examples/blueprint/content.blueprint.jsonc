@@ -18,7 +18,10 @@
                   { "ingester": "upload", "source": "./content/media/pixel.png", "title": "Front" },
                   { "ingester": "html", "source": "<p>Printed in 1520.</p>" }
               ] },
-            { "source": "./content/items/bp-print-2.jsonld", "title": "BP Print 2" }
+            { "source": "./content/items/bp-print-2.jsonld", "title": "BP Print 2" },
+            // no source: only a title (dcterms:title), its item sets, sites and media
+            { "title": "BP Title Only", "itemSets": ["BP Prints"],
+              "media": [ { "ingester": "upload", "source": "./content/media/pixel.png" } ] }
         ]
     }
 }

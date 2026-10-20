@@ -83,13 +83,38 @@ class BlueprintValidatorTest extends TestCase
         $this->assertStringContainsString('Unknown', implode("\n", $errors));
     }
 
-    public function testExtensionItemWithoutSourceIsReported(): void
+    public function testExtensionItemWithoutSourceOrTitleIsReported(): void
     {
         $errors = $this->validator()->validateBlueprint(['x-omeka-s-cli' => ['items' => [
             ['source' => './a.jsonld'],
-            ['title' => 'No source'],
+            ['title' => 'Title only'],
+            ['sites' => ['collections']],
         ]]]);
-        $this->assertContains("x-omeka-s-cli.items[1]: An import entry needs a non-empty 'source'.", $errors);
+        $this->assertSame(["x-omeka-s-cli.items[2]: An import entry needs a 'source' (a JSON-LD file) or a 'title'."], $errors);
+    }
+
+    public function testATitleOnlyEntryWithAnUnknownItemSetIsReported(): void
+    {
+        $errors = $this->validator()->validateBlueprint([
+            'itemSets' => [['title' => 'Postcards']],
+            'x-omeka-s-cli' => ['items' => [
+                ['title' => 'A', 'itemSets' => ['postcards']],
+                ['title' => 'B', 'itemSets' => ['Unknown']],
+            ]],
+        ]);
+        $this->assertSame(["x-omeka-s-cli.items[1]: references unknown item set 'Unknown'."], $errors);
+    }
+
+    public function testAnExtensionItemSetTakesNoItemSetsOrSites(): void
+    {
+        $errors = $this->validator()->validateBlueprint(['x-omeka-s-cli' => ['itemSets' => [
+            ['title' => 'A', 'itemSets' => ['B']],
+            ['source' => './s.jsonld', 'sites' => ['collections']],
+        ]]]);
+        $this->assertSame([
+            'x-omeka-s-cli.itemSets[0]: item sets have no item sets.',
+            'x-omeka-s-cli.itemSets[1]: item sets have no sites.',
+        ], $errors);
     }
 
     public function testExtensionItemMediaErrorsNameTheEntry(): void
