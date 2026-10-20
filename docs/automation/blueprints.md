@@ -115,10 +115,11 @@ ways to write them, and a blueprint can mix both:
   shared format uses `type` and `url` instead). With a `source`, the entry's `title` is only used in
   messages.
 
-An item's `sites` are slugs or titles, matched without case; a name that matches no site gives the
-default site. A shared-format or title-only item without `sites` goes to the default site. An item
-from a JSON-LD file keeps the file's `o:site` unless the entry gives `sites`; a file without `o:site`
-gets the Omeka S rule: every site that takes new items.
+An item's `sites` are slugs or titles, matched without case. When none of them matches a site, the
+item goes to the default site, and so does a shared-format or title-only item without `sites`. An item
+from a JSON-LD file keeps the file's `o:site` unless the entry gives `sites`. Without a default site
+(or for a file without `o:site`), Omeka S adds the item to every site that takes new items; `site:add`
+switches that on unless you pass `--no-assign-new-items`.
 
 ??? example "`content.blueprint.jsonc`"
 
