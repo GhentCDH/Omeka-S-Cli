@@ -156,6 +156,14 @@ for `url`, `iiif`, `iiif_presentation`, `oembed` and `youtube`, and HTML for `ht
 media are created together: if Omeka S rejects a media file (for example, an extension that is not
 allowed), the item is not created either.
 
+`--site` (`-s`, repeatable) assigns the item to a site, by slug or title, instead of the sites in the
+file. A name that matches no site gives the default site. Without `--site`, the file's `o:site` applies,
+and without that Omeka S adds the item to every site that takes new items.
+
+```bash
+--8<-- "docs/examples/items.sh:import-site"
+```
+
 Options for a media follow its source, separated by `;`: `title`, `altText`, `public`, a property
 term such as `dcterms:description`, or anything else the ingester takes, such as YouTube's `start` (see
 [Add media to an item](#add-media-to-an-item)). Write a `;` inside a value as `\;`. A `--media` value

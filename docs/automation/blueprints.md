@@ -105,12 +105,20 @@ ways to write them, and a blueprint can mix both:
 
 - **The shared format's `itemSets` and `items`:** a few fields written in the blueprint. `title`,
   `description` and `creator` become Dublin Core values; an item names its item sets by title and its
-  sites by slug (or title). A media `url` that is an `http(s)` URL is downloaded by Omeka S; a relative
+  `sites` by slug (or title). A media `url` that is an `http(s)` URL is downloaded by Omeka S; a relative
   path is a file next to the blueprint.
-- **The CLI's own entries, under `x-omeka-s-cli`:** one portable JSON-LD file per item set or item
-  (`source`), as [`item:export`](../commands/items.md) writes it, with any number of `media`. A media
-  takes the same object as `media:add --data`: an `ingester`, a `source`, and whatever else the ingester
-  takes. The optional `title` of an entry is only used in messages.
+- **The CLI's own entries, under `x-omeka-s-cli`:** either one portable JSON-LD file per item set or
+  item (`source`), as [`item:export`](../commands/items.md) writes it, or only a `title`, which becomes
+  the `dcterms:title`. Any other property belongs in a JSON-LD file. A title-only item also takes its
+  `itemSets` (by title); every item takes `sites` and any number of `media`. A media takes the same
+  object as `media:add --data`: an `ingester`, a `source`, and whatever else the ingester takes (the
+  shared format uses `type` and `url` instead). With a `source`, the entry's `title` is only used in
+  messages.
+
+An item's `sites` are slugs or titles, matched without case; a name that matches no site gives the
+default site. A shared-format or title-only item without `sites` goes to the default site. An item
+from a JSON-LD file keeps the file's `o:site` unless the entry gives `sites`; a file without `o:site`
+gets the Omeka S rule: every site that takes new items.
 
 ??? example "`content.blueprint.jsonc`"
 

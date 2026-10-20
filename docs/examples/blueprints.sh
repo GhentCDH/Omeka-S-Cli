@@ -104,7 +104,9 @@ omeka-s-cli blueprint:export --include site-permissions | grep -v '^//' | jq -e 
 omeka-s-cli blueprint:deploy ~/blueprints/content.blueprint.jsonc --skip core --force
 # --8<-- [end:deploy-content]
 omeka-s-cli item:list --json | jq -e 'any(.[]; .title == "Harbour at dawn" and .media == 2 and .itemSets == 1)
-    and any(.[]; .title == "Market square" and .media == 1 and .itemSets == 1)' > /dev/null
+    and any(.[]; .title == "Market square" and .media == 1 and .itemSets == 1)
+    and any(.[]; .title == "Street at night" and .media == 1 and .itemSets == 1)' > /dev/null
+omeka-s-cli item:list --site collections --json | jq -e 'any(.[]; .title == "Market square")' > /dev/null
 # a second deploy skips what exists
 omeka-s-cli blueprint:deploy ~/blueprints/content.blueprint.jsonc --skip core --force 2>&1 | grep -q "Item 'Harbour at dawn' already exists"
 

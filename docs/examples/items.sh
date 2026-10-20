@@ -24,6 +24,12 @@ omeka-s-cli item:import ~/content/lecture.jsonld \
 # --8<-- [end:import-media-options]
 omeka-s-cli item:list --property dcterms:identifier=obj-4 --json | jq -e '.[0].media >= 1' > /dev/null
 
+omeka-s-cli site:add Collections --slug collections --ignore-existing --quiet
+# --8<-- [start:import-site]
+omeka-s-cli item:import ~/content/sketchbook.jsonld --site collections
+# --8<-- [end:import-site]
+omeka-s-cli item:list --site collections --property dcterms:identifier=obj-5 --json | jq -e 'length == 1' > /dev/null
+
 # --8<-- [start:import-linked]
 omeka-s-cli item:import ~/content/study.jsonld
 # --8<-- [end:import-linked]
