@@ -1,0 +1,8 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/", "dctype": "http://purl.org/dc/dcmitype/", "o": "http://omeka.org/s/vocabs/o#", "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"},
+    "@type": "o:Item",
+    "o-ref:id": {"dcterms:identifier": "it-obj-2"},
+    "dcterms:title": [{"type": "literal", "@value": "Study for the Mona Lisa"}],
+    "dcterms:identifier": [{"type": "literal", "@value": "it-obj-2"}],
+    "dcterms:relation": [{"type": "resource:item", "o-ref:ref": {"dcterms:identifier": "it-obj-1"}}]
+}

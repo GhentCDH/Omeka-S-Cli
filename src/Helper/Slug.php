@@ -24,4 +24,22 @@ class Slug
 
         return trim((string) $slug, '-');
     }
+
+    /**
+     * Slugify a free text such as a title, e.g. "Mona Lisa (La Joconde)" => "mona-lisa-la-joconde", for
+     * use in file names. At most 60 characters, cut at a dash when there is one; empty when nothing
+     * usable is left.
+     */
+    public static function text(string $text): string
+    {
+        $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($text)), '-');
+        if (strlen($slug) > 60) {
+            $slug = substr($slug, 0, 60);
+            $dash = strrpos($slug, '-');
+            if ($dash !== false) {
+                $slug = substr($slug, 0, $dash);
+            }
+        }
+        return trim($slug, '-');
+    }
 }

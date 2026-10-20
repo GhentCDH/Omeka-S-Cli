@@ -1,0 +1,12 @@
+{
+    "@context": {
+        "dcterms": "http://purl.org/dc/terms/",
+        "o": "http://omeka.org/s/vocabs/o#",
+        "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"
+    },
+    "@type": "o:Item",
+    "o-ref:id": {"dcterms:identifier": "obj-5"},
+    "o:title": "Sketchbook",
+    "dcterms:title": [{"type": "literal", "@value": "Sketchbook"}],
+    "dcterms:identifier": [{"type": "literal", "@value": "obj-5"}]
+}

@@ -9,8 +9,21 @@ namespace OSC\Blueprint;
  */
 class Blueprint
 {
-    public function __construct(private array $data)
+    /**
+     * @param string[] $fileSources The resolved media values that are files to fetch (see isFileSource())
+     */
+    public function __construct(private array $data, private array $fileSources = [])
     {
+    }
+
+    /**
+     * Whether a resolved media value is a file the blueprint ships, rather than a link. Recorded by the
+     * loader before resolution: a relative simple media `url` of a remote blueprint resolves to a URL,
+     * yet is a file next to the blueprint (and so is bundled).
+     */
+    public function isFileSource(string $value): bool
+    {
+        return in_array($value, $this->fileSources, true);
     }
 
     /** The raw, import-resolved array (for schema validation and serialization). */
@@ -59,6 +72,43 @@ class Blueprint
     public function sites(): array
     {
         return $this->data['sites'] ?? [];
+    }
+
+    /** @return array<int,array> The shared format's simple item sets */
+    public function itemSets(): array
+    {
+        return $this->data['itemSets'] ?? [];
+    }
+
+    /** @return array<int,array> The shared format's simple items */
+    public function items(): array
+    {
+        return $this->data['items'] ?? [];
+    }
+
+    /** @return array<int,array> The CLI's item-set entries ({source, title?}), see SourceFields::EXTENSION_ITEM_SETS */
+    public function extensionItemSets(): array
+    {
+        return $this->path(SourceFields::EXTENSION_ITEM_SETS) ?? [];
+    }
+
+    /** @return array<int,array> The CLI's item entries ({source, title?, media?}), see SourceFields::EXTENSION_ITEMS */
+    public function extensionItems(): array
+    {
+        return $this->path(SourceFields::EXTENSION_ITEMS) ?? [];
+    }
+
+    /** The value at a dotted path, or null when a key is missing. */
+    private function path(string $dotted): mixed
+    {
+        $value = $this->data;
+        foreach (explode('.', $dotted) as $key) {
+            if (!is_array($value) || !isset($value[$key])) {
+                return null;
+            }
+            $value = $value[$key];
+        }
+        return $value;
     }
 
     /** @return array<string,mixed> */

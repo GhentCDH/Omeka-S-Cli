@@ -182,7 +182,7 @@ Existing users are never changed, and permissions are never removed.
 ## Skip phases
 
 `--skip` takes a comma-separated list of phases: `core`, `modules`, `themes`, `files`,
-`vocabularies`, `resourceTemplates`, `users`, `sites`, `settings`. For example, to re-apply the
+`vocabularies`, `resourceTemplates`, `users`, `sites`, `itemSets`, `items`, `settings`. For example, to re-apply the
 configuration on an instance whose modules you manage separately:
 
 ```bash
@@ -273,7 +273,8 @@ role on it, so that user appears in the permissions too.
 ## Bundle a blueprint
 
 Download everything a blueprint needs into one directory, with a blueprint that only refers to files
-inside it. See [Bundle a blueprint for offline deploys](../automation/blueprints.md#bundle-a-blueprint-for-offline-deploys).
+inside it: the Omeka S release, modules, themes, vocabularies, resource templates, files, and the item
+and item-set JSON-LD files and media files (`items/`, `item-sets/`, `media/`). See [Bundle a blueprint for offline deploys](../automation/blueprints.md#bundle-a-blueprint-for-offline-deploys).
 
 ```bash
 --8<-- "docs/examples/blueprints.sh:bundle"

@@ -1,0 +1,6 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/", "o": "http://omeka.org/s/vocabs/o#", "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"},
+    "o-ref:id": {"dcterms:identifier": "it-site"},
+    "dcterms:identifier": [{"type": "literal", "@value": "it-site"}],
+    "dcterms:title": [{"type": "literal", "@value": "Assigned to one site"}]
+}

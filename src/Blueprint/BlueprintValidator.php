@@ -2,7 +2,9 @@
 namespace OSC\Blueprint;
 
 use Exception;
+use InvalidArgumentException;
 use OSC\Cache;
+use OSC\Helper\ItemImportConfig;
 use OSC\Helper\ResourceFetcher;
 use OSC\Helper\SiteConfig;
 use Opis\JsonSchema\Errors\ErrorFormatter;
@@ -86,7 +88,8 @@ class BlueprintValidator
     {
         return array_merge(
             $this->validateAgainst($blueprint, self::SCHEMA_ID),
-            $this->referentialErrors($blueprint)
+            $this->referentialErrors($blueprint),
+            $this->extensionErrors($blueprint)
         );
     }
 
@@ -240,6 +243,52 @@ class BlueprintValidator
     }
 
     /**
+     * The shape of the CLI's item and item-set entries (x-omeka-s-cli.items / .itemSets), which the
+     * shared schema does not cover: each must be a valid ItemImportConfig, and an item set has no media.
+     *
+     * @return string[]
+     */
+    private function extensionErrors(array $blueprint): array
+    {
+        if (!array_key_exists('x-omeka-s-cli', $blueprint)) {
+            return [];
+        }
+        // the shared schema accepts any value under an x- key
+        $extension = $blueprint['x-omeka-s-cli'];
+        if (!is_array($extension) || ($extension !== [] && array_is_list($extension))) {
+            return ['x-omeka-s-cli must be an object.'];
+        }
+        $errors = [];
+        foreach (['items' => SourceFields::EXTENSION_ITEMS, 'itemSets' => SourceFields::EXTENSION_ITEM_SETS] as $key => $label) {
+            if (!array_key_exists($key, $extension)) {
+                continue;
+            }
+            $entries = $extension[$key];
+            if (!is_array($entries) || !array_is_list($entries)) {
+                $errors[] = "{$label} must be a list.";
+                continue;
+            }
+            foreach ($entries as $i => $entry) {
+                if ($key === 'itemSets' && is_array($entry)) {
+                    $extra = array_values(array_intersect(['media', 'itemSets', 'sites'], array_keys($entry)));
+                    if ($extra) {
+                        $errors[] = "{$label}[{$i}]: item sets have no " . match ($extra[0]) {
+                            'itemSets' => 'item sets', default => $extra[0],
+                        } . '.';
+                        continue;
+                    }
+                }
+                try {
+                    ItemImportConfig::fromArray(is_array($entry) ? $entry : []);
+                } catch (InvalidArgumentException $e) {
+                    $errors[] = "{$label}[{$i}]: {$e->getMessage()}";
+                }
+            }
+        }
+        return $errors;
+    }
+
+    /**
      * Referential-integrity checks that the schema cannot express.
      *
      * @param array $blueprint
@@ -249,7 +298,11 @@ class BlueprintValidator
     {
         $errors = [];
 
-        $itemSetTitles = $this->titlesLower($blueprint['itemSets'] ?? []);
+        // an item set may be a simple one or a CLI entry with a title
+        $itemSetTitles = array_merge(
+            $this->titlesLower($blueprint['itemSets'] ?? []),
+            $this->titlesLower(is_array($blueprint['x-omeka-s-cli'] ?? null) && is_array($blueprint['x-omeka-s-cli']['itemSets'] ?? null) ? $blueprint['x-omeka-s-cli']['itemSets'] : [])
+        );
         foreach (($blueprint['items'] ?? []) as $i => $item) {
             if (!is_array($item)) {
                 continue;
@@ -257,6 +310,15 @@ class BlueprintValidator
             foreach (($item['itemSets'] ?? []) as $title) {
                 if (!in_array(strtolower((string) $title), $itemSetTitles, true)) {
                     $errors[] = "items[{$i}]: references unknown item set '{$title}'.";
+                }
+            }
+        }
+        // a title-only CLI item names its item sets the same way
+        $extensionItems = is_array($blueprint['x-omeka-s-cli'] ?? null) ? ($blueprint['x-omeka-s-cli']['items'] ?? []) : [];
+        foreach (is_array($extensionItems) ? $extensionItems : [] as $i => $item) {
+            foreach (is_array($item) && is_array($item['itemSets'] ?? null) ? $item['itemSets'] : [] as $title) {
+                if (is_string($title) && !in_array(strtolower($title), $itemSetTitles, true)) {
+                    $errors[] = SourceFields::EXTENSION_ITEMS . "[{$i}]: references unknown item set '{$title}'.";
                 }
             }
         }
@@ -318,7 +380,7 @@ class BlueprintValidator
     {
         $titles = [];
         foreach ($itemSets as $itemSet) {
-            if (is_array($itemSet) && isset($itemSet['title'])) {
+            if (is_array($itemSet) && isset($itemSet['title']) && is_string($itemSet['title'])) {
                 $titles[] = strtolower($itemSet['title']);
             }
         }

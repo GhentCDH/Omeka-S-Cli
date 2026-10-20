@@ -642,6 +642,87 @@ assert_success "re-import resource template with dependencies"    $CLI resource-
 
 # todo: add test for resource-template with customvocab dependency
 
+# ── items ────────────────────────────────────────────────────────
+
+section "Items"
+ITEMS=/app/omeka-s-cli/examples/items
+# first imports accept "created" or "exists", so the section also passes on an instance a previous run filled
+assert_success "item-set:import an item set"                     bash -c "$CLI item-set:import $ITEMS/item-set-paintings.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+assert_output_contains "item-set:import again skips it"          "already exists"   $CLI item-set:import $ITEMS/item-set-paintings.jsonld
+assert_success "item:import with a local upload and an html media" bash -c "$CLI item:import $ITEMS/item-mona-lisa.jsonld -m upload=$ITEMS/media/pixel.png -m 'html=<p>Note</p>' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+assert_success "the item has its 2 media, its item set and its class" bash -c "$CLI item:list -p dcterms:identifier=it-obj-1 --json | jq -e '.[0].media == 2 and .[0].itemSets == 1 and .[0].class == \"dctype:StillImage\"'"
+assert_success "item:import a link to an item imported earlier" bash -c "$CLI item:import $ITEMS/item-linked.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+assert_success "item:export keeps warnings out of the JSON on stdout" bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --reference-by dcterms:alternative 2>/dev/null | jq -e '.\"o:title\"'"
+assert_success "item:export writes the link as an o-ref:ref"    bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --reference-by dcterms:identifier | jq -e '.\"dcterms:relation\"[0].\"o-ref:ref\".\"dcterms:identifier\" == \"it-obj-1\"'"
+run    "item:import an item without o-ref:id"                    $CLI item:import $ITEMS/item-no-id.jsonld
+assert_output_contains "item:import again skips it by title"     "already exists"   $CLI item:import $ITEMS/item-no-id.jsonld
+assert_output_contains "a missing vocabulary is a clean error"   "which is not installed (vocabulary:import)"   $CLI item:import $ITEMS/item-missing-vocab.jsonld
+assert_fail    "a missing vocabulary fails the import"           $CLI item:import $ITEMS/item-missing-vocab.jsonld
+assert_output_contains "an unknown data type is a clean error"   'data type "unknown:thing" is not available'   $CLI item:import $ITEMS/item-bad-datatype.jsonld
+assert_success "item:import a raw Omeka export"                  bash -c "$CLI item:import $ITEMS/item-raw.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+ITEM_COUNT=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length')
+assert_fail    "a rejected media file fails the import"          $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/not-allowed.sh
+assert_output_is "a rejected media file leaves no item behind"   "$ITEM_COUNT"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
+ORIGINALS=$(ls /var/www/omeka-s/files/original 2>/dev/null | wc -l)
+assert_fail    "a rejected file among valid ones fails the import" $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/pixel.png -m upload=$ITEMS/media/not-allowed.sh
+assert_output_is "a failed import stores no file"                "$ORIGINALS"   bash -c "ls /var/www/omeka-s/files/original 2>/dev/null | wc -l"
+run    "clear the export directory"                              rm -rf /tmp/osc-items-export
+assert_success "item:export --output-dir writes one file per item" bash -c "$CLI item:export -p dcterms:identifier=it-obj-1 --output-dir /tmp/osc-items-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-items-export | wc -l) -eq 1"
+assert_output_contains "re-importing the export skips the item" "already exists"   bash -c "$CLI item:import /tmp/osc-items-export/*.jsonld"
+assert_output_contains "item:export of several items needs --output-dir" "use --output-dir"   $CLI item:export
+assert_success "item:search finds the item"                      bash -c "$CLI item:search 'Mona' --json | jq -e 'any(.[]; .title == \"Mona Lisa\")'"
+assert_output_contains "item:list --class with an unknown class" "Unknown resource class"   $CLI item:list --class dctype:Foo
+assert_success "item-set:list lists the item set"                bash -c "$CLI item-set:list --json | jq -e 'any(.[]; .title == \"Paintings\")'"
+assert_success "media:ingesters lists upload"                    bash -c "$CLI media:ingesters --json | jq -e 'any(.[]; .name == \"upload\")'"
+assert_success "media:add adds an html media"                    bash -c "$CLI media:add \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --ingester html --source '<p>Note</p>' --json | jq -e '.ingester == \"html\"'"
+assert_fail    "media:add to a missing item fails"               $CLI media:add 999999 --ingester html --source '<p>x</p>'
+# media options: any key reaches the ingester; title and properties in the simple notation
+SQL="mysql --raw -u root -proot -h db -N omeka"
+MEDIA_TITLE_SQL="select group_concat(v.value) from value v join property p on p.id = v.property_id join vocabulary vo on vo.id = p.vocabulary_id where vo.prefix = 'dcterms' and p.local_name = 'title' and v.resource_id ="
+YT_ID=""; OPT_ITEM=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    YT_ID=$($CLI media:add $($CLI item:list -p dcterms:identifier=it-obj-2 --json 2>/dev/null | jq '.[0].id') \
+        --data '{"ingester": "youtube", "source": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "start": "30", "title": "Clip"}' --json 2>/dev/null | jq '.id')
+    rm -rf /tmp/osc-media-file && mkdir -p /tmp/osc-media-file && cp $ITEMS/media/pixel.png /tmp/osc-media-file/
+    echo '{"ingester": "upload", "source": "pixel.png", "title": "From a file", "dcterms:description": "Relative to the JSON file"}' > /tmp/osc-media-file/media.json
+fi
+assert_success "media:add --data passes start to the youtube ingester" bash -c "echo 'select data from media where id = $YT_ID' | $SQL | jq -e '.start == \"30\"'"
+assert_output_is "media:add --data sets the media title" "Clip"  bash -c "echo \"$MEDIA_TITLE_SQL $YT_ID\" | $SQL"
+# jq 1.6 -e exits 0 on empty input: pipefail makes a failing CLI fail the check
+OBJ2_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then OBJ2_ID=$($CLI item:list -p dcterms:identifier=it-obj-2 --json 2>/dev/null | jq '.[0].id'); fi
+assert_success "media:add --json-file resolves an upload relative to the file" bash -c "set -o pipefail; cd / && $CLI media:add $OBJ2_ID --base-path /var/www/omeka-s --json-file /tmp/osc-media-file/media.json --json | jq -e '.ingester == \"upload\"'"
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf /tmp/osc-media-flag && mkdir -p /tmp/osc-media-flag/json && cp $ITEMS/media/pixel.png /tmp/osc-media-flag/
+    echo '{"ingester": "upload", "title": "Flag source"}' > /tmp/osc-media-flag/json/media.json
+fi
+assert_success "media:add --source given on the command line is relative to the working directory, not the JSON file" \
+    bash -c "set -o pipefail; cd /tmp/osc-media-flag && $CLI media:add $OBJ2_ID --base-path /var/www/omeka-s --json-file json/media.json --source ./pixel.png --json | jq -e '.ingester == \"upload\"'"
+run    "remove the flag test files"                              rm -rf /tmp/osc-media-flag
+# a config without a source: only a title, its item sets and media
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    echo '{"title": "Title only item", "itemSets": ["Paintings"], "media": [{"ingester": "html", "source": "<p>Note</p>"}]}' > /tmp/osc-title-only.json
+fi
+assert_success "item:import --config without a source creates the item"   bash -c "set -o pipefail; $CLI item:import --config /tmp/osc-title-only.json --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+assert_success "the title-only item has its title, item set and media"    bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e 'any(.[]; .title == \"Title only item\" and .itemSets == 1 and .media == 1)'"
+assert_output_contains "a config without a source takes no other properties" "put other properties ('description') in a JSON-LD source" \
+    bash -c "echo '{\"title\": \"X\", \"description\": \"Y\"}' > /tmp/osc-title-bad.json && $CLI item:import --config /tmp/osc-title-bad.json"
+run    "remove the title-only configs"                           rm -f /tmp/osc-title-only.json /tmp/osc-title-bad.json
+# --site: the item goes to that site only, not to every site that takes new items
+run    "add a site for --site"                                    $CLI site:add "Items Site A" --slug osc-items-a --ignore-existing
+run    "add a second site that takes new items"                   $CLI site:add "Items Site B" --slug osc-items-b --ignore-existing
+assert_success "item:import --site assigns that site"             bash -c "set -o pipefail; $CLI item:import $ITEMS/item-site.jsonld --site osc-items-a --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+SITE_ITEM=""
+if [[ $SECTION_SKIP -eq 0 ]]; then SITE_ITEM=$($CLI item:list -p dcterms:identifier=it-site --json 2>/dev/null | jq '.[0].id'); fi
+assert_output_is "the item is on that site only"                  "osc-items-a"   bash -c "echo \"select group_concat(s.slug) from item_site i join site s on s.id = i.site_id where i.item_id = $SITE_ITEM\" | $SQL"
+assert_success "item:import -m takes options after the source" bash -c "set -o pipefail; $CLI item:import $ITEMS/item-media-options.jsonld -m 'html=<p>a\\;b</p>;title=Note' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    OPT_ITEM=$($CLI item:list -p dcterms:identifier=it-media-options --json 2>/dev/null | jq '.[0].id')
+fi
+assert_output_is "the -m option set the media title" "Note"   bash -c "echo \"$MEDIA_TITLE_SQL (select id from media where item_id = $OPT_ITEM limit 1)\" | $SQL"
+assert_output_contains "the -m source kept its escaped semicolon" "<p>a;b</p>"   bash -c "echo \"select data from media where item_id = $OPT_ITEM\" | $SQL | jq -r .html"
+run    "remove the media JSON file"                              rm -rf /tmp/osc-media-file
+
 # ── config ───────────────────────────────────────────────────────
 
 section "Configuration"
@@ -720,6 +801,40 @@ assert_fail    "blueprint:deploy onto an installed instance needs --force"  $CLI
 assert_success "blueprint:deploy --skip core --force syncs the blueprint"   $CLI blueprint:deploy "$BP" --skip core --force "${BP_ROOT[@]}"
 assert_output_is "blueprint:deploy applied the installation_title setting" '"Blueprint Demo"'  $CLI config:get installation_title
 assert_success "blueprint:deploy is idempotent on a second run"            $CLI blueprint:deploy "$BP" --skip core --force "${BP_ROOT[@]}"
+
+# content: item sets and items, in the shared simple notation and as the CLI's JSON-LD entries
+CONTENT_BP=/app/omeka-s-cli/examples/blueprint/content.blueprint.jsonc
+assert_success "blueprint:deploy imports item sets and items"              $CLI blueprint:deploy $CONTENT_BP --skip core --force
+assert_success "both item sets are there"                                  bash -c "set -o pipefail; $CLI item-set:list --limit 1000 --json | jq -e '[.[] | select(.title == \"BP Drawings\" or .title == \"BP Prints\")] | length == 2'"
+assert_success "the items have their item sets and media (upload, simple url, html)" \
+    bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e '[.[] | select((.title == \"BP Simple Sketch\" and .media == 1 and .itemSets == 1) or (.title == \"BP Print 1\" and .media == 2 and .itemSets == 1) or (.title == \"BP Print 2\" and .itemSets == 1) or (.title == \"BP Title Only\" and .media == 1 and .itemSets == 1))] | length == 4'"
+CONTENT_ITEMS=""
+if [[ $SECTION_SKIP -eq 0 ]]; then CONTENT_ITEMS=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length'); fi
+assert_output_is "a simple item without sites is on the default site only" "1" \
+    bash -c "echo \"select count(*) from item_site i join item it on it.id = i.item_id join resource r on r.id = it.id where r.title = 'BP Simple Sketch' and i.site_id = (select json_unquote(value) from setting where id = 'default_site') and (select count(*) from item_site i2 where i2.item_id = it.id) = 1\" | mysql --raw -u root -proot -h db -N omeka"
+assert_output_is "an entry's sites (by title) replace its file's sites" "bp-archive" \
+    bash -c "echo \"select group_concat(s.slug) from item_site i join site s on s.id = i.site_id join resource r on r.id = i.item_id where r.title = 'BP Print 2'\" | mysql --raw -u root -proot -h db -N omeka"
+assert_output_contains "a second deploy skips what exists"               "already exists"   $CLI blueprint:deploy $CONTENT_BP --skip core --force
+assert_output_is "a second deploy adds no items"                           "$CONTENT_ITEMS"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
+assert_success "--skip items skips the items phase"                        bash -c "$CLI blueprint:deploy $CONTENT_BP --skip core,items --force | grep -q 'Items.*skipped (--skip)'"
+run            "remove a content bundle left by an earlier run"           rm -rf /tmp/bp-content-bundle
+assert_success "blueprint:bundle bundles item sets, items and media"      $CLI blueprint:bundle $CONTENT_BP /tmp/bp-content-bundle
+assert_success "the content bundle is self-contained"                      $CLI blueprint:validate /tmp/bp-content-bundle/blueprint.json --self-contained
+assert_success "the bundle holds the JSON-LD files and the media files"   bash -c "test -f /tmp/bp-content-bundle/items/bp-print-1.jsonld && test -f /tmp/bp-content-bundle/item-sets/bp-prints.jsonld && test \$(ls /tmp/bp-content-bundle/media | wc -l) -eq 3"
+assert_success "a link media stays a link in the bundle"                   bash -c "jq -e '.\"x-omeka-s-cli\".items[0].media[1].ingester == \"html\"' /tmp/bp-content-bundle/blueprint.json"
+run            "remove the content bundle"                                 rm -rf /tmp/bp-content-bundle
+# a remote blueprint: its relative media are files next to it, so they are bundled too
+CONTENT_SERVER=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    php -S 127.0.0.1:8766 -t /app/omeka-s-cli/examples/blueprint > /dev/null 2>&1 &
+    CONTENT_SERVER=$!
+    sleep 1
+fi
+run            "remove a remote content bundle left by an earlier run"    rm -rf /tmp/bp-content-remote
+assert_success "blueprint:bundle bundles a remote blueprint's relative media" $CLI blueprint:bundle http://127.0.0.1:8766/content.blueprint.jsonc /tmp/bp-content-remote
+assert_success "the remote bundle holds the media files"                    bash -c "test \$(ls /tmp/bp-content-remote/media | wc -l) -eq 3 && jq -e '.items[0].media[0].url | startswith(\"./media/\")' /tmp/bp-content-remote/blueprint.json"
+if [[ -n "$CONTENT_SERVER" ]]; then kill "$CONTENT_SERVER" 2>/dev/null || true; fi
+run            "remove the remote content bundle"                          rm -rf /tmp/bp-content-remote
 
 # files: a relative source resolves against the blueprint, not the working directory
 if [[ $SECTION_SKIP -eq 0 ]]; then

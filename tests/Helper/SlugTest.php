@@ -23,4 +23,12 @@ class SlugTest extends TestCase
     {
         $this->assertEquals('a-b', Slug::email('a+++b@'));
     }
+
+    public function testText(): void
+    {
+        $this->assertSame('mona-lisa-la-joconde', Slug::text('Mona Lisa (La Joconde)'));
+        $this->assertSame('', Slug::text('!!!'));
+        $this->assertLessThanOrEqual(60, strlen(Slug::text(str_repeat('word ', 30))));
+        $this->assertStringEndsNotWith('-', Slug::text(str_repeat('word ', 30)));
+    }
 }

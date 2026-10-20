@@ -113,6 +113,7 @@ class Bundler
         foreach ($data['files'] ?? [] as $i => $file) {
             $data['files'][$i]['source'] = './' . $this->bundleFile("files[{$i}]", (string) ($file['source'] ?? ''), $dir, 'files');
         }
+        $data = $this->bundleContent($data, $dir, $blueprint);
 
         $this->writeBlueprint($data, $dir);
         return $this->warnings;
@@ -390,6 +391,80 @@ class Bundler
         }
         $vocabulary['source'] = './' . $target;
         return $vocabulary;
+    }
+
+    /**
+     * Item sets, items and their media: the CLI's JSON-LD entries go to item-sets/ and items/, every
+     * media file (an upload, or a simple media url that is not an http(s) URL) to media/. A link the
+     * ingester keeps (url, iiif, youtube, html, ...) is left as it is.
+     */
+    private function bundleContent(array $data, string $dir, Blueprint $blueprint): array
+    {
+        foreach ($data['items'] ?? [] as $i => $item) {
+            $data['items'][$i] = $this->bundleMediaList(is_array($item) ? $item : [], 'url', "items[{$i}]", $dir, $blueprint);
+        }
+        $lists = [SourceFields::EXTENSION_ITEM_SETS => 'item-sets', SourceFields::EXTENSION_ITEMS => 'items'];
+        foreach ($lists as $path => $subdir) {
+            [$object, $key] = explode('.', $path);
+            foreach ($data[$object][$key] ?? [] as $i => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $label = "{$path}[{$i}]";
+                // a title-only entry has no JSON-LD file, only media
+                if (isset($entry['source'])) {
+                    $entry['source'] = './' . $this->bundleFile($label, (string) $entry['source'], $dir, $subdir, 'jsonld');
+                }
+                $data[$object][$key][$i] = $this->bundleMediaList($entry, 'source', $label, $dir, $blueprint);
+            }
+        }
+        return $data;
+    }
+
+    /**
+     * $entry with each media file in its `media` list bundled, the media's $field pointing to it. A file
+     * is an upload, a simple media url that is not an http(s) URL, or a value the loader recorded as a
+     * file (a relative simple media url of a remote blueprint, resolved to a URL).
+     */
+    private function bundleMediaList(array $entry, string $field, string $label, string $dir, Blueprint $blueprint): array
+    {
+        foreach ($entry['media'] ?? [] as $j => $media) {
+            if (!is_array($media) || !is_string($media[$field] ?? null)) {
+                continue;
+            }
+            if (SourceFields::isMediaFile($media, $field) || (!isset($media['ingester']) && $blueprint->isFileSource($media[$field]))) {
+                $entry['media'][$j][$field] = './' . $this->bundleMedia("{$label}.media[{$j}]", $media[$field], $dir);
+            }
+        }
+        return $entry;
+    }
+
+    /**
+     * Fetch a media file into media/. A name without an extension gets one from the Content-Type, since
+     * Omeka S checks the extension; when the type is unknown too, the name is kept, with a warning.
+     */
+    private function bundleMedia(string $label, string $source, string $dir): string
+    {
+        $this->progress("{$label} {$source}");
+        $name = $this->basename($source);
+        if (pathinfo($name, PATHINFO_EXTENSION) !== '') {
+            $target = $this->uniquePath($dir, 'media', $name);
+            $this->fetch($label, $source, "{$dir}/{$target}");
+            return $target;
+        }
+
+        // the name depends on the content type, known only once it is downloaded
+        $download = "{$dir}/.media.download";
+        $extension = MediaExtension::fromContentType($this->fetch($label, $source, $download));
+        if ($extension === null) {
+            $this->warnings[] = "{$label}: no file extension; Omeka may reject the file";
+        }
+        $target = $this->uniquePath($dir, 'media', $extension !== null ? "{$name}.{$extension}" : $name);
+        if (!rename($download, "{$dir}/{$target}")) {
+            @unlink($download);
+            throw new Exception("{$label}: could not write {$target}.");
+        }
+        return $target;
     }
 
     private function bundleFile(string $label, string $source, string $dir, string $subdir, ?string $extension = null): string
