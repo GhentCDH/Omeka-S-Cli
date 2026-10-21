@@ -66,6 +66,7 @@ SCRIPTS=(
     "vocabularies"
     "custom-vocabularies"
     "resource-templates"
+    "code-snippets"
     "dummy-data"
     "blueprints"
     "fresh:automation/provision"

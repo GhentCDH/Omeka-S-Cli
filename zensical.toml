@@ -32,6 +32,7 @@ nav = [
     "commands/vocabularies.md",
     "commands/custom-vocabularies.md",
     "commands/resource-templates.md",
+    "commands/code-snippets.md",
     "commands/dummy-data.md",
     "commands/blueprints.md",
   ] },

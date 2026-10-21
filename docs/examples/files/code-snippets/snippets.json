@@ -1,0 +1,12 @@
+{
+    "format": "omeka-s-code-snippets",
+    "version": 1,
+    "snippets": [
+        {
+            "name": "Footer notice",
+            "description": "Adds a notice to the public footer",
+            "code": "echo '<p>Hosted by example.org</p>';",
+            "active": false
+        }
+    ]
+}

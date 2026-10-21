@@ -16,7 +16,7 @@ options and examples, and `--version` prints the version of `omeka-s-cli`:
 
 Command names have the form `<domain>:<action>`: `module:download`, `user:add`, `config:set`. The
 domains are `core`, `module`, `theme`, `user`, `site`, `config`, `vocabulary`, `custom-vocabulary`,
-`resource-template`, `dummy` and `blueprint`, each with its own page in this documentation; `self-update`
+`resource-template`, `code-snippet`, `dummy` and `blueprint`, each with its own page in this documentation; `self-update`
 is the only command without a domain. A mistyped command name fails with exit code 127 and suggests
 the closest one:
 
