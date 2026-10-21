@@ -1,0 +1,11 @@
+// Settings of the site with the slug "collections"
+{
+    "type": "site_setting",
+    "module": "core",
+    "site": "collections",
+    "settings": {
+        "locale": "nl",
+        "pagination_per_page": 12,
+        "browse_attached_items": true
+    }
+}

@@ -11,8 +11,8 @@ class AddCommand extends AbstractUserCommand
     public function __construct()
     {
         parent::__construct('user:add', 'Add a new user');
-        $this->option('-i --inactive', 'Set the user inactive (default: active)');
-        $this->option('-e --ignore-existing', 'Ignore if the user already exists (default: throw an error)');
+        $this->option('-i --inactive', 'Set the user inactive (default: active)', 'boolval', false);
+        $this->option('-e --ignore-existing', 'Ignore if the user already exists (default: throw an error)', 'boolval', false);
         $this->optionJson();
         $this->argument('<email>', 'Email address of the user');
         $this->argument('<name>', 'Display name of the user');
@@ -20,7 +20,7 @@ class AddCommand extends AbstractUserCommand
         $this->argument('[password]', 'Password for the user (optional)');
     }
 
-    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $isInactive = false, ?bool $json = false, ?bool $ignoreExisting = false): void
+    public function execute(string $email, string $name, string $role, ?string $password = null, ?bool $inactive = false, ?bool $json = false, ?bool $ignoreExisting = false): void
     {
         $api = $this->getOmekaInstance()->getApi();
         $em = $this->getOmekaInstance()->getServiceManager()->get('Omeka\EntityManager');
@@ -47,7 +47,7 @@ class AddCommand extends AbstractUserCommand
             'o:email' => $email,
             'o:name' => $name,
             'o:role' => $role,
-            'o:is_active' => !$isInactive,
+            'o:is_active' => !$inactive,
         ];
 
         // Remove null values

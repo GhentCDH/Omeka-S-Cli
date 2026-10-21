@@ -194,7 +194,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
                     //foreach (array_keys($import['o:resource_template_property'][$key]['data_types']) as $name) {
                     foreach ($import['o:resource_template_property'][$key]['data_types'] as $name => $label) {
                         // try to resolve custom vocabularies by label first
-                        if (str_starts_with($name, "customvocab:")) {
+                        if (self::dataTypeIsCustomVocab($name)) {
                             $vocabLabel = $label['label'] ?? null;
                             $known = $vocabLabel ? $this->resolveCustomVocabByLabel($vocabLabel) : null;
                             if ($known) {
@@ -335,15 +335,22 @@ class ImportCommand extends AbstractResourceTemplateCommand
             foreach ($dataTypes as $dataType) {
                 $name = is_array($dataType) ? $dataType['name'] : $dataType;
 
-                // resolve custom vocabs by label, not by id
-                if (str_starts_with($name, 'customvocab:')) {
-                    $vocabLabel = is_array($dataType) ? $dataType['label'] : null;
+                // check custom vocabs
+                if (self::dataTypeIsCustomVocab($name)) {
+                    $vocabLabel = is_array($dataType) ? $dataType['label'] ?? null : null;
+
+                    // resolve by label, not by id
                     if ($vocabLabel && $this->resolveCustomVocabByLabel($vocabLabel)) {
                         continue;
                     }
+
+                    // report missing
+                    $vocabLabel ??= '<missing label>';
+                    $missing['data_types'][] = $name . " ($vocabLabel)";
+                    continue;
                 }
 
-                // check data types
+                // check other data types
                 if (!in_array($name, $registeredDataTypes)) {
                     if (!in_array($name, $missing['data_types'])) {
                         $missing['data_types'][] = $name;
@@ -370,20 +377,24 @@ class ImportCommand extends AbstractResourceTemplateCommand
         return $missing;
     }
 
-    public function resolveCustomVocabByLabel($label): ?string {
+    private function resolveCustomVocabByLabel($vocabLabel): ?string {
 
         static $customVocabsByLabel = null;
 
         if ($customVocabsByLabel === null) {
             $customVocabsByLabel = [];
             foreach($this->easyMeta->dataTypeLabels() as $key => $label) {
-                if (str_starts_with($key, 'customvocab:')) {
+                if (self::dataTypeIsCustomVocab($key)) {
                     $customVocabsByLabel[$label] = $key;
                 }
             };
         }
 
-        return $customVocabsByLabel[$label] ?? null;
+        return $customVocabsByLabel[$vocabLabel] ?? null;
+    }
+
+    private static function dataTypeIsCustomVocab($dataTypeName): bool {
+        return str_starts_with($dataTypeName, 'customvocab:');
     }
 
 }

@@ -17,6 +17,7 @@ use PHPUnit\Framework\TestCase;
 use ZipArchive;
 
 #[CoversClass(BlueprintApplier::class)]
+#[UsesClass(\OSC\Downloader\AddonResolver::class)]
 #[UsesClass(Blueprint::class)]
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(Path::class)]
@@ -357,5 +358,18 @@ class BlueprintApplierTest extends TestCase
 
         $this->assertSame(["site 'site a' already exists, skipping (use --update to update it)."], $warnings);
         $this->assertSame([], $notes);
+    }
+
+    public function testASourcedThemeIsInstalledIntoItsName(): void
+    {
+        $zip = 'https://example.org/freedom-1.0.7.zip';
+        $notes = $this->dryRunAddons(['themes' => [
+            ['name' => 'freedom', 'source' => $zip],
+            ['name' => 'cozy', 'version' => '1.0.0'],
+        ]]);
+
+        $this->assertContains("would download theme 'freedom' ({$zip}) into themes/freedom", $notes);
+        // a catalog theme keeps the catalog's folder name
+        $this->assertContains("would download theme 'cozy' (cozy:1.0.0)", $notes);
     }
 }

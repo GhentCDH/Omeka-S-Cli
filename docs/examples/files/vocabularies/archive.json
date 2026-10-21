@@ -1,0 +1,8 @@
+{
+    "source": "archive.ttl",
+    "label": "Archive",
+    "namespaceUri": "https://example.org/archive#",
+    "prefix": "arch",
+    "comment": "Classes and properties for the letters collection.",
+    "format": "turtle"
+}

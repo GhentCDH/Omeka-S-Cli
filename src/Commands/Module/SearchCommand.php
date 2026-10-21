@@ -17,7 +17,7 @@ class SearchCommand extends AbstractModuleCommand
         $this
             ->argument('[query]', 'Part of the module name or description')
             ->option('-r --repository [repositoryid]', 'Filter by repository', 'strval')
-            ->option('--unregistered', 'Show only modules not registered in the omeka.org add-ons directory')
+            ->option('--unregistered', 'Show only modules not registered in the omeka.org add-ons directory', 'boolval', false)
             ->option('--refresh', 'Refresh the repository data', 'boolval', false)
             ->option('--include-incompatible', 'Include modules incompatible with the current Omeka S version', 'boolval', false);
 

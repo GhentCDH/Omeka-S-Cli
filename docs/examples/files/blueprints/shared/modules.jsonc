@@ -1,0 +1,5 @@
+// The modules every site gets. Common comes first: other modules depend on it.
+[
+    { "name": "Common", "state": "activate" },
+    { "name": "Sharing", "state": "activate" }
+]

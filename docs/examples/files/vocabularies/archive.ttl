@@ -1,0 +1,15 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix arch: <https://example.org/archive#> .
+
+arch:Letter a rdfs:Class ;
+    rdfs:label "Letter" ;
+    rdfs:comment "A written message sent from one person to another." .
+
+arch:sender a rdf:Property ;
+    rdfs:label "sender" ;
+    rdfs:comment "The person who sent the letter." .
+
+arch:recipient a rdf:Property ;
+    rdfs:label "recipient" ;
+    rdfs:comment "The person the letter was addressed to." .

@@ -1,0 +1,9 @@
+{
+    "o:label": "Language",
+    "o:lang": "en",
+    "o:uris": {
+        "http://id.loc.gov/vocabulary/iso639-2/dut": "Dutch",
+        "http://id.loc.gov/vocabulary/iso639-2/eng": "English",
+        "http://id.loc.gov/vocabulary/iso639-2/fre": "French"
+    }
+}

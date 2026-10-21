@@ -195,4 +195,10 @@ class Path {
         return $safeName ?: 'default_name';
     }
 
+    /** Whether $name is a single, plain folder name: letters, digits, `_`, `-` and `.` (not `.` or `..`). */
+    public static function isSafeFolderName(string $name): bool
+    {
+        return $name !== '.' && $name !== '..' && preg_match('/^[A-Za-z0-9_.-]+$/', $name) === 1;
+    }
+
 }

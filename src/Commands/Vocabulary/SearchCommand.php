@@ -21,7 +21,7 @@ class SearchCommand extends AbstractCommand
         $this->optionExtended();
     }
 
-    public function execute(?string $query, ?bool $extended = false, ?string $repositoryId = null): void
+    public function execute(?string $query, ?bool $extended = false, ?string $repository = null): void
     {
         $format = $this->getOutputFormat('table');
 
@@ -35,9 +35,9 @@ class SearchCommand extends AbstractCommand
 
         // fetch results
         if ($query) {
-            $vocabularyResults = $manager->search($query, $repositoryId);
+            $vocabularyResults = $manager->search($query, $repository);
         } else {
-            $vocabularyResults = $manager->list($repositoryId);
+            $vocabularyResults = $manager->list($repository);
         }
 
         $output = $this->formatVocabularyResults($vocabularyResults, $extended);

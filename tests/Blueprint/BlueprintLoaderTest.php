@@ -2,7 +2,9 @@
 namespace Tests\Blueprint;
 
 use Exception;
+use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintLoader;
+use OSC\Blueprint\SourceFields;
 use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\Reference\RepoProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -11,6 +13,8 @@ use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlueprintLoader::class)]
 #[UsesClass(ReferenceResolver::class)]
+#[UsesClass(Blueprint::class)]
+#[UsesClass(SourceFields::class)]
 class BlueprintLoaderTest extends TestCase
 {
     private string $dir;
@@ -471,6 +475,48 @@ class BlueprintLoaderTest extends TestCase
         (new BlueprintLoader())->load($base);
     }
 
+    public function testAPhpFilterSourceIsRejected(): void
+    {
+        $base = $this->write('base.jsonc', json_encode([
+            'files' => [['source' => 'php://filter/resource=/etc/hostname', 'destination' => 'files/x.txt']],
+        ]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage(
+            "Reference 'php://filter/resource=/etc/hostname' in '{$base}' uses an unsupported URL scheme; use an http(s) URL or a relative path."
+        );
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testOtherSchemesAreRejectedEverywhere(): void
+    {
+        $cases = [
+            ['modules' => [['$import' => 'ftp://example.org/modules.jsonc']]],
+            ['vocabularies' => [$this->vocab(['source' => 'gopher://127.0.0.1:6379/_x'])]],
+            ['resourceTemplates' => [['source' => 'data://text/plain;base64,e30=']]],
+        ];
+        foreach ($cases as $i => $blueprint) {
+            $base = $this->write("base{$i}.jsonc", json_encode($blueprint));
+            try {
+                (new BlueprintLoader())->load($base);
+                $this->fail('case ' . $i . ' must be rejected');
+            } catch (Exception $e) {
+                $this->assertStringContainsString('uses an unsupported URL scheme', $e->getMessage(), "case {$i}");
+            }
+        }
+    }
+
+    public function testAnUnsupportedSchemeIsRejectedBeforeTheSelfContainedCheck(): void
+    {
+        $base = $this->write('base.jsonc', json_encode([
+            'files' => [['source' => 'phar:///tmp/x.phar/y', 'destination' => 'files/x.txt']],
+        ]));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('uses an unsupported URL scheme');
+        (new BlueprintLoader(null, null, true))->load($base);
+    }
+
     public function testAbsoluteSettingsImportIsRejected(): void
     {
         $this->write('s.jsonc', '{ "a": 1 }');
@@ -609,5 +655,115 @@ class BlueprintLoaderTest extends TestCase
         $this->expectException(Exception::class);
         $this->expectExceptionMessageMatches('/absolute path/');
         (new BlueprintLoader())->load($base);
+    }
+
+    // ── x-omeka-s-cli.install.source: the Omeka S release ZIP ───────────────────────────────────
+
+    /** The core source in the CLI's extension key (until the spec has install.source). */
+    private function coreSource(string $source): string
+    {
+        return json_encode(['install' => ['title' => 'Demo'], 'x-omeka-s-cli' => ['install' => ['source' => $source]]]);
+    }
+
+    public function testInstallSourceResolvesAgainstTheBlueprint(): void
+    {
+        $base = $this->write('base.json', $this->coreSource('./core/omeka-s-4.1.1.zip'));
+
+        $blueprint = (new BlueprintLoader())->load($base);
+
+        $this->assertSame($this->dir . '/core/omeka-s-4.1.1.zip', $blueprint->installSource());
+        $this->assertSame('Demo', $blueprint->install()['title']);
+    }
+
+    public function testInstallSourceUrlIsKept(): void
+    {
+        $url = 'https://github.com/omeka/omeka-s/releases/download/v4.1.1/omeka-s-4.1.1.zip';
+        $base = $this->write('base.json', $this->coreSource($url));
+
+        $this->assertSame($url, (new BlueprintLoader())->load($base)->installSource());
+    }
+
+    public function testInstallSourceMayNotBeAnAbsolutePath(): void
+    {
+        $base = $this->write('base.json', $this->coreSource('/tmp/omeka-s.zip'));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('absolute path');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testWithoutInstallSourceThereIsNone(): void
+    {
+        $base = $this->write('base.json', '{ "install": { "title": "Demo" }, "x-omeka-s-cli": { "other": true } }');
+
+        $this->assertNull((new BlueprintLoader())->load($base)->installSource());
+    }
+
+    // ── self-contained mode ─────────────────────────────────────────────────────────────────────
+
+    public function testSelfContainedRecordsEveryNonRelativeSourceWithoutFetchingIt(): void
+    {
+        $base = $this->write('base.json', json_encode([
+            'x-omeka-s-cli' => ['install' => ['source' => 'https://example.org/omeka-s.zip']],
+            'modules' => [
+                ['name' => 'Log', 'source' => 'gh:Daniel-KM/Omeka-S-module-Log'],
+                ['name' => 'Local', 'source' => './modules/Local-1.0.0.zip'],
+            ],
+            'vocabularies' => [[
+                'prefix' => 'ex', 'namespaceUri' => 'https://example.org/ns#', 'label' => 'Ex',
+                'source' => 'https://example.org/ex.ttl',
+            ]],
+            // reported, never fetched: a unit test has no network, and .invalid never resolves
+            'settings' => [['$import' => 'https://example.invalid/settings.json']],
+        ]));
+
+        $loader = new BlueprintLoader(null, null, true);
+        $blueprint = $loader->load($base);
+        $violations = implode("\n", $loader->takeViolations());
+
+        $this->assertStringContainsString("x-omeka-s-cli.install source 'https://example.org/omeka-s.zip'", $violations);
+        $this->assertStringContainsString("modules 'Log' source 'gh:Daniel-KM/Omeka-S-module-Log'", $violations);
+        $this->assertStringContainsString("vocabularies 'https://example.org/ns#' source 'https://example.org/ex.ttl'", $violations);
+        $this->assertStringContainsString("\$import 'https://example.invalid/settings.json'", $violations);
+        $this->assertSame(4, substr_count($violations, 'is not a relative path inside the blueprint'));
+        // relative sources are still resolved; a skipped import contributes nothing
+        $this->assertSame($this->dir . '/modules/Local-1.0.0.zip', $blueprint->modules()[1]['source']);
+        $this->assertSame([], $blueprint->settings());
+    }
+
+    public function testSelfContainedAcceptsRelativeSourcesAndImports(): void
+    {
+        $this->writeIn('shared/modules.json', '[ { "name": "A", "source": "../modules/A-1.0.0.zip" } ]');
+        $base = $this->write('base.json', json_encode([
+            'x-omeka-s-cli' => ['install' => ['source' => './core/omeka-s-4.1.1.zip']],
+            'modules' => [['$import' => './shared/modules.json']],
+            'files' => [['source' => './files/logo.png', 'destination' => 'files/logo.png']],
+        ]));
+
+        $loader = new BlueprintLoader(null, null, true);
+        $blueprint = $loader->load($base);
+
+        $this->assertSame([], $loader->takeViolations());
+        $this->assertSame($this->dir . '/modules/A-1.0.0.zip', $blueprint->modules()[0]['source']);
+    }
+
+    public function testViolationsAreOnlyCollectedInSelfContainedMode(): void
+    {
+        $base = $this->write('base.json', '{ "modules": [ { "name": "Log", "source": "gh:owner/log" } ] }');
+
+        $loader = new BlueprintLoader();
+        $loader->load($base);
+
+        $this->assertSame([], $loader->takeViolations());
+    }
+
+    public function testSelfContainedStillRejectsAReferenceOutsideTheRoot(): void
+    {
+        mkdir($this->dir . '/site');
+        $base = $this->writeIn('site/base.json', '{ "files": [ { "source": "../outside.txt", "destination": "files/x" } ] }');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('outside the blueprint root');
+        (new BlueprintLoader(null, null, true))->load($base);
     }
 }

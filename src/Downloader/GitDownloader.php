@@ -14,6 +14,12 @@ class GitDownloader implements DownloaderInterface {
     {
         return $this->uri;
     }
+
+    /** The tag, branch or commit to check out, or null for the default branch. */
+    public function getRef(): ?string
+    {
+        return $this->tag;
+    }
     public function download(): string
     {
         $tmpGitDestinationPath = Path::createTempFolder('omeka-s-cli.');

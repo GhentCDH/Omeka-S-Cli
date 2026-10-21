@@ -2,7 +2,7 @@
     "name": "ghentcdh/omeka-s-cli",
     "description": "Omeka-S Command Line Tool",
     "type": "project",
-    "version": "0.18.0",
+    "version": "0.18.2",
     "keywords": [
         "Omeka S",
         "cli",
@@ -51,7 +51,18 @@
             "box compile"
         ],
         "lint": "phpcs . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php,src/Commands/Cli/Index.php,src/Commands/CodeSnippets/Index.php --colors --warning-severity=0 --extensions=php",
-        "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php,src/Commands/Cli/Index.php,src/Commands/CodeSnippets/Index.php --colors --warning-severity=0 --extensions=php"
+        "fix": "phpcbf . --ignore=vendor/,src/Commands/Config/Index.php,src/Commands/Core/Index.php,src/Commands/Module/Index.php,src/Commands/Theme/Index.php,src/Commands/User/Index.php,src/Commands/Cli/Index.php,src/Commands/CodeSnippets/Index.php --colors --warning-severity=0 --extensions=php",
+        "docs:reference": "@php scripts/generate-command-reference.php",
+        "docs:build": [
+            "@docs:reference",
+            "uvx --with-requirements requirements-docs.txt zensical build --clean --strict"
+        ],
+        "docs:serve": [
+            "Composer\\Config::disableProcessTimeout",
+            "@docs:reference",
+            "uvx --with-requirements requirements-docs.txt zensical serve"
+        ],
+        "docs:test": "docker exec omeka-s-cli-app-1 /app/omeka-s-cli/tests/docs-examples.sh"
     },
     "require-dev": {
         "bamarni/composer-bin-plugin": "^1.9",
@@ -75,8 +86,7 @@
             "/box.json",
             "/composer.lock",
             "/.gitignore",
-            "/.gitattributes",
-            "img.png"
+            "/.gitattributes"
         ]
     },
     "replace": {

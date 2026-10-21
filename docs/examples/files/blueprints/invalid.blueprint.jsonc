@@ -1,0 +1,8 @@
+{
+    "modules": [
+        { "name": "Common", "stat": "activate" }
+    ],
+    "sites": [
+        { "title": "Archive", "theme": "freedom" }
+    ]
+}

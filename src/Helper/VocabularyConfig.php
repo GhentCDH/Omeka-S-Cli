@@ -85,6 +85,9 @@ class VocabularyConfig
             );
         }
 
+        // any key: no php://, ftp://, ... (the importer would open them with its stream wrappers)
+        ResourceFetcher::assertSupported($value);
+
         $label = $clean($data['label'] ?? null);
         if ($label === null) {
             throw new InvalidArgumentException('A vocabulary must have a label.');

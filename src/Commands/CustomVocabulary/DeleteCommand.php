@@ -9,7 +9,7 @@ class DeleteCommand extends AbstractCustomVocabularyCommand
     {
         parent::__construct('custom-vocabulary:delete', 'Delete a custom vocabulary');
         $this->argument('<identifier>', 'Custom vocabulary ID or label');
-        $this->option('-f --force', 'Force delete');
+        $this->option('-f --force', 'Force delete', 'boolval', false);
         $this->optionIgnoreNotFound('custom vocabulary');
     }
 

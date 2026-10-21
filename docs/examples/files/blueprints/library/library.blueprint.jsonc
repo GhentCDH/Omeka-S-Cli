@@ -1,0 +1,12 @@
+{
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
+    "modules": [
+        // the shared list lives outside this directory: validate and deploy with --root
+        { "$import": "../shared/modules.jsonc" },
+        // layering: keep Sharing in its place, but only download it
+        { "name": "Sharing", "state": "download" }
+    ],
+    "sites": [
+        { "title": "Library", "slug": "library" }
+    ]
+}
