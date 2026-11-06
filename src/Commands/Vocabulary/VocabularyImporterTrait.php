@@ -8,7 +8,7 @@ use Ahc\Cli\Input\Command;
 use Omeka\Api\Exception\ValidationException;
 use Omeka\Stdlib\RdfImporter;
 use OSC\Exceptions\WarningException;
-use OSC\Helper\VocabularyConfig;
+use OSC\Helper\Config\VocabularyConfig;
 
 trait VocabularyImporterTrait
 {

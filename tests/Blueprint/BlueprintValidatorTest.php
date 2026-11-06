@@ -2,10 +2,10 @@
 namespace Tests\Blueprint;
 
 use OSC\Blueprint\BlueprintValidator;
-use OSC\Helper\ItemImportConfig;
-use OSC\Helper\MediaConfig;
+use OSC\Helper\Config\ItemImportConfig;
+use OSC\Helper\Config\MediaConfig;
+use OSC\Helper\Config\SiteConfig;
 use OSC\Resource\PortableJsonLd;
-use OSC\Helper\SiteConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;

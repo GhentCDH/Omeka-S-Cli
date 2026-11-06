@@ -3,6 +3,7 @@ namespace OSC\Commands\Blueprint;
 
 use Exception;
 use OSC\Blueprint\BlueprintApplier;
+use OSC\Blueprint\CoreInstaller;
 use OSC\Helper\Path;
 
 /**

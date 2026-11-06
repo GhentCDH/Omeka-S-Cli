@@ -1,7 +1,7 @@
 <?php
 namespace Tests\Resource;
 
-use OSC\Helper\MediaConfig;
+use OSC\Helper\Config\MediaConfig;
 use OSC\Resource\PortableJsonLd;
 use OSC\Resource\SimpleContentMapper;
 use PHPUnit\Framework\Attributes\CoversClass;

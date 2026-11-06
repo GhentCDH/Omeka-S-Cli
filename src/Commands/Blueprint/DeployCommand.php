@@ -3,9 +3,10 @@ namespace OSC\Commands\Blueprint;
 
 use Exception;
 use OSC\Blueprint\BlueprintApplier;
-use OSC\Helper\DatabaseConfig;
+use OSC\Blueprint\CoreInstaller;
+use OSC\Helper\Config\DatabaseConfig;
+use OSC\Helper\Config\UserConfig;
 use OSC\Helper\Path;
-use OSC\Helper\UserConfig;
 
 class DeployCommand extends AbstractBlueprintCommand
 {

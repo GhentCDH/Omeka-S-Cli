@@ -2,6 +2,6 @@
 namespace OSC\Commands\Dummy;
 
 return [
-    new CreateItems(),
-    new CreateItemSets(),
+    new CreateItemsCommand(),
+    new CreateItemSetsCommand(),
 ];

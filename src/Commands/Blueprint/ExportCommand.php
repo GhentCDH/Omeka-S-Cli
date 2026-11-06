@@ -2,6 +2,8 @@
 namespace OSC\Commands\Blueprint;
 
 use Exception;
+use OSC\Blueprint\BlueprintExporter;
+use OSC\Blueprint\ExportOptions;
 
 class ExportCommand extends AbstractBlueprintCommand
 {

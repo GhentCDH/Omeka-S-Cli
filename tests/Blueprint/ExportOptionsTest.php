@@ -2,7 +2,7 @@
 namespace Tests\Blueprint;
 
 use InvalidArgumentException;
-use OSC\Commands\Blueprint\ExportOptions;
+use OSC\Blueprint\ExportOptions;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
