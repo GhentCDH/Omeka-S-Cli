@@ -1,7 +1,8 @@
 <?php
-namespace OSC\Helper;
+namespace OSC\Helper\Config;
 
 use InvalidArgumentException;
+use OSC\Helper\ResourceFetcher;
 
 /**
  * A vocabulary import configuration: the RDF source plus the identifying/formatting fields.

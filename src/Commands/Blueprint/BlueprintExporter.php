@@ -3,10 +3,8 @@ namespace OSC\Commands\Blueprint;
 
 use Omeka\Module\Manager as ModuleManager;
 use Omeka\Site\Theme\Manager as ThemeManager;
-use OSC\Helper\ResourceFetcher;
-use OSC\Helper\SiteConfig;
+use OSC\Helper\Config\SiteConfig;
 use OSC\Omeka\OmekaInstance;
-use Throwable;
 
 /**
  * Read a live Omeka S instance and build the blueprint that describes it.

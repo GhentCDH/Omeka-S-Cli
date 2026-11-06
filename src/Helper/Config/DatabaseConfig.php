@@ -1,6 +1,6 @@
 <?php
 
-namespace OSC\Helper;
+namespace OSC\Helper\Config;
 
 use Exception;
 use InvalidArgumentException;

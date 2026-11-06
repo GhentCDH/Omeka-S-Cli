@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Config;
+namespace Tests\Settings;
 
 use OSC\Settings\SettingType;
 use PHPUnit\Framework\Attributes\CoversClass;

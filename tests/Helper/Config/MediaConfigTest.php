@@ -1,9 +1,9 @@
 <?php
 
-namespace Tests\Helper;
+namespace Tests\Helper\Config;
 
 use InvalidArgumentException;
-use OSC\Helper\MediaConfig;
+use OSC\Helper\Config\MediaConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

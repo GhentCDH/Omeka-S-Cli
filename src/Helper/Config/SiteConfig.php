@@ -1,5 +1,5 @@
 <?php
-namespace OSC\Helper;
+namespace OSC\Helper\Config;
 
 use InvalidArgumentException;
 use LogicException;

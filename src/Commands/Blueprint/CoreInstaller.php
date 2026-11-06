@@ -4,8 +4,8 @@ namespace OSC\Commands\Blueprint;
 use Exception;
 use OSC\Blueprint\Blueprint;
 use OSC\Commands\AbstractCommand;
-use OSC\Helper\DatabaseConfig;
-use OSC\Helper\UserConfig;
+use OSC\Helper\Config\DatabaseConfig;
+use OSC\Helper\Config\UserConfig;
 use PDO;
 use Throwable;
 

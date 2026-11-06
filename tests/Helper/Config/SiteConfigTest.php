@@ -1,9 +1,9 @@
 <?php
-namespace Tests\Helper;
+namespace Tests\Helper\Config;
 
 use InvalidArgumentException;
 use LogicException;
-use OSC\Helper\SiteConfig;
+use OSC\Helper\Config\SiteConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

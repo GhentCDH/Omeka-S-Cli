@@ -4,14 +4,14 @@ namespace Tests\Resource;
 
 use InvalidArgumentException;
 use LogicException;
-use OSC\Helper\MediaConfig;
+use OSC\Helper\Config\MediaConfig;
 use OSC\Resource\BuildResult;
 use OSC\Resource\Identity;
 use OSC\Resource\ImportResult;
 use OSC\Resource\PayloadBuilder;
 use OSC\Resource\PortableJsonLd;
-use OSC\Resource\ResourceImportException;
 use OSC\Resource\ResourceImporter;
+use OSC\Resource\ResourceImportException;
 use OSC\Resource\ResourceType;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;

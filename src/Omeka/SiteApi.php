@@ -6,7 +6,7 @@ use Laminas\ServiceManager\ServiceManager;
 use Omeka\Api\Exception\NotFoundException;
 use Omeka\Api\Manager as ApiManager;
 use Omeka\Api\Representation\SiteRepresentation;
-use OSC\Helper\SiteConfig;
+use OSC\Helper\Config\SiteConfig;
 
 /**
  * Omeka S sites through the internal API, with the adapter's pitfalls handled in one place:

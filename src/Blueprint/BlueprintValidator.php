@@ -3,12 +3,12 @@ namespace OSC\Blueprint;
 
 use Exception;
 use InvalidArgumentException;
-use OSC\Cache;
-use OSC\Helper\ItemImportConfig;
-use OSC\Helper\ResourceFetcher;
-use OSC\Helper\SiteConfig;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Validator;
+use OSC\Cache;
+use OSC\Helper\Config\ItemImportConfig;
+use OSC\Helper\Config\SiteConfig;
+use OSC\Helper\ResourceFetcher;
 use Throwable;
 
 /**

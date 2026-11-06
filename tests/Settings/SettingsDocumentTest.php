@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Config;
+namespace Tests\Settings;
 
 use InvalidArgumentException;
 use OSC\Settings\SettingsDocument;

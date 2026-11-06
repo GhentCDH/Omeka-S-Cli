@@ -6,8 +6,8 @@ use InvalidArgumentException;
 use LogicException;
 use Omeka\Api\Exception\ValidationException;
 use Omeka\Api\Manager as ApiManager;
+use OSC\Helper\Config\MediaConfig;
 use OSC\Helper\ErrorStoreFormatter;
-use OSC\Helper\MediaConfig;
 use OSC\Helper\ResourceFetcher;
 use Throwable;
 

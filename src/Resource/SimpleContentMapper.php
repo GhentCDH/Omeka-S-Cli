@@ -1,7 +1,7 @@
 <?php
 namespace OSC\Resource;
 
-use OSC\Helper\MediaConfig;
+use OSC\Helper\Config\MediaConfig;
 
 /**
  * Map the shared blueprint format's simple `itemSets` / `items` onto portable JSON-LD, so they are

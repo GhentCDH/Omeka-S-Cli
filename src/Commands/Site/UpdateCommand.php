@@ -2,7 +2,7 @@
 namespace OSC\Commands\Site;
 
 use InvalidArgumentException;
-use OSC\Helper\SiteConfig;
+use OSC\Helper\Config\SiteConfig;
 
 class UpdateCommand extends AbstractSiteCommand
 {

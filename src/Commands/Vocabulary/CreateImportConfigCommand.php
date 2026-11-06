@@ -2,7 +2,7 @@
 namespace OSC\Commands\Vocabulary;
 
 use Exception;
-use OSC\Helper\VocabularyConfig;
+use OSC\Helper\Config\VocabularyConfig;
 
 class CreateImportConfigCommand extends AbstractVocabularyCommand
 {

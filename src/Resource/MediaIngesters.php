@@ -3,8 +3,8 @@ namespace OSC\Resource;
 
 use Laminas\ServiceManager\ServiceManager;
 use Omeka\Stdlib\ErrorStore;
+use OSC\Helper\Config\MediaConfig;
 use OSC\Helper\ErrorStoreFormatter;
-use OSC\Helper\MediaConfig;
 use OSC\Helper\ResourceFetcher;
 
 /**
