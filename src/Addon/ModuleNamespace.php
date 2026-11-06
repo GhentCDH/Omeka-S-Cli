@@ -1,5 +1,5 @@
 <?php
-namespace OSC\Helper;
+namespace OSC\Addon;
 
 /** The namespace of an Omeka S module, read from its Module.php (an unpacked release or a git checkout). */
 final class ModuleNamespace

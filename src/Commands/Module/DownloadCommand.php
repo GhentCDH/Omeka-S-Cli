@@ -2,10 +2,13 @@
 namespace OSC\Commands\Module;
 
 use Exception;
+use OSC\Addon\AddonIni;
+use OSC\Addon\AddonType;
+use OSC\Addon\InstalledAddons;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Downloader\AddonResolver;
 use OSC\Exceptions\NotFoundException;
-use OSC\Helper\ModuleNamespace;
+use OSC\Addon\ModuleNamespace;
 use OSC\Helper\Path;
 
 class DownloadCommand extends AbstractModuleCommand
@@ -37,7 +40,7 @@ class DownloadCommand extends AbstractModuleCommand
             throw new Exception("Modules directory is not writable. Please check permissions.");
         }
 
-        $resolved = (new AddonResolver($this->getModuleRepositoryManager(), 'module'))
+        $resolved = (new AddonResolver($this->getModuleRepositoryManager(), AddonType::Module))
             ->resolve($module, fn() => $this->getOmekaVersion(), (bool) $force);
         foreach ($resolved->warnings as $warning) {
             $this->warn($warning, true);
@@ -47,14 +50,14 @@ class DownloadCommand extends AbstractModuleCommand
         }
         $moduleDirName = $resolved->dirname;
         $downloader = $resolved->downloader;
+        $installed = new InstalledAddons($this->getOmekaPath());
 
         // early check if module is already available
         if ($moduleDirName) {
-            $moduleDestinationPath = Path::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
+            $moduleDestinationPath = $installed->path(AddonType::Module, $moduleDirName);
 
             // Check if module is already available
-            $moduleExists = is_dir($moduleDestinationPath);
-            if ($moduleExists && !$force) {
+            if ($installed->exists(AddonType::Module, $moduleDirName) && !$force) {
                 throw new ModuleExistsException("Module '{$moduleDirName}' already exists in '{$moduleDestinationPath}'. Use the --force option download anyway.");
             }
         }
@@ -74,13 +77,7 @@ class DownloadCommand extends AbstractModuleCommand
             if (!$moduleSourcePath) {
                 throw new NotFoundException("No valid module found in download folder.");
             }
-
-            // Parse module.ini
-            $moduleConfigPath = Path::createPath([$moduleSourcePath, "config", "module.ini"]);
-            $moduleIni = parse_ini_file($moduleConfigPath, true);
-            if (!$moduleIni) {
-                throw new NotFoundException("No valid module.ini found in download folder.");
-            }
+            $moduleIni = AddonIni::fromAddonDir($moduleSourcePath, AddonType::Module);
 
             // Get module destination path
             if (!$moduleDirName) {
@@ -91,7 +88,7 @@ class DownloadCommand extends AbstractModuleCommand
                 }
                 $moduleDirName = ModuleNamespace::fromModulePhp($moduleSrc);
             }
-            $moduleDestinationPath = Path::createPath([$this->getOmekaPath(), "modules", $moduleDirName]);
+            $moduleDestinationPath = $installed->path(AddonType::Module, $moduleDirName);
 
             // Install dependencies (if any)
             if (!is_dir(Path::createPath([$moduleSourcePath, "vendor"])) &&
@@ -137,7 +134,7 @@ class DownloadCommand extends AbstractModuleCommand
             }
         }
 
-        $version = $moduleIni['info']['version'] ?? null;
+        $version = $moduleIni->version();
         $this->ok("Module '{$moduleDirName}'" . ($version ? " v{$version}" : '') . " downloaded.", true);
 
         if ($install) {

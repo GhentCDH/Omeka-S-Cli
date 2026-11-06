@@ -4,6 +4,10 @@ namespace Tests\Blueprint\Bundle;
 use Closure;
 use Exception;
 use LogicException;
+use OSC\Addon\AddonIni;
+use OSC\Addon\AddonType;
+use OSC\Addon\AddonVersion;
+use OSC\Addon\ModuleNamespace;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintLoader;
 use OSC\Blueprint\BlueprintValidator;
@@ -15,13 +19,11 @@ use OSC\Blueprint\SourceFields;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
-use OSC\Helper\ModuleNamespace;
 use OSC\Helper\Path;
 use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\ResourceFetcher;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUri;
-use OSC\Helper\VersionCompatibility;
 use OSC\Manager\AbstractManager;
 use OSC\Manager\Result;
 use OSC\Omeka\OmekaDotOrgApi;
@@ -52,7 +54,9 @@ use ZipArchive;
 #[UsesClass(ResourceFetcher::class)]
 #[UsesClass(ResourceUriParser::class)]
 #[UsesClass(ResourceUri::class)]
-#[UsesClass(VersionCompatibility::class)]
+#[UsesClass(AddonVersion::class)]
+#[UsesClass(AddonIni::class)]
+#[UsesClass(AddonType::class)]
 #[UsesClass(OmekaDotOrgApi::class)]
 #[UsesClass(Result::class)]
 #[UsesClass(ModuleDetails::class)]
@@ -125,7 +129,7 @@ class BundlerTest extends TestCase
             }
             return null;
         });
-        return new AddonResolver($manager, $kind);
+        return new AddonResolver($manager, AddonType::from($kind));
     }
 
     /**

@@ -52,7 +52,7 @@ abstract class AbstractModuleCommand extends AbstractCommand
      * Ids are returned instead of Module objects because a module object does not survive a
      * reload of the module manager; the bulk loop re-fetches each module when its turn comes.
      *
-     * The result is unordered; use OSC\Helper\ModuleDependencyOrder when the order matters.
+     * The result is unordered; use OSC\Addon\ModuleDependencyOrder when the order matters.
      *
      * @param string[] $states Omeka module states, see Omeka\Module\Manager::STATE_*
      *

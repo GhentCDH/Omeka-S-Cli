@@ -1,7 +1,7 @@
 <?php
-namespace Tests\Helper;
+namespace Tests\Addon;
 
-use OSC\Helper\ModuleDependencyOrder;
+use OSC\Addon\ModuleDependencyOrder;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

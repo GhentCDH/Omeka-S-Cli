@@ -2,6 +2,7 @@
 namespace OSC\Commands\Blueprint;
 
 use Exception;
+use OSC\Addon\AddonType;
 use OSC\Blueprint\BlueprintLoader;
 use OSC\Blueprint\Bundle\BundleOutput;
 use OSC\Blueprint\Bundle\Bundler;
@@ -49,8 +50,8 @@ class BundleCommand extends AbstractBlueprintCommand
         $bundleOutput = BundleOutput::prepare($target, (bool) $force, $protect);
         try {
             $bundler = new Bundler(
-                new AddonResolver($this->getModuleRepositoryManager(), 'module'),
-                new AddonResolver($this->getThemeRepositoryManager(), 'theme'),
+                new AddonResolver($this->getModuleRepositoryManager(), AddonType::Module),
+                new AddonResolver($this->getThemeRepositoryManager(), AddonType::Theme),
                 fn() => $this->webApi->getLatestOmekaVersion(),
                 null,
                 fn(string $message) => $this->note($message, true),

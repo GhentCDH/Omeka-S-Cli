@@ -1,7 +1,7 @@
 <?php
 namespace OSC\Commands\Theme;
 
-use OSC\Helper\VersionCompatibility;
+use OSC\Addon\AddonVersion;
 
 class SearchCommand extends AbstractThemeCommand
 {
@@ -40,7 +40,7 @@ class SearchCommand extends AbstractThemeCommand
             $omekaVersion = $this->getOmekaVersion();
             $this->debug("Filtering themes compatible with Omeka S {$omekaVersion}", true);
             $themeResults = array_filter($themeResults, function($themeResult) use ($omekaVersion) {
-                return (bool) VersionCompatibility::getLatestCompatible(
+                return (bool) AddonVersion::latestCompatible(
                     $themeResult->getItem()->getVersions(),
                     $omekaVersion
                 );
