@@ -1,0 +1,12 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/", "dctype": "http://purl.org/dc/dcmitype/", "o": "http://omeka.org/s/vocabs/o#", "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"},
+    "@type": ["o:Item", "dctype:StillImage"],
+    "o-ref:id": {"dcterms:identifier": "it-obj-1"},
+    "o:is_public": true,
+    "o:resource_class": {"o:term": "dctype:StillImage"},
+    "o:item_set": [{"o-ref:ref": {"dcterms:identifier": "it-set-paintings"}}],
+    "dcterms:title": [{"type": "literal", "is_public": true, "@value": "Mona Lisa"}],
+    "dcterms:creator": [{"type": "literal", "is_public": true, "@value": "Leonardo da Vinci"}],
+    "dcterms:identifier": [{"type": "literal", "is_public": true, "@value": "it-obj-1"}],
+    "dcterms:source": [{"type": "uri", "is_public": true, "@id": "https://en.wikipedia.org/wiki/Mona_Lisa", "o:label": "Wikipedia"}]
+}

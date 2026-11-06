@@ -279,6 +279,52 @@ class BlueprintApplierTest extends TestCase
         return $siteApi;
     }
 
+    public function testDryRunImportsSimpleThenExtensionContent(): void
+    {
+        $notes = [];
+        $sections = [];
+        $command = $this->createMock(AbstractCommand::class);
+        $command->method('note')->willReturnCallback(function (string $m) use (&$notes) { $notes[] = $m; });
+        $command->method('section')->willReturnCallback(function (string $label) use (&$sections) { $sections[] = $label; });
+
+        (new BlueprintApplier($command, true))->applyConfiguration(new Blueprint([
+            'itemSets' => [['title' => 'Paintings']],
+            'items' => [['title' => 'Mona Lisa']],
+            'x-omeka-s-cli' => [
+                'itemSets' => [['source' => '/bp/content/drawings.jsonld']],
+                'items' => [['source' => '/bp/content/study.jsonld', 'title' => 'Study'], ['title' => 'Title only']],
+            ],
+        ]));
+
+        $this->assertSame([
+            "would import item set 'Paintings'",
+            "would import item set 'drawings.jsonld'",
+            "would import item 'Mona Lisa'",
+            "would import item 'Study'",
+            "would import item 'Title only'",
+        ], $notes);
+        $this->assertContains('Item sets', $sections);
+        $this->assertContains('Items', $sections);
+    }
+
+    public function testItemPhasesCanBeSkipped(): void
+    {
+        $notes = [];
+        $skipped = [];
+        $command = $this->createMock(AbstractCommand::class);
+        $command->method('note')->willReturnCallback(function (string $m) use (&$notes) { $notes[] = $m; });
+        $command->method('section')->willReturnCallback(function (string $label, $x = null, ?string $status = null) use (&$skipped) {
+            if ($status !== null) {
+                $skipped[$label] = $status;
+            }
+        });
+
+        (new BlueprintApplier($command, true, false, ['items']))->applyConfiguration(new Blueprint(['items' => [['title' => 'Mona Lisa']]]));
+
+        $this->assertSame([], $notes);
+        $this->assertSame('skipped (--skip)', $skipped['Items']);
+    }
+
     public function testDryRunCreatesEverySiteWhenOmekaIsNotInstalled(): void
     {
         [$notes] = $this->dryRunSites([

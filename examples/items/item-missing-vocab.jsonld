@@ -1,0 +1,5 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/", "foo": "https://example.org/ns/foo#"},
+    "dcterms:title": [{"type": "literal", "@value": "Uses a missing vocabulary"}],
+    "foo:bar": [{"type": "literal", "@value": "x"}]
+}

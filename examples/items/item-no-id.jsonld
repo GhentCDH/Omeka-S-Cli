@@ -1,0 +1,4 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/", "dctype": "http://purl.org/dc/dcmitype/", "o": "http://omeka.org/s/vocabs/o#", "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"},
+    "dcterms:title": [{"type": "literal", "@value": "Untitled sketch"}]
+}

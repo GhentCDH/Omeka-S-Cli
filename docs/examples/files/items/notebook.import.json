@@ -1,0 +1,7 @@
+{
+    "title": "Notebook page",
+    "itemSets": ["Paintings"],
+    "media": [
+        { "ingester": "html", "source": "<p>Notes on light and shade.</p>" }
+    ]
+}

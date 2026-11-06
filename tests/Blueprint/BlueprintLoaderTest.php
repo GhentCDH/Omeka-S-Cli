@@ -747,6 +747,101 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame($this->dir . '/modules/A-1.0.0.zip', $blueprint->modules()[0]['source']);
     }
 
+    public function testExtensionItemSourcesResolveAgainstTheDeclaringFile(): void
+    {
+        $path = $this->writeIn('bp/blueprint.json', json_encode(['x-omeka-s-cli' => [
+            'itemSets' => [['source' => './content/set.jsonld', 'title' => 'Set']],
+            'items' => [[
+                'source' => './content/a.jsonld',
+                'media' => [
+                    ['ingester' => 'upload', 'source' => './media/a.png'],
+                    ['ingester' => 'iiif', 'source' => 'https://example.org/iiif/info.json'],
+                    ['ingester' => 'html', 'source' => '<p>not a path</p>'],
+                ],
+            ]],
+        ]]));
+
+        $blueprint = (new BlueprintLoader())->load($path);
+        $items = $blueprint->extensionItems();
+
+        $this->assertSame($this->dir . '/bp/content/a.jsonld', $items[0]['source']);
+        $this->assertSame($this->dir . '/bp/media/a.png', $items[0]['media'][0]['source']);
+        $this->assertSame('https://example.org/iiif/info.json', $items[0]['media'][1]['source']);
+        $this->assertSame('<p>not a path</p>', $items[0]['media'][2]['source']);
+        $this->assertSame($this->dir . '/bp/content/set.jsonld', $blueprint->extensionItemSets()[0]['source']);
+    }
+
+    public function testSimpleMediaRelativeUrlResolvesAndAbsoluteUrlStays(): void
+    {
+        $path = $this->writeIn('bp/blueprint.json', json_encode([
+            'itemSets' => [['title' => 'Paintings']],
+            'items' => [['title' => 'Mona Lisa', 'media' => [
+                ['type' => 'url', 'url' => './m.png'],
+                ['type' => 'url', 'url' => 'https://x.org/a.jpg'],
+            ]]],
+        ]));
+
+        $blueprint = (new BlueprintLoader())->load($path);
+
+        $this->assertSame($this->dir . '/bp/m.png', $blueprint->items()[0]['media'][0]['url']);
+        $this->assertSame('https://x.org/a.jpg', $blueprint->items()[0]['media'][1]['url']);
+        $this->assertSame('Paintings', $blueprint->itemSets()[0]['title']);
+    }
+
+    public function testTheLoaderRecordsWhichMediaAreFiles(): void
+    {
+        $path = $this->writeIn('bp/blueprint.json', json_encode([
+            'items' => [['title' => 'A', 'media' => [['url' => './m.png'], ['url' => 'https://x.org/a.jpg']]]],
+            'x-omeka-s-cli' => ['items' => [['source' => './a.jsonld', 'media' => [['ingester' => 'upload', 'source' => './u.png']]]]],
+        ]));
+
+        $blueprint = (new BlueprintLoader())->load($path);
+
+        $this->assertTrue($blueprint->isFileSource($this->dir . '/bp/m.png'));
+        $this->assertTrue($blueprint->isFileSource($this->dir . '/bp/u.png'));
+        $this->assertFalse($blueprint->isFileSource('https://x.org/a.jpg'));
+    }
+
+    public function testSelfContainedFlagsUploadUrlsButNotLinkMedia(): void
+    {
+        $base = $this->write('base.json', json_encode([
+            'x-omeka-s-cli' => [
+                'install' => ['source' => './core/omeka-s-4.1.1.zip'],
+                'items' => [[
+                    'source' => './content/a.jsonld',
+                    'media' => [
+                        ['ingester' => 'upload', 'source' => 'https://example.org/a.png'],
+                        ['ingester' => 'iiif', 'source' => 'https://example.org/iiif/info.json'],
+                    ],
+                ]],
+            ],
+            'items' => [['title' => 'B', 'media' => [['type' => 'url', 'url' => 'https://example.org/b.jpg']]]],
+        ]));
+
+        $loader = new BlueprintLoader(null, null, true);
+        $loader->load($base);
+        $violations = $loader->takeViolations();
+
+        $this->assertCount(1, $violations);
+        $this->assertStringContainsString("x-omeka-s-cli.items[0] media[0].source 'https://example.org/a.png'", $violations[0]);
+    }
+
+    public function testSelfContainedFlagsARemoteItemSource(): void
+    {
+        $base = $this->write('base.json', json_encode(['x-omeka-s-cli' => [
+            'install' => ['source' => './core/omeka-s-4.1.1.zip'],
+            'itemSets' => [['source' => 'https://example.org/set.jsonld']],
+        ]]));
+
+        $loader = new BlueprintLoader(null, null, true);
+        $loader->load($base);
+
+        $this->assertSame(
+            ["x-omeka-s-cli.itemSets[0] source 'https://example.org/set.jsonld' in '{$base}' is not a relative path inside the blueprint."],
+            $loader->takeViolations()
+        );
+    }
+
     public function testViolationsAreOnlyCollectedInSelfContainedMode(): void
     {
         $base = $this->write('base.json', '{ "modules": [ { "name": "Log", "source": "gh:owner/log" } ] }');

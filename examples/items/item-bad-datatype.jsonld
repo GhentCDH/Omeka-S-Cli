@@ -1,0 +1,4 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/"},
+    "dcterms:title": [{"type": "unknown:thing", "@value": "Uses an unknown data type"}]
+}

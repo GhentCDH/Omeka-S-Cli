@@ -1,0 +1,8 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/", "o": "http://omeka.org/s/vocabs/o#", "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"},
+    "@type": "o:Item",
+    "o-ref:id": {"dcterms:identifier": "bp-print-2"},
+    "o:item_set": [{"o-ref:ref": {"dcterms:identifier": "bp-set-prints"}}],
+    "dcterms:title": [{"type": "literal", "@value": "BP Print 2"}],
+    "dcterms:identifier": [{"type": "literal", "@value": "bp-print-2"}]
+}

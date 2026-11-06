@@ -7,3 +7,6 @@ require_once __DIR__ . '/../vendor/autoload.php';
 // run offline against the local copy. Needs network only on the first run per checkout.
 require_once __DIR__ . '/../scripts/fetch-blueprint-schema.php';
 osc_fetch_blueprint_schema(false);
+
+// Shared test fixtures (the Tests\ namespace is not autoloaded)
+require_once __DIR__ . '/Resource/FakeCatalog.php';

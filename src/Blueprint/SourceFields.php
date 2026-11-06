@@ -14,6 +14,13 @@ final class SourceFields
     public const FILE = 'file';
     public const VOCABULARY = 'vocabulary';
     public const TEMPLATE = 'template';
+    public const ITEM = 'item';
+    public const ITEM_SET = 'itemSet';
+    public const MEDIA = 'media';
+
+    /** The CLI's own item and item-set entries (one JSON-LD source each), until the shared format has them. */
+    public const EXTENSION_ITEMS = 'x-omeka-s-cli.items';
+    public const EXTENSION_ITEM_SETS = 'x-omeka-s-cli.itemSets';
 
     /**
      * Where the Omeka S release ZIP is declared. It lives in the CLI's extension key until the
@@ -21,13 +28,19 @@ final class SourceFields
      */
     public const CORE_SOURCE = 'x-omeka-s-cli.install.source';
 
-    /** List key => [item field => kind]. */
+    /**
+     * List key => [item field => kind]. A dotted key is a list inside an object; a field `a[].b` is
+     * the field `b` of every element of the list `a`.
+     */
     private const LISTS = [
-        'modules'           => ['source' => self::MODULE],
-        'themes'            => ['source' => self::THEME],
-        'files'             => ['source' => self::FILE],
-        'vocabularies'      => ['source' => self::VOCABULARY],
-        'resourceTemplates' => ['source' => self::TEMPLATE],
+        'modules'                 => ['source' => self::MODULE],
+        'themes'                  => ['source' => self::THEME],
+        'files'                   => ['source' => self::FILE],
+        'vocabularies'            => ['source' => self::VOCABULARY],
+        'resourceTemplates'       => ['source' => self::TEMPLATE],
+        'items'                   => ['media[].url' => self::MEDIA],
+        self::EXTENSION_ITEM_SETS => ['source' => self::ITEM_SET],
+        self::EXTENSION_ITEMS     => ['source' => self::ITEM, 'media[].source' => self::MEDIA],
     ];
 
     /** Dotted object path => [field => kind]. */
@@ -39,6 +52,26 @@ final class SourceFields
     public static function forList(string $key): array
     {
         return self::LISTS[$key] ?? [];
+    }
+
+    /** @return string[] The lists that sit inside an object (dotted paths) */
+    public static function dottedLists(): array
+    {
+        return [self::EXTENSION_ITEM_SETS, self::EXTENSION_ITEMS];
+    }
+
+    /**
+     * Whether a media's $field is a file to fetch (an upload), rather than a link the ingester keeps
+     * (url, iiif, youtube, html, ...). Without an ingester (the shared format's simple media, field
+     * `url`) a value that is not an http(s) URL is a file.
+     */
+    public static function isMediaFile(array $media, string $field): bool
+    {
+        if (isset($media['ingester'])) {
+            return $media['ingester'] === 'upload';
+        }
+        $value = $media[$field] ?? null;
+        return is_string($value) && preg_match('#^https?://#i', trim($value)) !== 1;
     }
 
     /** @return array<string,array<string,string>> dotted object path => [field => kind] */
