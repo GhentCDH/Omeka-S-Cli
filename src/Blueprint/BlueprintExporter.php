@@ -1,5 +1,5 @@
 <?php
-namespace OSC\Commands\Blueprint;
+namespace OSC\Blueprint;
 
 use Omeka\Module\Manager as ModuleManager;
 use Omeka\Site\Theme\Manager as ThemeManager;
@@ -13,7 +13,7 @@ use OSC\Omeka\OmekaInstance;
  * name, only when {@see ExportOptions} includes them. Vocabulary sources are resolved best-effort
  * against the GhentCDH vocabulary index (Omeka does not store the RDF import source); a vocabulary that
  * can not be resolved is emitted without a source, and its prefix is collected so the command can note
- * it. A helper for {@see ExportCommand}; it reads the instance and returns plain arrays, leaving all
+ * it. A helper for {@see \OSC\Commands\Blueprint\ExportCommand}; it reads the instance and returns plain arrays, leaving all
  * output/formatting to the command.
  */
 class BlueprintExporter

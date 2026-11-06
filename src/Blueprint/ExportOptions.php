@@ -1,5 +1,5 @@
 <?php
-namespace OSC\Commands\Blueprint;
+namespace OSC\Blueprint;
 
 use InvalidArgumentException;
 

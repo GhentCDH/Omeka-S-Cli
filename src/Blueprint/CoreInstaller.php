@@ -1,8 +1,7 @@
 <?php
-namespace OSC\Commands\Blueprint;
+namespace OSC\Blueprint;
 
 use Exception;
-use OSC\Blueprint\Blueprint;
 use OSC\Commands\AbstractCommand;
 use OSC\Helper\Config\DatabaseConfig;
 use OSC\Helper\Config\UserConfig;
@@ -15,8 +14,8 @@ use Throwable;
  *
  * Detection and reset use a raw PDO connection (no Omeka bootstrap); the install runs in-process,
  * which boots Omeka on the freshly reset/empty database — the standard single-process install path.
- * A helper for {@see DeployCommand} rather than blueprint-domain logic, so it lives under the command
- * namespace and drives the existing core:* commands through the invoking command.
+ * A helper for {@see \OSC\Commands\Blueprint\DeployCommand}; it drives the existing core:* commands
+ * through the invoking command.
  */
 class CoreInstaller
 {
