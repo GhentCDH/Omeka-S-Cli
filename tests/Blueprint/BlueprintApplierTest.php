@@ -170,6 +170,64 @@ class BlueprintApplierTest extends TestCase
         return $notes;
     }
 
+    /**
+     * Dry-run the download-only phases and return the reported lines, phase status lines included
+     * ("<Phase>: <status>").
+     *
+     * @param string[] $skip
+     * @return string[]
+     */
+    private function dryRunDownloads(array $blueprint, array $skip = []): array
+    {
+        $lines = [];
+        $command = $this->createMock(AbstractCommand::class);
+        $command->method('resolveOmekaPath')->willReturn($this->dir . '/omeka');
+        $command->method('note')->willReturnCallback(function (string $message) use (&$lines) {
+            $lines[] = $message;
+        });
+        $command->method('section')->willReturnCallback(function (string $title, ?string $detail = null, ?string $status = null) use (&$lines) {
+            $lines[] = "{$title}: " . ($status ?? 'run');
+        });
+        (new BlueprintApplier($command, true, false, $skip))->applyDownloads(new Blueprint($blueprint));
+        return $lines;
+    }
+
+    public function testDownloadsGetEveryModuleWhateverItsStateAndInstallNone(): void
+    {
+        $lines = $this->dryRunDownloads(['modules' => [
+            ['name' => 'A', 'state' => 'download'],
+            ['name' => 'B', 'state' => 'install'],
+            'C',
+        ]]);
+
+        $this->assertContains("would download module 'A' (A)", $lines);
+        $this->assertContains("would download module 'B' (B)", $lines);
+        $this->assertContains("would download module 'C' (C)", $lines);
+        $this->assertSame([], preg_grep('/would (install|enable)/', $lines));
+    }
+
+    public function testDownloadsAlsoRunThemesAndFiles(): void
+    {
+        $source = $this->write('logo.png', 'png');
+        $lines = $this->dryRunDownloads([
+            'themes' => ['freedom'],
+            'files' => [['source' => $source, 'destination' => 'themes/freedom/asset/img/logo.png']],
+        ]);
+
+        $this->assertContains("would download theme 'freedom' (freedom)", $lines);
+        $this->assertContains("would copy '{$source}' to 'themes/freedom/asset/img/logo.png'", $lines);
+    }
+
+    public function testDownloadsSkipTheRequestedPhasesAndNoConfiguration(): void
+    {
+        $lines = $this->dryRunDownloads(
+            ['modules' => ['A'], 'themes' => ['freedom'], 'settings' => ['installation_title' => 'X']],
+            ['modules']
+        );
+
+        $this->assertSame(['Modules: skipped (--skip)', 'Themes: run', "would download theme 'freedom' (freedom)", 'Files: nothing to do'], $lines);
+    }
+
     public function testAddonWithoutSourceResolvesByNameAndVersion(): void
     {
         $notes = $this->dryRunAddons([

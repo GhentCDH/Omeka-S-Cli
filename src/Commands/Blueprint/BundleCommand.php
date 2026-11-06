@@ -38,20 +38,7 @@ class BundleCommand extends AbstractBlueprintCommand
         ?bool $force = false,
         ?bool $allowIncompatible = false,
     ): void {
-        $this->note("Loading blueprint from '{$source}' ...", true);
-        $loader = new BlueprintLoader(null, $root);
-        $blueprint = $loader->load($source);
-        foreach ($loader->takeWarnings() as $warning) {
-            $this->warn("  {$warning}", true);
-        }
-        $errors = $this->validator(false)->validateBlueprint($blueprint->toArray());
-        if ($errors) {
-            $this->error('Blueprint is invalid:', true);
-            foreach ($errors as $error) {
-                $this->error("  - {$error}", true);
-            }
-            throw new Exception("Refusing to bundle an invalid blueprint. Run 'blueprint:validate' for details.");
-        }
+        $blueprint = $this->loadValidBlueprint('bundle', $source, $root, false, false);
 
         $target = Path::toAbsolutePath($output, $this->getCwd());
         // --force must never delete the blueprint being bundled, nor the directory its references live in

@@ -132,7 +132,24 @@ omeka-s-cli blueprint:deploy ~/bundle/blueprint.json --self-contained --skip cor
 # --8<-- [end:deploy-bundle]
 omeka-s-cli site:list --json | jq -e 'any(.[]; .slug == "collections")'
 
-# the Dockerfile on the automation page runs these same commands
+# --8<-- [start:download]
+omeka-s-cli blueprint:download ~/blueprints/site.blueprint.jsonc --base-path ~/omeka-s
+# --8<-- [end:download]
+test -f ~/omeka-s/application/Module.php
+test -f ~/omeka-s/modules/Common/config/module.ini
+test -f ~/omeka-s/modules/Sharing/config/module.ini
+test -d ~/omeka-s/themes/default
+# nothing was installed: database.ini is still the empty template of the release
+! grep -Eq '^\s*dbname\s*=\s*"?[^"[:space:]]' ~/omeka-s/config/database.ini || exit 1
+
+# --8<-- [start:download-skip-core]
+omeka-s-cli blueprint:download ~/blueprints/site.blueprint.jsonc --skip core
+# --8<-- [end:download-skip-core]
+omeka-s-cli blueprint:download ~/blueprints/site.blueprint.jsonc --skip core > "$SCRATCH_DIR/download.log" 2>&1
+grep -q 'Common: already present' "$SCRATCH_DIR/download.log"
+
+# the Dockerfiles on the automation page run these same commands
+grep -q 'omeka-s-cli blueprint:download /src/site.blueprint.jsonc --base-path /var/www/omeka-s' "$EXAMPLES_DIR/files/blueprints/Dockerfile.download"
 grep -q 'omeka-s-cli blueprint:bundle /src/site.blueprint.jsonc /opt/bundle' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
 grep -q 'omeka-s-cli blueprint:deploy /opt/bundle/blueprint.json --self-contained' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
 # a restart must not run the core phase again: it refuses an installed instance (and --force would wipe it)

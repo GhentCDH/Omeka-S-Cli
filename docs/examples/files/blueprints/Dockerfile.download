@@ -1,0 +1,16 @@
+# Build stage: has network access, and puts the Omeka S core, modules, themes and files in place.
+FROM php:8.2-cli AS download
+RUN apt-get update && apt-get install -y --no-install-recommends git unzip libzip-dev \
+    && docker-php-ext-install zip && rm -rf /var/lib/apt/lists/*
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+ADD --chmod=755 https://github.com/GhentCDH/Omeka-S-Cli/releases/latest/download/omeka-s-cli.phar /usr/local/bin/omeka-s-cli
+# the blueprint and the files it refers to
+COPY . /src/
+RUN omeka-s-cli blueprint:download /src/site.blueprint.jsonc --base-path /var/www/omeka-s
+
+# Runtime image (your PHP + web server image): ships the code. A container only needs a database
+# (config/database.ini) and a volume for the uploaded files.
+FROM your-omeka-runtime-image
+COPY --from=download /usr/local/bin/omeka-s-cli /usr/local/bin/omeka-s-cli
+COPY --from=download /var/www/omeka-s /var/www/omeka-s
+VOLUME /var/www/omeka-s/files

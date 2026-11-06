@@ -2,10 +2,7 @@
 namespace OSC\Commands\Blueprint;
 
 use Exception;
-use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintApplier;
-use OSC\Blueprint\BlueprintLoader;
-use OSC\Blueprint\SelfContainedCheck;
 use OSC\Helper\DatabaseConfig;
 use OSC\Helper\Path;
 use OSC\Helper\UserConfig;
@@ -100,40 +97,14 @@ class DeployCommand extends AbstractBlueprintCommand
         // blueprint (and its warnings), so the continuation stays quiet about it
         $isContinuation = (bool) $deferPhases;
 
-        if (!$isContinuation) {
-            $this->note("Loading blueprint from '{$source}' ...", true);
-        }
-        $loader = new BlueprintLoader(null, $root, $selfContained);
-        $blueprint = $loader->load($source);
-        $loaderWarnings = $loader->takeWarnings();
-        if (!$isContinuation) {
-            foreach ($loaderWarnings as $warning) {
-                $this->warn("  {$warning}", true);
-            }
-        }
-
-        if ($selfContained) {
-            $violations = array_merge(
-                $loader->takeViolations(),
-                SelfContainedCheck::violations($blueprint, $this->coreWillInstall($skipPhases, $deferPhases))
-            );
-            if ($violations) {
-                $this->error('Blueprint is not self-contained:', true);
-                foreach ($violations as $violation) {
-                    $this->error("  - {$violation}", true);
-                }
-                throw new Exception('Refusing to deploy: ' . count($violations) . ' source(s) are outside the blueprint.');
-            }
-        }
-
-        $errors = $this->validator($selfContained)->validateBlueprint($blueprint->toArray());
-        if ($errors) {
-            $this->error('Blueprint is invalid:', true);
-            foreach ($errors as $error) {
-                $this->error("  - {$error}", true);
-            }
-            throw new Exception("Refusing to deploy an invalid blueprint. Run 'blueprint:validate' for details.");
-        }
+        $blueprint = $this->loadValidBlueprint(
+            'deploy',
+            $source,
+            $root,
+            $selfContained,
+            $this->coreWillInstall($skipPhases, $deferPhases),
+            $isContinuation
+        );
 
         $dryRun = $this->isDryRun();
         $update = (bool) $update;
@@ -227,12 +198,6 @@ class DeployCommand extends AbstractBlueprintCommand
         }
         $count = count(self::STAGES);
         $this->heading("Phase {$stage}/{$count}: " . self::STAGES[$stage]['title']);
-    }
-
-    /** Parse a comma-separated phase list into a trimmed array. */
-    private function parsePhases(?string $csv): array
-    {
-        return $csv ? array_values(array_filter(array_map('trim', explode(',', $csv)))) : [];
     }
 
     /**

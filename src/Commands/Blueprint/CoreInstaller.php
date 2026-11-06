@@ -32,14 +32,7 @@ class CoreInstaller
         $this->command->section('Core');
 
         // 1. core files
-        if (!$this->command->isOmekaDir($targetPath)) {
-            $this->command->note('Downloading Omeka S core ...', true);
-            $version = $blueprint->preferredOmekaVersion();
-            $source = $blueprint->installSource();
-            $this->runSubcommand('core:download', fn($c) => $c->execute($version, $targetPath, true, false, $source));
-        } else {
-            $this->command->note("Core already present at {$targetPath}", true);
-        }
+        $this->download($blueprint, $targetPath);
 
         // 2. database.ini. Omeka's core zip ships an empty template, so "the file exists" is not
         //    enough: write our credentials whenever the current file has none (fresh install), and
@@ -79,6 +72,22 @@ class CoreInstaller
                 $admin->getPassword(),
             );
         });
+    }
+
+    /**
+     * Download the core files to $targetPath (the blueprint's release ZIP, else its preferred version,
+     * else the latest), unless Omeka S is already there. Needs no database.
+     */
+    public function download(Blueprint $blueprint, string $targetPath): void
+    {
+        if ($this->command->isOmekaDir($targetPath)) {
+            $this->command->note("Core already present at {$targetPath}", true);
+            return;
+        }
+        $this->command->note('Downloading Omeka S core ...', true);
+        $version = $blueprint->preferredOmekaVersion();
+        $source = $blueprint->installSource();
+        $this->runSubcommand('core:download', fn($c) => $c->execute($version, $targetPath, true, false, $source));
     }
 
     public function reportDryRun(Blueprint $blueprint): void
