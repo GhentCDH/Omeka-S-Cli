@@ -75,6 +75,18 @@ class BlueprintApplier
     }
 
     /**
+     * The phases that only put files on disk, for an instance that is installed later (e.g. a Docker
+     * image): modules are downloaded but not installed, themes and files as in a deploy. Needs no
+     * database and no Omeka bootstrap.
+     */
+    public function applyDownloads(Blueprint $blueprint): void
+    {
+        $this->runPhase('modules', $blueprint->modules(), fn($d) => $this->downloadModules(array_map([$this, 'normalizeModule'], $d)));
+        $this->runPhase('themes', $blueprint->themes(), fn($d) => $this->applyThemes($d));
+        $this->runPhase('files', $blueprint->files(), fn($d) => $this->applyFiles($d));
+    }
+
+    /**
      * The phases that configure the instance (and may need the modules' services): vocabularies,
      * resource templates, users, sites and settings.
      */
@@ -112,8 +124,17 @@ class BlueprintApplier
     private function applyModules(array $modules): void
     {
         $modules = array_map([$this, 'normalizeModule'], $modules);
+        $this->downloadModules($modules);
+        $this->installModules($modules);
+    }
 
-        // 1. download every module (one already on disk is used as is, whatever its source)
+    /**
+     * Download every module, whatever its state (one already on disk is used as is, whatever its source).
+     *
+     * @param array $modules Normalized modules
+     */
+    private function downloadModules(array $modules): void
+    {
         foreach ($modules as $module) {
             // re-download when --update, or when a pinned version differs from what is on disk
             $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version']);
@@ -132,11 +153,18 @@ class BlueprintApplier
                 $this->command->note("{$module['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }
+    }
 
-        // 2. install + enable each module in its OWN process, in blueprint order. A module's services
-        //    register only at a bootstrap where it is active, so a dependent (e.g. on Common) must be
-        //    installed in a fresh process where its dependency is already active. Blueprint order lists
-        //    dependencies first, so processing one module per process satisfies that.
+    /**
+     * Install + enable each module in its OWN process, in blueprint order. A module's services register
+     * only at a bootstrap where it is active, so a dependent (e.g. on Common) must be installed in a
+     * fresh process where its dependency is already active. Blueprint order lists dependencies first,
+     * so processing one module per process satisfies that.
+     *
+     * @param array $modules Normalized modules
+     */
+    private function installModules(array $modules): void
+    {
         if ($this->dryRun) {
             foreach ($modules as $module) {
                 if ($module['name'] === '' || !in_array($module['state'], ['install', 'activate'], true)) {

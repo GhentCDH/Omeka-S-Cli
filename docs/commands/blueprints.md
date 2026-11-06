@@ -2,7 +2,8 @@
 
 A blueprint is a JSON file that declares what an Omeka S instance should contain: modules, themes,
 files, vocabularies, resource templates, users, sites and settings. `blueprint:validate` checks a
-blueprint, `blueprint:deploy` applies it, and `blueprint:export` writes one from a running instance.
+blueprint, `blueprint:deploy` applies it, `blueprint:download` only puts its code and files on disk,
+and `blueprint:export` writes one from a running instance.
 
 This page covers the commands on an instance that is already installed. The format, the deploy phases
 and building an instance from nothing are explained in
@@ -270,6 +271,28 @@ password) for every user they name:
 The deploy makes the first global administrator the owner of every site it creates, with the admin
 role on it, so that user appears in the permissions too.
 
+## Download without installing
+
+`blueprint:download` puts the core, modules, themes and files of a blueprint on disk, and installs
+nothing: it needs no database. Use it to build a Docker image that ships the code (see
+[In a Docker image](../automation/blueprints.md#in-a-docker-image)). The core phase downloads Omeka S
+into `--base-path` when it is not there yet; modules are downloaded whatever their `state`:
+
+```bash
+--8<-- "docs/examples/blueprints.sh:download"
+```
+
+It does not write `config/database.ini`, does not install Omeka S or the modules, and skips the
+configuration (vocabularies, resource templates, users, sites, settings). A module or theme already on
+disk is kept, unless `--update` is given or its pinned `version` differs, as in a deploy.
+
+`--skip` takes the phases `core`, `modules`, `themes` and `files`. With `--skip core`, the add-ons go
+into an existing Omeka S, found as with any other command:
+
+```bash
+--8<-- "docs/examples/blueprints.sh:download-skip-core"
+```
+
 ## Bundle a blueprint
 
 Download everything a blueprint needs into one directory, with a blueprint that only refers to files
@@ -294,6 +317,8 @@ flag.
 All commands also accept the [global options](../reference/global-options.md).
 
 --8<-- "build/docs/commands/blueprint-validate.md"
+
+--8<-- "build/docs/commands/blueprint-download.md"
 
 --8<-- "build/docs/commands/blueprint-bundle.md"
 

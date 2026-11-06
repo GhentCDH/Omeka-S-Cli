@@ -952,6 +952,27 @@ assert_success "the theme is in that folder"                               test 
 assert_fail    "theme:download --dir rejects a path"                       $CLI theme:download "$BUNDLED_THEME" --dir ../escape --force
 run            "remove the --dir theme"                                    $CLI theme:delete bundle-theme --force
 
+# download: the bundle's core, modules and themes put on disk without a database (e.g. to build an
+# image), from outside any Omeka S directory
+DOWNLOAD=/tmp/bp-download
+run            "remove a download left by an earlier run"                  rm -rf "$DOWNLOAD"
+assert_success "blueprint:download puts the core and add-ons on disk" \
+    bash -c "cd /tmp && $CLI blueprint:download $BUNDLE/blueprint.json --self-contained --base-path $DOWNLOAD"
+assert_output_is "the core is the bundled release" "$OMEKA_VERSION" \
+    bash -c "grep -oP \"const VERSION = '\K[^']+\" $DOWNLOAD/application/Module.php"
+assert_success "the modules are there"                                     test -f "$DOWNLOAD/modules/Common/config/module.ini" -a -f "$DOWNLOAD/modules/CustomVocab/config/module.ini"
+assert_success "the theme is there"                                        test -f "$DOWNLOAD/themes/freedom/config/theme.ini"
+assert_fail    "database.ini was not written"                              grep -Eq '^\s*(user|dbname)\s*=\s*"?[^"[:space:]]' "$DOWNLOAD/config/database.ini"
+assert_output_contains "a second run keeps what is there" "already present" \
+    bash -c "cd /tmp && $CLI blueprint:download $BUNDLE/blueprint.json --self-contained --base-path $DOWNLOAD"
+assert_output_contains "--skip core --update downloads the add-ons into the core again" "CustomVocab' v2.1.0 downloaded" \
+    bash -c "cd /tmp && $CLI blueprint:download $BUNDLE/blueprint.json --self-contained --base-path $DOWNLOAD --skip core,themes --update -v"
+assert_output_contains "blueprint:download rejects an unknown phase" "Unknown phase" \
+    $CLI blueprint:download "$BUNDLE/blueprint.json" --base-path "$DOWNLOAD" --skip settings
+assert_output_contains "the core phase needs --base-path" "needs --base-path" \
+    bash -c "cd /tmp && $CLI blueprint:download $BUNDLE/blueprint.json"
+run            "remove the download"                                       rm -rf "$DOWNLOAD"
+
 # a full deploy (core phase included) started outside the Omeka S directory: it, and the processes
 # it continues in after the core install, must find the instance through --base-path alone, not by
 # searching the working directory. Resets the instance (database.ini is reused), so keep this last.

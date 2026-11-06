@@ -277,8 +277,25 @@ unchanged. Keep them out of the blueprint and pass them at deploy time instead; 
 
 ### In a Docker image
 
-Bundle in a build stage, which has network access. Deploy when the container starts, once the
-database is reachable. Only the first start deploys: keep `/var/www/omeka-s` on a volume, and a
+There are two ways to use a blueprint in an image.
+
+**Ship the code in the image.** Download the core, modules and themes in a build stage with
+[`blueprint:download`](../commands/blueprints.md#download-without-installing). Every container then
+runs the same code, and needs no network to start: only a database and a volume for `files/`.
+Rebuild the image when the blueprint changes.
+
+```dockerfile
+--8<-- "docs/examples/files/blueprints/Dockerfile.download"
+```
+
+The image has no database yet. When a container starts, write `config/database.ini`
+([`config:create-db-ini`](../commands/core.md#configure-the-database-connection)), and install
+Omeka S and the modules on an empty database, for example with `core:install` followed by
+`blueprint:deploy --skip core --force`. A file in the blueprint with a destination under `files/` is
+hidden by the volume: put such files on the volume instead.
+
+**Deploy a bundle at the first start.** Bundle in a build stage, which has network access. Deploy
+when the container starts, once the database is reachable. Only the first start deploys: keep `/var/www/omeka-s` on a volume, and a
 later start finds Omeka S installed and only starts the web server.
 
 ```dockerfile
