@@ -1,8 +1,8 @@
 <?php
 
-namespace OSC\Commands\Dummy\Config;
+namespace OSC\Dummy\Config;
 
-class ItemConfig extends ResourceConfig implements ResourceConfigInterface
+class ItemSetConfig extends ResourceConfig implements ResourceConfigInterface
 {
     public static function defaultConfig(): array
     {
@@ -16,8 +16,12 @@ class ItemConfig extends ResourceConfig implements ResourceConfigInterface
         ];
     }
 
-
     protected function validate(): void
     {
+        if ($this->config()['o:item_set'] ?? false) {
+            throw new \InvalidArgumentException(
+                "Item sets cannot have an 'o:item_set' field."
+            );
+        }
     }
 }

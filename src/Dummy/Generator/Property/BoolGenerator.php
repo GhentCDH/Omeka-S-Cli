@@ -1,6 +1,6 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator\Property;
+namespace OSC\Dummy\Generator\Property;
 
 class BoolGenerator implements PropertyGeneratorInterface
 {

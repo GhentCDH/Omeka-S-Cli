@@ -1,10 +1,8 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator\ResourceValue;
+namespace OSC\Dummy\Generator\ResourceValue;
 
-use Exception;
-use OSC\Commands\Dummy\Generator\GeneratorInterface;
-use OSC\Commands\Dummy\Resource\ResourcePool;
+use OSC\Dummy\Resource\ResourcePool;
 
 class ResourceValueGenerator implements ResourceValueGeneratorInterface
 {

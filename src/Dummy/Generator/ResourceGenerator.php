@@ -1,10 +1,10 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator;
+namespace OSC\Dummy\Generator;
 
-use OSC\Commands\Dummy\Config\ResourceConfig;
-use OSC\Commands\Dummy\Resource\ResourceClassResolver;
-use OSC\Commands\Dummy\Resource\ResourcePool;
+use OSC\Dummy\Config\ResourceConfig;
+use OSC\Dummy\Resource\ResourceClassResolver;
+use OSC\Dummy\Resource\ResourcePool;
 
 class ResourceGenerator
 {

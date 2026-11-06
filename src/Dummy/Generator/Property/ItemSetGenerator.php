@@ -1,8 +1,8 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator\Property;
+namespace OSC\Dummy\Generator\Property;
 
-use OSC\Commands\Dummy\Resource\ResourcePool;
+use OSC\Dummy\Resource\ResourcePool;
 
 class ItemSetGenerator implements PropertyGeneratorInterface
 {

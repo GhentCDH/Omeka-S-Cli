@@ -1,6 +1,6 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator\ResourceValue;
+namespace OSC\Dummy\Generator\ResourceValue;
 
 class LiteralValueGenerator implements ResourceValueGeneratorInterface
 {

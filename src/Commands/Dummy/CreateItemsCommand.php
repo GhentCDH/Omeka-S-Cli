@@ -2,9 +2,9 @@
 
 namespace OSC\Commands\Dummy;
 
-use OSC\Commands\Dummy\Config\ItemConfig;
+use OSC\Dummy\Config\ItemConfig;
 
-class CreateItems extends AbstractDummyCommand
+class CreateItemsCommand extends AbstractDummyCommand
 {
     public function __construct()
     {

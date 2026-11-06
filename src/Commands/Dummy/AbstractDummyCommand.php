@@ -3,10 +3,10 @@
 namespace OSC\Commands\Dummy;
 
 use OSC\Commands\AbstractCommand;
-use OSC\Commands\Dummy\Config\ResourceConfig;
-use OSC\Commands\Dummy\Generator\ResourceGenerator;
-use OSC\Commands\Dummy\Resource\ResourceClassResolver;
-use OSC\Commands\Dummy\Resource\ResourcePool;
+use OSC\Dummy\Config\ResourceConfig;
+use OSC\Dummy\Generator\ResourceGenerator;
+use OSC\Dummy\Resource\ResourceClassResolver;
+use OSC\Dummy\Resource\ResourcePool;
 
 abstract class AbstractDummyCommand extends AbstractCommand
 {

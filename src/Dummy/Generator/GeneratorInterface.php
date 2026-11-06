@@ -1,6 +1,6 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator;
+namespace OSC\Dummy\Generator;
 
 interface GeneratorInterface
 {

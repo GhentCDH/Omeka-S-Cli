@@ -1,5 +1,5 @@
 <?php
-namespace OSC\Commands\Dummy\Config;
+namespace OSC\Dummy\Config;
 
 use OSC\Helper\ResourceFetcher;
 

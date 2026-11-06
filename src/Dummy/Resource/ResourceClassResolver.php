@@ -1,6 +1,6 @@
 <?php
 
-namespace OSC\Commands\Dummy\Resource;
+namespace OSC\Dummy\Resource;
 
 class ResourceClassResolver
 {

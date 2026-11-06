@@ -1,8 +1,8 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator\Property;
+namespace OSC\Dummy\Generator\Property;
 
-use OSC\Commands\Dummy\Resource\ResourceClassResolver;
+use OSC\Dummy\Resource\ResourceClassResolver;
 
 class ResourceClassGenerator implements PropertyGeneratorInterface
 {

@@ -1,15 +1,15 @@
 <?php
 
-namespace OSC\Commands\Dummy\Generator;
+namespace OSC\Dummy\Generator;
 
-use OSC\Commands\Dummy\Generator\Property\BoolGenerator;
-use OSC\Commands\Dummy\Generator\Property\ItemSetGenerator;
-use OSC\Commands\Dummy\Generator\Property\ResourceClassGenerator;
-use OSC\Commands\Dummy\Generator\ResourceValue\LiteralValueGenerator;
-use OSC\Commands\Dummy\Generator\ResourceValue\ResourceValueGenerator;
-use OSC\Commands\Dummy\Generator\ResourceValue\UriValueGenerator;
-use OSC\Commands\Dummy\Resource\ResourceClassResolver;
-use OSC\Commands\Dummy\Resource\ResourcePool;
+use OSC\Dummy\Generator\Property\BoolGenerator;
+use OSC\Dummy\Generator\Property\ItemSetGenerator;
+use OSC\Dummy\Generator\Property\ResourceClassGenerator;
+use OSC\Dummy\Generator\ResourceValue\LiteralValueGenerator;
+use OSC\Dummy\Generator\ResourceValue\ResourceValueGenerator;
+use OSC\Dummy\Generator\ResourceValue\UriValueGenerator;
+use OSC\Dummy\Resource\ResourceClassResolver;
+use OSC\Dummy\Resource\ResourcePool;
 
 class GeneratorFactory
 {
