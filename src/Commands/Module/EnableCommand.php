@@ -3,7 +3,7 @@ namespace OSC\Commands\Module;
 
 use InvalidArgumentException;
 use Omeka\Module\Manager as ModuleManager;
-use OSC\Helper\ModuleDependencyOrder;
+use OSC\Addon\ModuleDependencyOrder;
 
 class EnableCommand extends AbstractModuleCommand
 {

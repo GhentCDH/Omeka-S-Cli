@@ -1,7 +1,7 @@
 <?php
-namespace Tests\Helper;
+namespace Tests\Addon;
 
-use OSC\Helper\ModuleNamespace;
+use OSC\Addon\ModuleNamespace;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

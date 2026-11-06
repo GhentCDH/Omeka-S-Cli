@@ -3,6 +3,8 @@ namespace OSC\Blueprint;
 
 use Exception;
 use Omeka\Module\Manager as ModuleManager;
+use OSC\Addon\AddonType;
+use OSC\Addon\InstalledAddons;
 use OSC\Commands\AbstractCommand;
 use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
@@ -152,8 +154,8 @@ class BlueprintApplier
     {
         foreach ($modules as $module) {
             // re-download when --update, or when a pinned version differs from what is on disk
-            $force = $this->update || $this->versionMismatch('modules', 'module.ini', $module['name'], $module['version']);
-            if (!$force && $this->isOnDisk('modules', $module['name'])) {
+            $force = $this->update || ($this->installed()?->versionDiffers(AddonType::Module, $module['name'], $module['version']) ?? false);
+            if (!$force && ($this->installed()?->exists(AddonType::Module, $module['name']) ?? false)) {
                 $this->command->note("{$module['name']}: already present, nothing to download", true);
                 continue;
             }
@@ -245,31 +247,15 @@ class BlueprintApplier
         ];
     }
 
-    /**
-     * @param array $modules Normalized modules
-     * @param string[] $states States to keep
-     * @return string[] Module names in the given states
-     */
-    private function moduleNames(array $modules, array $states): array
-    {
-        $names = [];
-        foreach ($modules as $module) {
-            if (in_array($module['state'], $states, true) && $module['name'] !== '') {
-                $names[] = $module['name'];
-            }
-        }
-        return $names;
-    }
-
     // --- themes ----------------------------------------------------------------------------------
 
     private function applyThemes(array $themes): void
     {
         foreach ($themes as $theme) {
             $theme = (is_string($theme) ? ['name' => $theme] : $theme) + ['name' => '', 'source' => null, 'version' => null];
-            $force = $this->update || $this->versionMismatch('themes', 'theme.ini', $theme['name'], $theme['version']);
+            $force = $this->update || ($this->installed()?->versionDiffers(AddonType::Theme, $theme['name'], $theme['version']) ?? false);
             // e.g. the default theme (ships with the core) or a mounted one
-            if (!$force && $this->isOnDisk('themes', $theme['name'])) {
+            if (!$force && ($this->installed()?->exists(AddonType::Theme, $theme['name']) ?? false)) {
                 $this->command->note("{$theme['name']}: already present, nothing to download", true);
                 continue;
             }
@@ -674,57 +660,15 @@ class BlueprintApplier
     }
 
     /**
-     * Whether a pinned version differs from the one currently on disk (so it must be re-downloaded).
-     * No pinned version, or nothing on disk yet, is not a mismatch.
+     * The add-ons on disk in the target instance, or null when its path cannot be resolved (e.g. a
+     * dry run against an instance that is not there yet): then nothing is on disk.
      */
-    private function versionMismatch(string $dir, string $iniName, string $name, ?string $want): bool
-    {
-        if (!$want || $name === '') {
-            return false;
-        }
-        $have = $this->onDiskVersion($dir, $iniName, $name);
-        if ($have === null) {
-            return false;
-        }
-        return $this->normalizeVersion($have) !== $this->normalizeVersion($want);
-    }
-
-    /** Whether a module/theme directory exists in the Omeka S installation. */
-    private function isOnDisk(string $dir, string $name): bool
-    {
-        if ($name === '') {
-            return false;
-        }
-        try {
-            return is_dir($this->command->resolveOmekaPath() . "/{$dir}/{$name}");
-        } catch (\Throwable) {
-            return false;
-        }
-    }
-
-    /**
-     * The version recorded in a downloaded module's/theme's ini file, or null if it is not on disk.
-     */
-    private function onDiskVersion(string $dir, string $iniName, string $name): ?string
+    private function installed(): ?InstalledAddons
     {
         try {
-            $iniPath = $this->command->resolveOmekaPath() . "/{$dir}/{$name}/config/{$iniName}";
-        } catch (\Throwable) {
+            return new InstalledAddons($this->command->resolveOmekaPath());
+        } catch (Throwable) {
             return null;
         }
-        if (!is_file($iniPath)) {
-            return null;
-        }
-        $ini = @parse_ini_file($iniPath, true);
-        if (!is_array($ini)) {
-            return null;
-        }
-        $version = $ini['info']['version'] ?? $ini['version'] ?? null;
-        return $version !== null ? (string) $version : null;
-    }
-
-    private function normalizeVersion(string $version): string
-    {
-        return ltrim(trim($version), 'vV');
     }
 }

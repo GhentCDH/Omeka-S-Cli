@@ -3,10 +3,11 @@ namespace OSC\Downloader;
 
 use Closure;
 use Exception;
+use OSC\Addon\AddonType;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUriType;
-use OSC\Helper\VersionCompatibility;
+use OSC\Addon\AddonVersion;
 use OSC\Manager\AbstractManager;
 
 /**
@@ -23,9 +24,9 @@ class AddonResolver
 {
     /**
      * @param AbstractManager $manager The module or theme repository manager
-     * @param string          $kind    'module' or 'theme', used in messages
+     * @param AddonType       $type    Module or theme, used in messages
      */
-    public function __construct(private AbstractManager $manager, private string $kind)
+    public function __construct(private AbstractManager $manager, private AddonType $type)
     {
     }
 
@@ -82,7 +83,7 @@ class AddonResolver
 
     private function fromCatalog(string $id, ?string $version, string $omekaVersion, bool $force): ResolvedAddon
     {
-        $kind = $this->kind;
+        $kind = $this->type->value;
         $title = ucfirst($kind);
         $result = $this->manager->find($id);
         if (!$result) {
@@ -98,11 +99,11 @@ class AddonResolver
             if (!$details) {
                 throw new NotFoundException("{$title} '{$dirname}' has no version '{$version}'.");
             }
-            if (!$force && !VersionCompatibility::isCompatible($details, $omekaVersion)) {
+            if (!$force && !AddonVersion::isCompatible($details, $omekaVersion)) {
                 throw new Exception("Cannot use {$kind} '{$dirname}' version '{$version}': incompatible with Omeka S {$omekaVersion}.");
             }
         } else {
-            $details = VersionCompatibility::getLatestCompatible($item->getVersions(), $omekaVersion);
+            $details = AddonVersion::latestCompatible($item->getVersions(), $omekaVersion);
             if (!$details) {
                 throw new NotFoundException("{$title} '{$dirname}' has no version compatible with Omeka S {$omekaVersion}.");
             }

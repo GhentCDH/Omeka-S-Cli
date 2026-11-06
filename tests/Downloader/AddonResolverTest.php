@@ -4,6 +4,7 @@ namespace Tests\Downloader;
 use Closure;
 use Exception;
 use LogicException;
+use OSC\Addon\AddonType;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ResolvedAddon;
@@ -11,7 +12,7 @@ use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUri;
-use OSC\Helper\VersionCompatibility;
+use OSC\Addon\AddonVersion;
 use OSC\Manager\AbstractManager;
 use OSC\Manager\Result;
 use OSC\Repository\Module\ModuleDetails;
@@ -27,7 +28,8 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(GitDownloader::class)]
 #[UsesClass(ResourceUriParser::class)]
 #[UsesClass(ResourceUri::class)]
-#[UsesClass(VersionCompatibility::class)]
+#[UsesClass(AddonVersion::class)]
+#[UsesClass(AddonType::class)]
 #[UsesClass(ModuleDetails::class)]
 #[UsesClass(ModuleVersion::class)]
 #[UsesClass(Result::class)]
@@ -39,7 +41,7 @@ class AddonResolverTest extends TestCase
         $manager->method('find')->willReturn(
             $details ? new Result($details, $this->createMock(RepositoryInterface::class)) : null
         );
-        return new AddonResolver($manager, 'module');
+        return new AddonResolver($manager, AddonType::Module);
     }
 
     /** Common 1.0.0 supports Omeka S 4, Common 2.0.0 (the latest) only Omeka S 5. */

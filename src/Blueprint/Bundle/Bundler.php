@@ -2,9 +2,12 @@
 namespace OSC\Blueprint\Bundle;
 
 use Closure;
-use Composer\Semver\Semver;
 use Exception;
 use InvalidArgumentException;
+use OSC\Addon\AddonIni;
+use OSC\Addon\AddonType;
+use OSC\Addon\AddonVersion;
+use OSC\Addon\ModuleNamespace;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintValidator;
 use OSC\Blueprint\SelfContainedCheck;
@@ -12,7 +15,7 @@ use OSC\Blueprint\SourceFields;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
-use OSC\Helper\ModuleNamespace;
+use OSC\Exceptions\NotFoundException;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\OmekaDotOrgApi;
@@ -241,7 +244,7 @@ class Bundler
 
             $warnings = [];
             if ($pinnedVersion !== null && $resolved->form === ResolvedAddon::ZIP
-                && self::normalizeVersion($pinnedVersion) !== self::normalizeVersion($addon['version'])) {
+                && !AddonVersion::equals($pinnedVersion, $addon['version'])) {
                 $warnings[] = "version {$pinnedVersion} is pinned, but the ZIP contains {$addon['version']}; the ZIP wins";
             }
             $incompatibility = self::incompatibility($addon['constraint'], $omeka);
@@ -271,7 +274,7 @@ class Bundler
                 $warnings[] = "renamed to '{$folder}', its folder name";
             }
 
-            $zipPath = ($kind === SourceFields::MODULE ? 'modules' : 'themes')
+            $zipPath = AddonType::from($kind)->dir()
                 . "/{$folder}-" . preg_replace('/[^A-Za-z0-9._-]/', '_', $addon['version']) . '.zip';
             $zipDir = dirname("{$dir}/{$zipPath}");
             if (!is_dir($zipDir) && !mkdir($zipDir, 0777, true) && !is_dir($zipDir)) {
@@ -314,7 +317,7 @@ class Bundler
             throw new Exception("no config/module.ini found in {$source}");
         }
         $moduleSrc = is_file("{$root}/Module.php") ? file_get_contents("{$root}/Module.php") : false;
-        return self::readIni($root, 'module.ini') + [
+        return self::readIni($root, AddonType::Module) + [
             'namespace' => $moduleSrc !== false ? ModuleNamespace::fromModulePhp($moduleSrc) : null,
         ];
     }
@@ -326,23 +329,26 @@ class Bundler
         if ($root === null) {
             throw new Exception("no config/theme.ini found in {$source}");
         }
-        return self::readIni($root, 'theme.ini');
+        return self::readIni($root, AddonType::Theme);
     }
 
     /**
-     * The version and Omeka S constraint ('' when absent) in an add-on's config/$iniName.
+     * The version and Omeka S constraint ('' when absent) in an add-on's config/<module|theme>.ini.
      *
      * @return array{version: string, constraint: string}
      */
-    private static function readIni(string $root, string $iniName): array
+    private static function readIni(string $root, AddonType $type): array
     {
-        $ini = @parse_ini_file("{$root}/config/{$iniName}", true);
-        $info = is_array($ini) ? ($ini['info'] ?? $ini) : [];
-        $version = trim((string) ($info['version'] ?? ''));
-        if ($version === '') {
-            throw new Exception("config/{$iniName} has no version");
+        try {
+            $ini = AddonIni::fromAddonDir($root, $type);
+        } catch (NotFoundException) {
+            throw new Exception("config/{$type->iniName()} is not a valid ini file");
         }
-        return ['version' => $version, 'constraint' => trim((string) ($info['omeka_version_constraint'] ?? ''))];
+        $version = $ini->version();
+        if ($version === null) {
+            throw new Exception("config/{$type->iniName()} has no version");
+        }
+        return ['version' => $version, 'constraint' => $ini->omekaConstraint() ?? ''];
     }
 
     /** Why the add-on does not fit the target Omeka S version, or null when it does (or has no constraint). */
@@ -352,16 +358,11 @@ class Bundler
             return null;
         }
         try {
-            $compatible = Semver::satisfies($omekaVersion, $constraint);
+            $compatible = AddonVersion::satisfies($omekaVersion, $constraint);
         } catch (Throwable) {
             return "has an unreadable Omeka S version constraint '{$constraint}'";
         }
         return $compatible ? null : "requires Omeka S {$constraint}, but the bundle targets {$omekaVersion}";
-    }
-
-    private static function normalizeVersion(string $version): string
-    {
-        return ltrim(trim($version), 'vV');
     }
 
     private function bundleVocabulary(string $label, array $vocabulary, string $dir): array

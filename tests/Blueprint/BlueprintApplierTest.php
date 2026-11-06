@@ -3,6 +3,10 @@ namespace Tests\Blueprint;
 
 use Exception;
 use Omeka\Api\Representation\SiteRepresentation;
+use OSC\Addon\AddonIni;
+use OSC\Addon\AddonType;
+use OSC\Addon\AddonVersion;
+use OSC\Addon\InstalledAddons;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintApplier;
 use OSC\Commands\AbstractCommand;
@@ -19,6 +23,10 @@ use ZipArchive;
 #[CoversClass(BlueprintApplier::class)]
 #[UsesClass(\OSC\Downloader\AddonResolver::class)]
 #[UsesClass(Blueprint::class)]
+#[UsesClass(InstalledAddons::class)]
+#[UsesClass(AddonIni::class)]
+#[UsesClass(AddonType::class)]
+#[UsesClass(AddonVersion::class)]
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(Path::class)]
 #[UsesClass(ResourceFetcher::class)]

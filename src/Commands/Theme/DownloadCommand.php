@@ -2,6 +2,9 @@
 namespace OSC\Commands\Theme;
 
 use Exception;
+use OSC\Addon\AddonIni;
+use OSC\Addon\AddonType;
+use OSC\Addon\InstalledAddons;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\AddonResolver;
 use OSC\Exceptions\NotFoundException;
@@ -36,7 +39,7 @@ class DownloadCommand extends AbstractThemeCommand
             throw new Exception("Themes directory is not writable. Please check permissions.");
         }
 
-        $resolved = (new AddonResolver($this->getThemeRepositoryManager(), 'theme'))
+        $resolved = (new AddonResolver($this->getThemeRepositoryManager(), AddonType::Theme))
             ->resolve($theme, fn() => $this->getOmekaVersion(), (bool) $force);
         foreach ($resolved->warnings as $warning) {
             $this->warn($warning, true);
@@ -46,6 +49,7 @@ class DownloadCommand extends AbstractThemeCommand
         }
         $themeDirName = $resolved->dirname;
         $downloader = $resolved->downloader;
+        $installed = new InstalledAddons($this->getOmekaPath());
         if ($dir !== null && $dir !== '') {
             if (!Path::isSafeFolderName($dir)) {
                 throw new Exception("Invalid --dir '{$dir}': use a plain folder name (letters, digits, '_', '-', '.').");
@@ -55,11 +59,10 @@ class DownloadCommand extends AbstractThemeCommand
 
         // check if module is already available
         if ($themeDirName) {
-            $themeDestinationPath = Path::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
+            $themeDestinationPath = $installed->path(AddonType::Theme, $themeDirName);
 
-            // Check if module is already available
-            $themeExists = is_dir($themeDestinationPath);
-            if ($themeExists && !$force) {
+            // Check if theme is already available
+            if ($installed->exists(AddonType::Theme, $themeDirName) && !$force) {
                 throw new ThemeExistsException("Theme '{$themeDirName}' already exists in '{$themeDestinationPath}'. Use the --force option to download anyway.");
             }
         }
@@ -74,24 +77,18 @@ class DownloadCommand extends AbstractThemeCommand
         }
 
         try {
-            // Find module folder
+            // Find theme folder
             $themeSourcePath = Path::findSubpath($tmpDownloadPath, 'config/theme.ini');
             if (!$themeSourcePath) {
                 throw new NotFoundException("No valid theme found in download folder.");
             }
-
-            // Parse module.ini
-            $themeConfigPath = Path::createPath([$themeSourcePath, "config", "theme.ini"]);
-            $themeIni = parse_ini_file($themeConfigPath, true);
-            if (!$themeIni) {
-                throw new NotFoundException("No valid theme.ini found in download folder.");
-            }
+            $themeIni = AddonIni::fromAddonDir($themeSourcePath, AddonType::Theme);
 
             // Get theme destination path
             if (!$themeDirName) {
-                $themeDirName = Path::createSafeName($themeIni['info']['name']);
+                $themeDirName = Path::createSafeName((string) $themeIni->name());
             }
-            $themeDestinationPath = Path::createPath([$this->getOmekaPath(), "themes", $themeDirName]);
+            $themeDestinationPath = $installed->path(AddonType::Theme, $themeDirName);
 
             // Check if theme is already available
             if (is_dir($themeDestinationPath)) {
@@ -127,7 +124,7 @@ class DownloadCommand extends AbstractThemeCommand
             }
         }
 
-        $version = $themeIni['info']['version'] ?? null;
+        $version = $themeIni->version();
         $this->ok("Theme '{$themeDirName}'" . ($version ? " v{$version}" : '') . " downloaded.", true);
     }
 

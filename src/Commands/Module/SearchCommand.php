@@ -1,7 +1,7 @@
 <?php
 namespace OSC\Commands\Module;
 
-use OSC\Helper\VersionCompatibility;
+use OSC\Addon\AddonVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
 class SearchCommand extends AbstractModuleCommand
@@ -53,7 +53,7 @@ class SearchCommand extends AbstractModuleCommand
             $omekaVersion = $this->getOmekaVersion();
             $this->debug("Filtering modules compatible with Omeka S {$omekaVersion}", true);
             $moduleResults = array_filter($moduleResults, function($moduleResult) use ($omekaVersion) {
-                return (bool) VersionCompatibility::getLatestCompatible(
+                return (bool) AddonVersion::latestCompatible(
                     $moduleResult->getItem()->getVersions(),
                     $omekaVersion
                 );

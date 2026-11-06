@@ -1,6 +1,6 @@
 <?php
 
-namespace OSC\Helper;
+namespace OSC\Addon;
 
 /**
  * Orders modules so that a module is never left without a dependency it needs.
