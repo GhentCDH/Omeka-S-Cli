@@ -663,7 +663,7 @@ assert_success "item:import a raw Omeka export"                  bash -c "$CLI i
 ITEM_COUNT=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length')
 assert_fail    "a rejected media file fails the import"          $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/not-allowed.sh
 assert_output_is "a rejected media file leaves no item behind"   "$ITEM_COUNT"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
-ORIGINALS=$(ls /var/www/omeka-s/files/original 2>/dev/null | wc -l)
+ORIGINALS=$( (ls /var/www/omeka-s/files/original 2>/dev/null || true) | wc -l)
 assert_fail    "a rejected file among valid ones fails the import" $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/pixel.png -m upload=$ITEMS/media/not-allowed.sh
 assert_output_is "a failed import stores no file"                "$ORIGINALS"   bash -c "ls /var/www/omeka-s/files/original 2>/dev/null | wc -l"
 run    "clear the export directory"                              rm -rf /tmp/osc-items-export
