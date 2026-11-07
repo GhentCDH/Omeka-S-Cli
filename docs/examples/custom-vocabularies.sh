@@ -64,13 +64,17 @@ jq -e '."o:uris" | length == 3' "$SCRATCH_DIR/languages.json" > /dev/null
 # --8<-- [start:export-item-set]
 omeka-s-cli custom-vocabulary:export Collection
 # --8<-- [end:export-item-set]
-omeka-s-cli custom-vocabulary:export Collection | jq -e '."o:item_set".value == "urn:example:item-set:photographs"' > /dev/null
+omeka-s-cli custom-vocabulary:export Collection | jq -e '."o:item_set"."o-ref:ref"."dcterms:identifier" == "urn:example:item-set:photographs"' > /dev/null
 
 # --8<-- [start:export-item-set-property]
 omeka-s-cli custom-vocabulary:export Collection --item-set-property dcterms:title
 # --8<-- [end:export-item-set-property]
 omeka-s-cli custom-vocabulary:export Collection --item-set-property dcterms:title \
-    | jq -e '."o:item_set" == {"property": "dcterms:title", "value": "Photographs", "o:title": "Photographs"}' > /dev/null
+    | jq -e '."o:item_set" == {"o-ref:ref": {"dcterms:title": "Photographs"}, "o:title": "Photographs"}' > /dev/null
+omeka-s-cli custom-vocabulary:export Collection | jq -e '."@context"."o-ref" == "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"' > /dev/null
+jq '."o:item_set" = {"property": "dcterms:identifier", "value": "urn:example:item-set:photographs"} | ."o:label" = "Old format"' \
+    collections.json > "$SCRATCH_DIR/old-format.json"
+! omeka-s-cli custom-vocabulary:import "$SCRATCH_DIR/old-format.json" || exit 1
 ! omeka-s-cli custom-vocabulary:export Collection --item-set-property dcterms:subject || exit 1
 
 # --8<-- [start:import-identifier]

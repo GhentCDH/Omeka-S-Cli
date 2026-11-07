@@ -581,7 +581,7 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
     printf '{ "dcterms:title": [ { "generator": "literal", "mode": "values", "values": [ "The Seeing-stones of Arnor and Gondor" ] } ],
   "dcterms:identifier": [ { "generator": "literal", "mode": "values", "values": [ "%s" ] } ] }' "$CV_URN" \
         > /tmp/cv-files/item-set.json
-    jq --arg urn "$CV_URN" '."o:item_set".value = $urn' \
+    jq --arg urn "$CV_URN" '."o:item_set"."o-ref:ref"."dcterms:identifier" = $urn' \
         /app/omeka-s-cli/examples/custom-vocabulary/custom_vocab_item_set.json > /tmp/cv-files/item-set-vocab.json
     rm -f /tmp/cv-files/export.json /tmp/cv-files/terms-export.json
 fi
@@ -590,9 +590,15 @@ assert_success "dummy:create-item-sets creates the referenced item set"         
 assert_success "custom-vocabulary:import an item set vocabulary"                 $CLI custom-vocabulary:import /tmp/cv-files/item-set-vocab.json
 assert_output_is "the imported vocabulary has type resource" "resource"          bash -c "$CLI custom-vocabulary:list --json | jq -r '.[] | select(.label == \"Palantíri\") | .type'"
 assert_success "custom-vocabulary:export an item set vocabulary to a file"       $CLI custom-vocabulary:export Palantíri /tmp/cv-files/export.json
-assert_output_is "the export identifies the item set by dcterms:identifier" "$CV_URN"   jq -r '."o:item_set".value' /tmp/cv-files/export.json
+assert_output_is "the export identifies the item set by dcterms:identifier" "$CV_URN"   jq -r '."o:item_set"."o-ref:ref"."dcterms:identifier"' /tmp/cv-files/export.json
 assert_fail    "custom-vocabulary:export fails when the item set has no value for --item-set-property" \
     $CLI custom-vocabulary:export Palantíri --item-set-property dcterms:subject
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    jq '."o:item_set" = {"property": "dcterms:identifier", "value": ."o:item_set"."o-ref:ref"."dcterms:identifier"}' \
+        /tmp/cv-files/export.json > /tmp/cv-files/old-format.json
+fi
+assert_fail    "custom-vocabulary:import rejects the old {property, value} item set format" \
+    $CLI custom-vocabulary:import /tmp/cv-files/old-format.json --label "Palantíri (old)"
 assert_success "custom-vocabulary:delete the item set vocabulary"                $CLI custom-vocabulary:delete Palantíri
 assert_success "custom-vocabulary:import the exported file (round trip)"         $CLI custom-vocabulary:import /tmp/cv-files/export.json
 assert_success "dummy:create-item-sets creates a second item set with the same identifier" \

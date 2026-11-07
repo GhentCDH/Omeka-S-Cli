@@ -1,9 +1,15 @@
 {
+    "@context": {
+        "dcterms": "http://purl.org/dc/terms/",
+        "o": "http://omeka.org/s/vocabs/o#",
+        "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"
+    },
     "o:label": "Palantíri",
     "o:lang": "en",
     "o:item_set": {
-        "property": "dcterms:identifier",
-        "value": "urn:middle-earth:item-set:palantiri",
+        "o-ref:ref": {
+            "dcterms:identifier": "urn:middle-earth:item-set:palantiri"
+        },
         "o:title": "The Seeing-stones of Arnor and Gondor"
     }
 }

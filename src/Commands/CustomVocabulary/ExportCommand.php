@@ -3,6 +3,7 @@ namespace OSC\Commands\CustomVocabulary;
 
 use Exception;
 use OSC\Omeka\CustomVocabImportExport;
+use OSC\Resource\OmekaCatalog;
 
 class ExportCommand extends AbstractCustomVocabularyCommand
 {
@@ -34,7 +35,7 @@ class ExportCommand extends AbstractCustomVocabularyCommand
         $vocabularyId = $existingVocabulary->id();
 
         // Export
-        $importExport = new CustomVocabImportExport($api);
+        $importExport = new CustomVocabImportExport($api, new OmekaCatalog($omekaInstance->getServiceManager()));
         $exportContent = $importExport->getExport($vocabularyId, $itemSetProperty);
         if ($exportContent === false) {
             throw new Exception("Custom vocabulary '{$existingVocabulary->label()}' cannot be exported.");
