@@ -36,12 +36,10 @@ final class PayloadBuilder
         'geography' => 'DataTypeGeometry',
     ];
 
-    /** API resource name => wording in messages. */
-    private const RESOURCE_WORDS = ['items' => 'items', 'item_sets' => 'item sets', 'media' => 'media'];
-
     /** @var array<string,string> */
     private array $context = [];
     private string $refKey = '';
+    private RefResolver $refs;
     /** @var string[] */
     private array $problems = [];
     /** @var string[] */
@@ -60,7 +58,8 @@ final class PayloadBuilder
     public function build(array $document, ResourceType $type, string $label, ?string $identifyBy = null): BuildResult
     {
         $this->context = PortableJsonLd::contextMap($document['@context'] ?? null);
-        $this->refKey = PortableJsonLd::keyFor($this->context, PortableJsonLd::REF);
+        $this->refs = new RefResolver($this->catalog, $this->context);
+        $this->refKey = $this->refs->refKey();
         $this->problems = [];
         $this->warnings = [];
 
@@ -174,7 +173,7 @@ final class PayloadBuilder
         $value['type'] = $type;
 
         if (isset($value[$this->refKey])) {
-            $id = $this->resolveRef($value[$this->refKey], $this->resourceName($type, $value), "link \"{$key}\"");
+            $id = $this->resolveRef($value, $this->resourceName($type, $value), "link \"{$key}\"");
             if ($id === null) {
                 return null;
             }
@@ -227,26 +226,17 @@ final class PayloadBuilder
     }
 
     /**
-     * The id of the one resource an o-ref:ref names, or null with a warning.
+     * The id of the one resource a reference object ({"o-ref:ref": ...}) names, or null with a warning.
      *
      * @param string $what For the warning, e.g. 'link "dcterms:relation"'
      */
-    private function resolveRef(mixed $ref, string $resourceName, string $what): ?int
+    private function resolveRef(array $node, string $resourceName, string $what): ?int
     {
-        if (!is_array($ref) || count($ref) !== 1 || !is_string(array_key_first($ref)) || !is_scalar(reset($ref))) {
-            $this->warnings[] = "{$what} has an invalid reference; the value is skipped";
-            return null;
+        $resolution = $this->refs->resolve($node, $resourceName);
+        if ($resolution->isResolved()) {
+            return $resolution->id;
         }
-        $term = (string) array_key_first($ref);
-        $match = (string) reset($ref);
-        $ids = $this->catalog->findByValue($resourceName, $this->mapTerm($term)[0] ?? $term, $match);
-        if (count($ids) === 1) {
-            return (int) $ids[0];
-        }
-        $words = self::RESOURCE_WORDS[$resourceName] ?? $resourceName;
-        $this->warnings[] = $ids
-            ? "{$what} to {$words} with {$term} = \"{$match}\" matches " . count($ids) . " {$words}; the value is skipped"
-            : "{$what} to {$words} with {$term} = \"{$match}\" not found; the value is skipped";
+        $this->warnings[] = $resolution->describe($what) . '; the value is skipped';
         return null;
     }
 
@@ -295,7 +285,7 @@ final class PayloadBuilder
         foreach (is_array($value) ? $value : [] as $entry) {
             $id = null;
             if (is_array($entry) && isset($entry[$this->refKey])) {
-                $id = $this->resolveRef($entry[$this->refKey], 'item_sets', 'link "o:item_set"');
+                $id = $this->resolveRef($entry, 'item_sets', 'link "o:item_set"');
             } elseif (is_array($entry) && isset($entry['o:id']) && is_numeric($entry['o:id'])) {
                 $id = (int) $entry['o:id'];
             } elseif (is_numeric($entry)) {
@@ -385,16 +375,7 @@ final class PayloadBuilder
      */
     private function mapTerm(string $term): array
     {
-        [$prefix, $local] = array_pad(explode(':', $term, 2), 2, '');
-        $namespace = $this->context[$prefix] ?? $this->catalog->namespaceForPrefix($prefix);
-        if ($namespace === null) {
-            return [null, ": unknown prefix \"{$prefix}\" (not in the file's @context, and no vocabulary with this prefix is installed)", null];
-        }
-        $target = $this->catalog->prefixForNamespace($namespace);
-        if ($target === null) {
-            return [null, " uses vocabulary {$namespace}, which is not installed (vocabulary:import)", $namespace];
-        }
-        return ["{$target}:{$local}", '', $namespace];
+        return $this->refs->mapTerm($term);
     }
 
     /**

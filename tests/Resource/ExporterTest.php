@@ -8,6 +8,7 @@ use OSC\Resource\ExportResult;
 use OSC\Resource\Identity;
 use OSC\Resource\PayloadBuilder;
 use OSC\Resource\PortableJsonLd;
+use OSC\Resource\RefWriter;
 use OSC\Resource\ResourceType;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -19,6 +20,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(PayloadBuilder::class)]
 #[UsesClass(BuildResult::class)]
 #[UsesClass(Identity::class)]
+#[UsesClass(RefWriter::class)]
 class ExporterTest extends TestCase
 {
     /** Mona Lisa (item 7) as the Omeka API returns it. */
@@ -84,6 +86,17 @@ class ExporterTest extends TestCase
             $doc['dcterms:relation']
         );
         $this->assertSame(['"Mona Lisa" (item 7): "o-module-mapping:features" is module data and is not exported'], $result->warnings());
+    }
+
+    public function testContextDeclaresThePrefixOfTheReferenceProperty(): void
+    {
+        $catalog = FakeCatalog::sample();
+        $catalog->values['items'][42]['schema:name'] = 'ermine';
+        $catalog->values['item_sets'][9]['schema:name'] = 'paintings';
+        $doc = $this->exporter('schema:name', $catalog)->export(self::omekaJsonLd(), ResourceType::Item)->document();
+
+        $this->assertSame(['schema:name' => 'ermine'], $doc['dcterms:relation'][0]['o-ref:ref']);
+        $this->assertSame('https://schema.org/', $doc['@context']['schema'] ?? null);
     }
 
     public function testMissingIdentityValueWarnsAndOmitsId(): void
