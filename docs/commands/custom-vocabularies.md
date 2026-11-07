@@ -57,7 +57,9 @@ To update a specific vocabulary, name it (by ID or label) after the file; that i
 ## Import an item set vocabulary
 
 A vocabulary can also offer the items of an item set. Item set IDs differ between installations, so
-the file refers to the item set by a property value, here its `dcterms:identifier`:
+the file refers to the item set by a property value, here its `dcterms:identifier`. The reference is
+an `o-ref:ref`, the same [o-ref](https://omeka-s-contrib.github.io/omeka-s-ref/ns) convention that
+[`item:import`](items.md) uses for item sets and linked items:
 
 ```json
 --8<-- "docs/examples/files/custom-vocabularies/collections.json"
@@ -68,7 +70,11 @@ the file refers to the item set by a property value, here its `dcterms:identifie
 ```
 
 The item set must exist before the import, and exactly one item set may have that value: the
-import fails if none or several match.
+import fails if none or several match. The property is matched by namespace through the file's
+`@context`, so it does not matter which prefix your installation uses for Dublin Core.
+
+Files in the format of version 0.19.0 and older (`"o:item_set": {"property": …, "value": …}`) are no
+longer accepted: export the vocabulary again with the current version.
 
 ## List vocabularies
 
@@ -101,8 +107,9 @@ output is the import format, so you can import it on another installation:
 --8<-- "docs/examples/custom-vocabularies.sh:export"
 ```
 
-An item set vocabulary is exported with a reference to its item set, by default by its
-`dcterms:identifier`. `o:title` is informational; the import ignores it.
+An item set vocabulary is exported with an `o-ref:ref` to its item set, by default by its
+`dcterms:identifier`, and an `@context` that declares the prefixes. `o:title` is informational; the
+import ignores it.
 
 ```bash
 --8<-- "docs/examples/custom-vocabularies.sh:export-item-set"
@@ -110,11 +117,17 @@ An item set vocabulary is exported with a reference to its item set, by default 
 
 ```text
 {
+    "@context": {
+        "dcterms": "http://purl.org/dc/terms/",
+        "o": "http://omeka.org/s/vocabs/o#",
+        "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"
+    },
     "o:label": "Collection",
     "o:lang": "en",
     "o:item_set": {
-        "property": "dcterms:identifier",
-        "value": "urn:example:item-set:photographs",
+        "o-ref:ref": {
+            "dcterms:identifier": "urn:example:item-set:photographs"
+        },
         "o:title": "Photographs"
     }
 }
