@@ -142,7 +142,8 @@ class OmekaCatalog implements Catalog
         if ($value === null) {
             return null;
         }
-        $text = $value->value() ?? $value->uri();
+        // a URI value is named by its URI, not by its label (o-ref, omeka-s-modules/CustomVocab#46)
+        $text = $value->uri() ?? $value->value();
         return $text === null || $text === '' ? null : (string) $text;
     }
 

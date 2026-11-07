@@ -607,6 +607,23 @@ assert_output_contains "custom-vocabulary:import fails on an ambiguous item set"
     $CLI custom-vocabulary:import /tmp/cv-files/item-set-vocab.json --update
 assert_success "custom-vocabulary:delete the round-tripped vocabulary"           $CLI custom-vocabulary:delete Palantíri
 
+# a URI identifier with a label is referenced by its URI, not its label
+CV_URI="https://example.org/sets/seeing-stones-$$-$RANDOM"
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    jq -n --arg uri "$CV_URI" '{
+        "@context": {"dcterms": "http://purl.org/dc/terms/", "o": "http://omeka.org/s/vocabs/o#"},
+        "dcterms:title": [{"type": "literal", "@value": ("Seeing-stones " + $uri)}],
+        "dcterms:identifier": [{"type": "uri", "@id": $uri, "o:label": "Seeing-stones"}]
+    }' > /tmp/cv-files/uri-item-set.jsonld
+    jq --arg uri "$CV_URI" '."o:item_set"."o-ref:ref"."dcterms:identifier" = $uri | ."o:label" = "Palantíri (URI)"' \
+        /app/omeka-s-cli/examples/custom-vocabulary/custom_vocab_item_set.json > /tmp/cv-files/uri-vocab.json
+fi
+assert_success "item-set:import an item set with a URI identifier"              $CLI item-set:import /tmp/cv-files/uri-item-set.jsonld
+assert_success "custom-vocabulary:import a vocabulary referencing it by URI"     $CLI custom-vocabulary:import /tmp/cv-files/uri-vocab.json
+assert_output_is "the export references the item set by its URI, not its label" "$CV_URI" \
+    bash -c "$CLI custom-vocabulary:export 'Palantíri (URI)' | jq -r '.\"o:item_set\".\"o-ref:ref\".\"dcterms:identifier\"'"
+assert_success "custom-vocabulary:delete the URI vocabulary"                     $CLI custom-vocabulary:delete "Palantíri (URI)"
+
 # a terms vocabulary exports to a valid json file
 assert_success "custom-vocabulary:import custom_vocab_terms.json"                $CLI custom-vocabulary:import /app/omeka-s-cli/examples/custom-vocabulary/custom_vocab_terms.json
 assert_success "custom-vocabulary:export a terms vocabulary to a file"           $CLI custom-vocabulary:export custom-vocab-terms /tmp/cv-files/terms-export.json
