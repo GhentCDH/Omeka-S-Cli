@@ -182,8 +182,11 @@ References in the file are resolved on the installation you import into:
 - Properties are matched by vocabulary namespace, so a file may use another prefix than the
   installation does.
 
-A reference that matches nothing, or more than one record, is skipped with a warning; the item is still
-created.
+A reference that matches nothing, or more than one record, is an error: the import fails and the item
+is not created, so it never loses a link without notice. Two items that link to each other (for
+example `dcterms:hasPart` and `dcterms:isPartOf`) cannot both be imported as exported: the first one's
+link has nothing to point to yet. Keep the link only in the file you import second. An item that
+already exists is skipped, even when its file has such a problem.
 
 ```bash
 --8<-- "docs/examples/items.sh:import-linked"

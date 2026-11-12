@@ -1,0 +1,8 @@
+{
+    "@context": {"dcterms": "http://purl.org/dc/terms/", "o": "http://omeka.org/s/vocabs/o#", "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"},
+    "@type": "o:Item",
+    "o-ref:id": {"dcterms:identifier": "it-obj-broken"},
+    "dcterms:title": [{"type": "literal", "@value": "Copy of a lost painting"}],
+    "dcterms:identifier": [{"type": "literal", "@value": "it-obj-broken"}],
+    "dcterms:relation": [{"type": "resource:item", "o-ref:ref": {"dcterms:identifier": "it-obj-missing"}}]
+}

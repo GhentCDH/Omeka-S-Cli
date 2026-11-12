@@ -2,6 +2,7 @@
 namespace Tests\Blueprint;
 
 use OSC\Blueprint\BlueprintValidator;
+use OSC\Blueprint\OnError;
 use OSC\Helper\Config\ItemImportConfig;
 use OSC\Helper\Config\MediaConfig;
 use OSC\Helper\Config\SiteConfig;
@@ -11,6 +12,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlueprintValidator::class)]
+#[UsesClass(OnError::class)]
 #[UsesClass(SiteConfig::class)]
 #[UsesClass(ItemImportConfig::class)]
 #[UsesClass(MediaConfig::class)]
@@ -73,14 +75,45 @@ class BlueprintValidatorTest extends TestCase
         $this->assertStringContainsString('ghost@nowhere.org', implode("\n", $errors));
     }
 
-    public function testReferentialCheckCatchesUnknownItemSet(): void
+    public function testAnUndeclaredItemSetIsAWarningNotAnError(): void
     {
-        $errors = $this->validator()->validateBlueprint([
+        // it may already exist in the instance; if not, deploy fails the item (or skips it: onError)
+        $validator = $this->validator();
+        $errors = $validator->validateBlueprint([
             'itemSets' => [['title' => 'Known']],
-            'items' => [['title' => 'Item', 'itemSets' => ['Unknown']]],
+            'items' => [['title' => 'Item', 'itemSets' => ['Known', 'Unknown']]],
         ]);
-        $this->assertNotEmpty($errors);
-        $this->assertStringContainsString('Unknown', implode("\n", $errors));
+        $this->assertSame([], $errors);
+        $this->assertSame(
+            ["items[0]: item set 'Unknown' is not declared in the blueprint; it must already exist in the instance."],
+            $validator->takeWarnings()
+        );
+        $this->assertSame([], $validator->takeWarnings());
+    }
+
+    public function testWarningsDoNotCarryOverToTheNextValidation(): void
+    {
+        $validator = $this->validator();
+        $validator->validateBlueprint(['items' => [['title' => 'Item', 'itemSets' => ['Unknown']]]]);
+        $validator->validateBlueprint(['items' => [['title' => 'Item']]]);
+        $this->assertSame([], $validator->takeWarnings());
+    }
+
+    public function testAnExtensionEntryTakesOnError(): void
+    {
+        $errors = $this->validator()->validateBlueprint(['x-omeka-s-cli' => [
+            'itemSets' => [['source' => './s.jsonld', 'onError' => 'skip']],
+            'items' => [['source' => './a.jsonld', 'onError' => 'fail'], ['title' => 'B', 'onError' => 'skip']],
+        ]]);
+        $this->assertSame([], $errors);
+    }
+
+    public function testAnUnknownOnErrorOnAnExtensionEntryIsReported(): void
+    {
+        $errors = $this->validator()->validateBlueprint(['x-omeka-s-cli' => ['items' => [
+            ['source' => './a.jsonld', 'onError' => 'maybe'],
+        ]]]);
+        $this->assertSame(["x-omeka-s-cli.items[0]: onError must be 'fail' or 'skip', not 'maybe'."], $errors);
     }
 
     public function testExtensionItemWithoutSourceOrTitleIsReported(): void
@@ -93,16 +126,21 @@ class BlueprintValidatorTest extends TestCase
         $this->assertSame(["x-omeka-s-cli.items[2]: An import entry needs a 'source' (a JSON-LD file) or a 'title'."], $errors);
     }
 
-    public function testATitleOnlyEntryWithAnUnknownItemSetIsReported(): void
+    public function testATitleOnlyEntryWithAnUnknownItemSetIsAWarning(): void
     {
-        $errors = $this->validator()->validateBlueprint([
+        $validator = $this->validator();
+        $errors = $validator->validateBlueprint([
             'itemSets' => [['title' => 'Postcards']],
             'x-omeka-s-cli' => ['items' => [
                 ['title' => 'A', 'itemSets' => ['postcards']],
                 ['title' => 'B', 'itemSets' => ['Unknown']],
             ]],
         ]);
-        $this->assertSame(["x-omeka-s-cli.items[1]: references unknown item set 'Unknown'."], $errors);
+        $this->assertSame([], $errors);
+        $this->assertSame(
+            ["x-omeka-s-cli.items[1]: item set 'Unknown' is not declared in the blueprint; it must already exist in the instance."],
+            $validator->takeWarnings()
+        );
     }
 
     public function testAnExtensionItemSetTakesNoItemSetsOrSites(): void
@@ -148,13 +186,17 @@ class BlueprintValidatorTest extends TestCase
         $this->assertSame([], $errors);
     }
 
-    public function testSimpleItemReferencingAnUntitledExtensionItemSetIsReported(): void
+    public function testSimpleItemReferencingAnUntitledExtensionItemSetIsAWarning(): void
     {
-        $errors = $this->validator()->validateBlueprint([
+        $validator = $this->validator();
+        $validator->validateBlueprint([
             'x-omeka-s-cli' => ['itemSets' => [['source' => './paintings.jsonld']]],
             'items' => [['title' => 'Mona Lisa', 'itemSets' => ['Paintings']]],
         ]);
-        $this->assertContains("items[0]: references unknown item set 'Paintings'.", $errors);
+        $this->assertContains(
+            "items[0]: item set 'Paintings' is not declared in the blueprint; it must already exist in the instance.",
+            $validator->takeWarnings()
+        );
     }
 
     public function testANonObjectExtensionKeyIsReportedNotACrash(): void

@@ -16,6 +16,7 @@ use OSC\Helper\Config\SiteConfig;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\SiteApi;
+use OSC\Resource\ResourceImportException;
 use OSC\Resource\SimpleContentMapper;
 use Throwable;
 
@@ -47,6 +48,9 @@ class BlueprintApplier
         'settings'          => 'Settings',
     ];
 
+    /** @var array<int,array{kind: string, label: string, message: string}> Entries left out by onError: skip */
+    private array $skipped = [];
+
     /**
      * @param AbstractCommand $command The invoking command (for command lookup, output, verbosity)
      * @param bool            $dryRun  Report actions without performing them
@@ -67,6 +71,18 @@ class BlueprintApplier
     {
         $this->applyModulesAndThemes($blueprint);
         $this->applyConfiguration($blueprint);
+    }
+
+    /**
+     * The entries left out because they failed and said `"onError": "skip"`, since the last call.
+     *
+     * @return array<int,array{kind: string, label: string, message: string}>
+     */
+    public function takeSkipped(): array
+    {
+        $skipped = $this->skipped;
+        $this->skipped = [];
+        return $skipped;
     }
 
     /**
@@ -586,11 +602,17 @@ class BlueprintApplier
      * extension entry already is an import config. An item and its media are created together, all or
      * nothing; an existing item or item set is skipped with a warning (deploy goes on).
      *
+     * An entry that cannot be imported (an unknown vocabulary, property, class, template or data type,
+     * a media file that fails, a reference that matches no record or several) stops the deploy, unless
+     * it says `"onError": "skip"`: then it is left out with a warning. A skipped entry is not created,
+     * so an entry that refers to it fails in turn, and its own onError decides.
+     *
      * @param array<int,array{0: string, 1: array}> $entries See contentEntries()
      */
     private function applyContent(string $command, string $kind, array $entries): void
     {
         foreach ($entries as [$form, $entry]) {
+            [$onError, $entry] = OnError::split($entry);
             $label = $form === 'simple'
                 ? (string) ($entry['title'] ?? '?')
                 : (string) ($entry['title'] ?? basename((string) ($entry['source'] ?? '?')));
@@ -599,31 +621,61 @@ class BlueprintApplier
                 $this->command->note("would import {$kind} '{$label}'", true);
                 continue;
             }
+            // a missing command is not the entry's fault: it stops the deploy whatever onError says
+            $cmd = $this->requireCommand($command);
+            $this->attempt($onError, $kind, $label, fn() => $this->importContent($cmd, $form, $kind, $label, $entry));
+        }
+    }
 
-            $temp = [];
-            try {
-                if ($form === 'simple') {
-                    [$document, $media] = $kind === 'item'
-                        ? SimpleContentMapper::item($entry)
-                        : [SimpleContentMapper::itemSet($entry), []];
-                    $temp[] = $documentFile = Path::createTempFile('bp-item-');
-                    file_put_contents($documentFile, json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-                    $config = ['source' => $documentFile, 'title' => $label, 'media' => array_map(fn(MediaConfig $m) => $m->toArray(), $media)];
-                    if ($kind === 'item') {
-                        // no sites: the default site, as in the shared format (not every site that takes new items)
-                        $config['sites'] = array_values(array_filter((array) ($entry['sites'] ?? []), 'is_string'));
-                    }
-                } else {
-                    $config = $entry;
+    /**
+     * Import one content entry.
+     *
+     * @param array $entry The entry, without onError
+     */
+    private function importContent(AbstractCommand $cmd, string $form, string $kind, string $label, array $entry): void
+    {
+        $temp = [];
+        try {
+            if ($form === 'simple') {
+                [$document, $media] = $kind === 'item'
+                    ? SimpleContentMapper::item($entry)
+                    : [SimpleContentMapper::itemSet($entry), []];
+                $temp[] = $documentFile = Path::createTempFile('bp-item-');
+                file_put_contents($documentFile, json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+                $config = ['source' => $documentFile, 'title' => $label, 'media' => array_map(fn(MediaConfig $m) => $m->toArray(), $media)];
+                if ($kind === 'item') {
+                    // no sites: the default site, as in the shared format (not every site that takes new items)
+                    $config['sites'] = array_values(array_filter((array) ($entry['sites'] ?? []), 'is_string'));
                 }
-                $temp[] = $configFile = Path::createTempFile('bp-item-');
-                file_put_contents($configFile, json_encode($config, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-                $this->run($command, fn($cmd) => $cmd->execute(null, $configFile));
-            } finally {
-                foreach ($temp as $file) {
-                    @unlink($file);
-                }
+            } else {
+                $config = $entry;
             }
+            $temp[] = $configFile = Path::createTempFile('bp-item-');
+            file_put_contents($configFile, json_encode($config, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $this->runCommand($cmd, fn($c) => $c->execute(null, $configFile));
+        } finally {
+            foreach ($temp as $file) {
+                @unlink($file);
+            }
+        }
+    }
+
+    /**
+     * Run $operation for one entry; when it fails and the entry says skip, warn, remember the entry and
+     * go on. Only exceptions are skipped: an \Error is a bug, and a WarningException never gets here
+     * (run() reports it as a note: an existing record is not an error).
+     */
+    private function attempt(OnError $onError, string $kind, string $label, callable $operation): void
+    {
+        try {
+            $operation();
+        } catch (Exception $e) {
+            if ($onError !== OnError::Skip) {
+                throw $e;
+            }
+            $message = $e instanceof ResourceImportException ? implode('; ', $e->problems()) : $e->getMessage();
+            $this->command->warn("skipped {$kind} '{$label}': {$message}", true);
+            $this->skipped[] = ['kind' => $kind, 'label' => $label, 'message' => $message];
         }
     }
 
@@ -631,10 +683,21 @@ class BlueprintApplier
 
     private function run(string $name, callable $call, bool $catchWarnings = true): void
     {
+        $this->runCommand($this->requireCommand($name), $call, $catchWarnings);
+    }
+
+    /** @throws Exception When the command is not registered */
+    private function requireCommand(string $name): AbstractCommand
+    {
         $cmd = $this->command->app()->commands()[$name] ?? null;
         if (!$cmd instanceof AbstractCommand) {
             throw new Exception("Required command '{$name}' is not available.");
         }
+        return $cmd;
+    }
+
+    private function runCommand(AbstractCommand $cmd, callable $call, bool $catchWarnings = true): void
+    {
         $this->propagateContext($cmd);
         if (!$catchWarnings) {
             $call($cmd);

@@ -47,10 +47,10 @@ class PayloadBuilderTest extends TestCase
     }
 
     /** @return string[] */
-    private function problems(array $document, ResourceType $type = ResourceType::Item, ?string $identifyBy = null): array
+    private function problems(array $document, ResourceType $type = ResourceType::Item, ?string $identifyBy = null, ?FakeCatalog $catalog = null): array
     {
         try {
-            $this->builder()->build($document, $type, 'x', $identifyBy);
+            $this->builder($catalog)->build($document, $type, 'x', $identifyBy);
         } catch (ResourceImportException $e) {
             return $e->problems();
         }
@@ -135,22 +135,46 @@ class PayloadBuilderTest extends TestCase
         $this->assertArrayNotHasKey('sdo:name', $payload);
     }
 
-    public function testUnresolvedReferenceWarnsAndDropsTheValue(): void
+    public function testUnresolvedReferenceIsAProblem(): void
     {
         $doc = ['dcterms:relation' => [['type' => 'resource:item', 'o-ref:ref' => ['dcterms:identifier' => 'missing']]]];
-        $result = $this->builder()->build($doc, ResourceType::Item, 'x');
-        $this->assertArrayNotHasKey('dcterms:relation', $result->payload());
-        $this->assertContains('x: link "dcterms:relation" to items with dcterms:identifier = "missing" not found; the value is skipped', $result->warnings());
+        $this->assertSame(
+            ['link "dcterms:relation" to items with dcterms:identifier = "missing" not found'],
+            $this->problems($doc)
+        );
     }
 
-    public function testAmbiguousReferenceWarnsAndDropsTheValue(): void
+    public function testAmbiguousReferenceIsAProblem(): void
     {
         $catalog = FakeCatalog::sample();
         $catalog->values['items'][43] = ['dcterms:identifier' => 'obj-42'];
         $doc = ['dcterms:relation' => [['type' => 'resource:item', 'o-ref:ref' => ['dcterms:identifier' => 'obj-42']]]];
-        $result = $this->builder($catalog)->build($doc, ResourceType::Item, 'x');
-        $this->assertArrayNotHasKey('dcterms:relation', $result->payload());
-        $this->assertContains('x: link "dcterms:relation" to items with dcterms:identifier = "obj-42" matches 2 items; the value is skipped', $result->warnings());
+        $this->assertSame(
+            ['link "dcterms:relation" to items with dcterms:identifier = "obj-42" matches 2 items'],
+            $this->problems($doc, ResourceType::Item, null, $catalog)
+        );
+    }
+
+    public function testUnresolvedItemSetIsAProblem(): void
+    {
+        $doc = ['o:item_set' => [['o-ref:ref' => ['dcterms:title' => 'Postcards']]]];
+        $this->assertSame(
+            ['link "o:item_set" to item sets with dcterms:title = "Postcards" not found'],
+            $this->problems($doc)
+        );
+    }
+
+    public function testUnresolvedReferenceInAnAnnotationIsAProblem(): void
+    {
+        $doc = ['dcterms:title' => [[
+            'type' => 'literal',
+            '@value' => 'X',
+            '@annotation' => ['dcterms:relation' => [['type' => 'resource:item', 'o-ref:ref' => ['dcterms:identifier' => 'missing']]]],
+        ]]];
+        $this->assertSame(
+            ['link "dcterms:relation" to items with dcterms:identifier = "missing" not found'],
+            $this->problems($doc)
+        );
     }
 
     public function testRefKeyIsFoundByNamespace(): void

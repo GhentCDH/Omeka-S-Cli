@@ -11,9 +11,9 @@ namespace OSC\Resource;
  * - References (o-ref:ref, class terms, template labels, site slugs) become the target's ids.
  *
  * It checks only what Omeka would crash on (an unknown property, a value without a type) or silently
- * drop (an unknown data type); Omeka validates everything else on create. All problems of a resource
- * are collected and thrown together. A reference that does not resolve is a warning: the value is
- * skipped, the resource is still created.
+ * drop (an unknown data type), and that every o-ref:ref names exactly one record (a resource must not
+ * quietly lose a link); Omeka validates everything else on create. All problems of a resource are
+ * collected and thrown together.
  */
 final class PayloadBuilder
 {
@@ -53,7 +53,7 @@ final class PayloadBuilder
      * @param array       $document   One resource; its @context must be an inline map or absent
      * @param string      $label      Prefixes every message (e.g. the file name and title)
      * @param string|null $identifyBy A property (target term) whose value identifies the resource
-     * @throws ResourceImportException Listing every problem of the resource
+     * @throws ResourceImportException Listing every problem of the resource, with its identity
      */
     public function build(array $document, ResourceType $type, string $label, ?string $identifyBy = null): BuildResult
     {
@@ -115,7 +115,7 @@ final class PayloadBuilder
             $this->warnings[] = "the {$type->label()} has no o-ref:id and no title, so it cannot be matched: it is created on every import";
         }
         if ($this->problems) {
-            throw new ResourceImportException($label, $this->problems);
+            throw new ResourceImportException($label, $this->problems, $identity, $title);
         }
         return new BuildResult($payload, array_map(fn($w) => "{$label}: {$w}", $this->warnings), $identity, $title);
     }
@@ -226,9 +226,10 @@ final class PayloadBuilder
     }
 
     /**
-     * The id of the one resource a reference object ({"o-ref:ref": ...}) names, or null with a warning.
+     * The id of the one resource a reference object ({"o-ref:ref": ...}) names, or null with a problem
+     * (no record, or more than one, matches it).
      *
-     * @param string $what For the warning, e.g. 'link "dcterms:relation"'
+     * @param string $what For the problem, e.g. 'link "dcterms:relation"'
      */
     private function resolveRef(array $node, string $resourceName, string $what): ?int
     {
@@ -236,7 +237,7 @@ final class PayloadBuilder
         if ($resolution->isResolved()) {
             return $resolution->id;
         }
-        $this->warnings[] = $resolution->describe($what) . '; the value is skipped';
+        $this->problems[] = $resolution->describe($what);
         return null;
     }
 

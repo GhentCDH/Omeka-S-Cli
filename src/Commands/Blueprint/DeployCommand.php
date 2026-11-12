@@ -182,7 +182,26 @@ class DeployCommand extends AbstractBlueprintCommand
         $applier->applyModulesAndThemes($blueprint);
         $this->announceStage(2, $deferPhases);
         $applier->applyConfiguration($blueprint);
+        $this->reportSkipped($applier->takeSkipped());
         $this->ok($dryRun ? 'Dry run complete.' : 'Blueprint deployed.', true);
+    }
+
+    /**
+     * Repeat the entries that `"onError": "skip"` left out, at the end where they are not missed. They
+     * were the blueprint author's choice, so the deploy still succeeds (exit code 0).
+     *
+     * @param array<int,array{kind: string, label: string, message: string}> $skipped
+     */
+    private function reportSkipped(array $skipped): void
+    {
+        if (!$skipped) {
+            return;
+        }
+        $count = count($skipped);
+        $this->warn("Skipped {$count} " . ($count === 1 ? 'entry' : 'entries') . ' (onError: skip):', true);
+        foreach ($skipped as $entry) {
+            $this->warn("  - {$entry['kind']} '{$entry['label']}': {$entry['message']}", true);
+        }
     }
 
     /**

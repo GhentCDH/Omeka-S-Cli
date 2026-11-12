@@ -66,6 +66,9 @@ class BlueprintValidator
         'sites' => 'site',
     ];
 
+    /** @var string[] Advisories of the last validateBlueprint(), see takeWarnings() */
+    private array $warnings = [];
+
     /**
      * Build a validator that loads the schema from the given source.
      *
@@ -82,15 +85,30 @@ class BlueprintValidator
      * Validate a full blueprint.
      *
      * @param array $blueprint The import-resolved blueprint
-     * @return string[] Human-readable error messages; empty when valid
+     * @return string[] Human-readable error messages; empty when valid. Advisories that do not make
+     *                  the blueprint invalid are kept for takeWarnings().
      */
     public function validateBlueprint(array $blueprint): array
     {
+        $this->warnings = [];
         return array_merge(
             $this->validateAgainst($blueprint, self::SCHEMA_ID),
             $this->referentialErrors($blueprint),
             $this->extensionErrors($blueprint)
         );
+    }
+
+    /**
+     * The advisories of the last validateBlueprint() (e.g. an item set the blueprint does not declare),
+     * cleared on read.
+     *
+     * @return string[]
+     */
+    public function takeWarnings(): array
+    {
+        $warnings = $this->warnings;
+        $this->warnings = [];
+        return $warnings;
     }
 
     /**
@@ -279,13 +297,24 @@ class BlueprintValidator
                     }
                 }
                 try {
-                    ItemImportConfig::fromArray(is_array($entry) ? $entry : []);
+                    // onError is the deploy's, not the import's (see OnError)
+                    ItemImportConfig::fromArray(OnError::split(is_array($entry) ? $entry : [])[1]);
                 } catch (InvalidArgumentException $e) {
                     $errors[] = "{$label}[{$i}]: {$e->getMessage()}";
                 }
             }
         }
         return $errors;
+    }
+
+    /**
+     * An item names an item set the blueprint does not declare. Not an error: it may already exist in
+     * the instance (the shared format allows that). If it does not, deploy fails the item, or skips it
+     * when the item says `"onError": "skip"`.
+     */
+    private function warnUndeclaredItemSet(string $where, string $title): void
+    {
+        $this->warnings[] = "{$where}: item set '{$title}' is not declared in the blueprint; it must already exist in the instance.";
     }
 
     /**
@@ -309,7 +338,7 @@ class BlueprintValidator
             }
             foreach (($item['itemSets'] ?? []) as $title) {
                 if (!in_array(strtolower((string) $title), $itemSetTitles, true)) {
-                    $errors[] = "items[{$i}]: references unknown item set '{$title}'.";
+                    $this->warnUndeclaredItemSet("items[{$i}]", (string) $title);
                 }
             }
         }
@@ -318,7 +347,7 @@ class BlueprintValidator
         foreach (is_array($extensionItems) ? $extensionItems : [] as $i => $item) {
             foreach (is_array($item) && is_array($item['itemSets'] ?? null) ? $item['itemSets'] : [] as $title) {
                 if (is_string($title) && !in_array(strtolower($title), $itemSetTitles, true)) {
-                    $errors[] = SourceFields::EXTENSION_ITEMS . "[{$i}]: references unknown item set '{$title}'.";
+                    $this->warnUndeclaredItemSet(SourceFields::EXTENSION_ITEMS . "[{$i}]", $title);
                 }
             }
         }

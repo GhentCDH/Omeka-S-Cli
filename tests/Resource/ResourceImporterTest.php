@@ -24,6 +24,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(Identity::class)]
 #[UsesClass(PortableJsonLd::class)]
 #[UsesClass(MediaConfig::class)]
+#[UsesClass(ResourceImportException::class)]
 class ResourceImporterTest extends TestCase
 {
     private function importer(?FakeCatalog $catalog = null, ?\Closure $fetchJson = null): ResourceImporter
@@ -113,6 +114,49 @@ class ResourceImporterTest extends TestCase
         $result = $this->importer($catalog)->import(['o:title' => 'Lady with an Ermine'], ResourceType::Item, 'x');
         $this->assertSame('ambiguous', $result->status());
         $this->assertSame(2, $result->count());
+    }
+
+    public function testAnExistingRecordWhoseReferenceNoLongerResolvesIsLeftAsItIs(): void
+    {
+        // e.g. a second item set with the referenced title was created after the first deploy
+        $doc = [
+            'o-ref:id' => ['dcterms:identifier' => 'obj-42'],
+            'dcterms:relation' => [['type' => 'resource:item', 'o-ref:ref' => ['dcterms:identifier' => 'missing']]],
+        ];
+        $result = $this->importer()->import($doc, ResourceType::Item, 'x');
+        $this->assertSame('exists', $result->status());
+        $this->assertSame(42, $result->id());
+    }
+
+    public function testAnExistingTitleWithAProblemIsAmbiguousNotAnError(): void
+    {
+        $catalog = FakeCatalog::sample();
+        $catalog->titles['items'][43] = 'Lady with an Ermine';
+        $doc = ['o:title' => 'Lady with an Ermine', 'o:item_set' => [['o-ref:ref' => ['dcterms:title' => 'Nowhere']]]];
+        $this->assertSame('ambiguous', $this->importer($catalog)->import($doc, ResourceType::Item, 'x')->status());
+    }
+
+    public function testANewRecordWithAnUnresolvedReferenceFails(): void
+    {
+        $doc = [
+            'o-ref:id' => ['dcterms:identifier' => 'obj-new'],
+            'dcterms:relation' => [['type' => 'resource:item', 'o-ref:ref' => ['dcterms:identifier' => 'missing']]],
+        ];
+        $this->expectException(ResourceImportException::class);
+        $this->expectExceptionMessage('x: link "dcterms:relation" to items with dcterms:identifier = "missing" not found');
+        $this->importer()->import($doc, ResourceType::Item, 'x');
+    }
+
+    public function testAProblemIsReportedWhenTheIdentityPropertyIsUnknown(): void
+    {
+        // the identity cannot be looked up, so the problems stand
+        $doc = [
+            '@context' => ['ex' => 'https://example.org/ns#'],
+            'o-ref:id' => ['ex:code' => 'obj-42'],
+            'ex:code' => [['type' => 'literal', '@value' => 'obj-42']],
+        ];
+        $this->expectException(ResourceImportException::class);
+        $this->importer()->import($doc, ResourceType::Item, 'x');
     }
 
     public function testItemSetsAreLookedUpAsItemSets(): void

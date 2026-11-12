@@ -1,0 +1,14 @@
+{
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
+    "meta": { "title": "Content with onError", "description": "A required item, and items that are skipped when they fail." },
+    "x-omeka-s-cli": {
+        "itemSets": [ { "title": "BP Skip Set" } ],
+        "items": [
+            { "title": "BP Required", "itemSets": ["BP Skip Set"] },
+            // its item set does not exist: skipped
+            { "source": "./content/items/bp-orphan.jsonld", "title": "BP Orphan", "onError": "skip" },
+            // names an item set the blueprint does not declare and the instance lacks: skipped
+            { "title": "BP Undeclared", "itemSets": ["BP Nowhere"], "onError": "skip" }
+        ]
+    }
+}
