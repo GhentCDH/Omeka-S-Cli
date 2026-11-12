@@ -53,6 +53,6 @@ interface Catalog
      */
     public function findByTitle(string $resourceName, string $title): array;
 
-    /** The first value (literal value or URI) of property $term on a resource, or null. */
+    /** The first value of property $term on a resource (a URI value gives its URI, not its label), or null. */
     public function refValue(string $resourceName, int $id, string $term): ?string;
 }

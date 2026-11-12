@@ -19,10 +19,12 @@ final class Exporter
     /** @var string[] */
     private array $warnings = [];
     private string $subject = '';
+    private RefWriter $refs;
 
     /** @param string $referenceBy The property that identifies records, in o-ref:ref and o-ref:id */
     public function __construct(private Catalog $catalog, private string $referenceBy = 'dcterms:title')
     {
+        $this->refs = new RefWriter($catalog, $referenceBy);
     }
 
     /** @param array $jsonLd The resource's representation, decoded to an array */
@@ -136,8 +138,8 @@ final class Exporter
             unset($clean['@id']);
             $name = is_string($value['value_resource_name'] ?? null) ? $value['value_resource_name'] : 'items';
             $id = (int) $value['value_resource_id'];
-            $match = $this->catalog->refValue($name, $id, $this->referenceBy);
-            if ($match === null) {
+            $ref = $this->refs->write($name, $id);
+            if ($ref === null) {
                 $word = self::RESOURCE_WORDS[$name] ?? $name;
                 $this->warnings[] = "{$this->subject}: the link \"{$key}\" to {$word} {$id} has no {$this->referenceBy} value and is not exported";
                 return null;
@@ -145,7 +147,7 @@ final class Exporter
             if ($type === 'resource') {
                 $clean['value_resource_name'] = $name;
             }
-            $clean[PortableJsonLd::PREFIX . ':' . PortableJsonLd::REF] = [$this->referenceBy => $match];
+            $clean += $ref;
         }
 
         if (preg_match('/^customvocab:(\d+)$/', $type, $m)) {
@@ -177,12 +179,12 @@ final class Exporter
             if ($id === null) {
                 continue;
             }
-            $match = $this->catalog->refValue('item_sets', $id, $this->referenceBy);
-            if ($match === null) {
+            $ref = $this->refs->write('item_sets', $id);
+            if ($ref === null) {
                 $this->warnings[] = "{$this->subject}: the link \"o:item_set\" to item set {$id} has no {$this->referenceBy} value and is not exported";
                 continue;
             }
-            $out[] = [PortableJsonLd::PREFIX . ':' . PortableJsonLd::REF => [$this->referenceBy => $match]];
+            $out[] = $ref;
         }
         return $out;
     }
@@ -211,7 +213,7 @@ final class Exporter
                 $prefixes[$parts[0]] = true;
             }
         }
-        $context = ['o' => PortableJsonLd::O_NS, PortableJsonLd::PREFIX => PortableJsonLd::NS];
+        $context = $this->refs->context();
         foreach (array_keys($prefixes) as $prefix) {
             $namespace = $this->catalog->namespaceForPrefix($prefix);
             if ($namespace !== null) {

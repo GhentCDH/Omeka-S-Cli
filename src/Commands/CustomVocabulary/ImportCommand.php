@@ -2,6 +2,7 @@
 namespace OSC\Commands\CustomVocabulary;
 
 use OSC\Omeka\CustomVocabImportExport;
+use OSC\Resource\OmekaCatalog;
 use Exception;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceFetcher;
@@ -22,9 +23,10 @@ class ImportCommand extends AbstractCustomVocabularyCommand
         string $source, ?string $identifier = null, ?string $label = null, ?bool $update = false
     ): void {
         // Get Omeka instance and service manager
-        $api = $this->getOmekaInstance()->getApi();
+        $omekaInstance = $this->getOmekaInstance();
+        $api = $omekaInstance->getApi();
 
-        $importExport = new CustomVocabImportExport($api);
+        $importExport = new CustomVocabImportExport($api, new OmekaCatalog($omekaInstance->getServiceManager()));
 
         // read file content and check if valid json
         $customVocabularyData = ResourceFetcher::fetchJson($source);
@@ -38,7 +40,7 @@ class ImportCommand extends AbstractCustomVocabularyCommand
         $label = $label ?? $customVocabularyData['o:label'] ?? null;
         $customVocabularyData['o:label'] = $label;
 
-        // Resolve an item set reference to its ID in this installation
+        // Resolve an item set reference to its ID in this installation, drop the @context
         $customVocabularyData = $importExport->resolveItemSet($customVocabularyData);
 
         // Check if we need to find an existing custom vocabulary
