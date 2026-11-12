@@ -61,19 +61,21 @@ class ResourceImporter
         if ($type === ResourceType::Item) {
             $document = $this->withSites($document, $sites);
         }
-        $built = (new PayloadBuilder($this->catalog))->build($document, $type, $label, $identifyBy);
+        try {
+            $built = (new PayloadBuilder($this->catalog))->build($document, $type, $label, $identifyBy);
+        } catch (ResourceImportException $e) {
+            // a record that already exists is left as it is, even when its file no longer applies
+            // cleanly (e.g. a reference that now matches two records): only a new one is an error
+            $existing = $this->existing($type, $e->identity(), $e->title(), true);
+            if ($existing !== null) {
+                return $existing;
+            }
+            throw $e;
+        }
 
-        $identity = $built->identity();
-        if ($identity !== null) {
-            $ids = $identity->term === null
-                ? $this->catalog->findByTitle($type->value, $identity->value)
-                : $this->catalog->findByValue($type->value, $identity->term, $identity->value);
-            if (count($ids) === 1) {
-                return ImportResult::exists((int) $ids[0], $built->title());
-            }
-            if (count($ids) > 1) {
-                return ImportResult::ambiguous(count($ids), $built->title());
-            }
+        $existing = $this->existing($type, $built->identity(), $built->title());
+        if ($existing !== null) {
+            return $existing;
         }
         if ($media && $this->checkMedia !== null) {
             // Omeka stores a media's file while it builds the item, before it knows the item will
@@ -103,6 +105,27 @@ class ResourceImporter
             throw new ResourceImportException($label, [$e->getMessage()]);
         }
         return ImportResult::created((int) $resource->id(), $built->title(), $built->warnings());
+    }
+
+    /**
+     * The result for a resource that already exists (one match: exists, several: ambiguous), or null.
+     *
+     * @param bool $knownTermOnly Only look up by a property the instance has (when the build failed,
+     *                            the identity term may be one it does not know)
+     */
+    private function existing(ResourceType $type, ?Identity $identity, ?string $title, bool $knownTermOnly = false): ?ImportResult
+    {
+        if ($identity === null || ($knownTermOnly && $identity->term !== null && !$this->catalog->hasProperty($identity->term))) {
+            return null;
+        }
+        $ids = $identity->term === null
+            ? $this->catalog->findByTitle($type->value, $identity->value)
+            : $this->catalog->findByValue($type->value, $identity->term, $identity->value);
+        return match (true) {
+            count($ids) === 1 => ImportResult::exists((int) $ids[0], $title),
+            count($ids) > 1 => ImportResult::ambiguous(count($ids), $title),
+            default => null,
+        };
     }
 
     /**
