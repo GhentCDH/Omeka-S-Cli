@@ -129,6 +129,7 @@ the web or on disk, and a git repository:
 | `<zip-file>` | `/tmp/CSSEditor-1.3.1.zip`, `./CSSEditor-1.3.1.zip` |
 | `<git-url>[#<ref>]` | `https://github.com/omeka-s-modules/CSSEditor.git#v1.3.1`, `git@github.com:owner/repo.git` |
 | `gh:<owner>/<repo>[#<ref>]` | `gh:omeka-s-modules/CSSEditor#v1.3.1` |
+| `https://github.com/<owner>/<repo>[#<ref>]` | `https://github.com/omeka-s-modules/CSSEditor#v1.3.1`, the repository URL as GitHub shows it |
 
 A release zip from the web:
 
@@ -142,8 +143,8 @@ A zip file on disk (a relative path is relative to the current directory):
 --8<-- "docs/examples/modules.sh:download-zip-file"
 ```
 
-A git repository, at a tag, branch or commit given after `#` (the default branch without it). `gh:` is
-short for a repository on GitHub:
+A git repository, at a tag, branch or commit given after `#` (the default branch without it). A GitHub
+repository can also be given as `gh:owner/repo` or by its URL without `.git`:
 
 ```bash
 --8<-- "docs/examples/modules.sh:download-git"

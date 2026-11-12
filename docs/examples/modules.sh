@@ -68,6 +68,7 @@ rm /tmp/CSSEditor-1.3.1.zip
 # --8<-- [start:download-git]
 omeka-s-cli module:download https://github.com/omeka-s-modules/CSSEditor.git#v1.3.1 --force
 omeka-s-cli module:download gh:omeka-s-modules/CSSEditor#v1.3.1 --force
+omeka-s-cli module:download https://github.com/omeka-s-modules/CSSEditor#v1.3.1 --force
 # --8<-- [end:download-git]
 test -d modules/CSSEditor/.git
 

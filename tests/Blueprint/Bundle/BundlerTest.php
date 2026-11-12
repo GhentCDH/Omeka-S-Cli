@@ -33,6 +33,7 @@ use OSC\Repository\RepositoryInterface;
 use OSC\Repository\Theme\ThemeDetails;
 use OSC\Repository\Theme\ThemeVersion;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use ZipArchive;
@@ -389,12 +390,22 @@ class BundlerTest extends TestCase
         $this->bundler()->bundle(new Blueprint(['preferredVersions' => ['omeka' => 'dev']]), "{$this->dir}/out");
     }
 
-    public function testAGitSourceIsRefusedBeforeAnythingIsDownloaded(): void
+    public static function gitSources(): array
+    {
+        return [
+            'github shorthand' => ['gh:omeka-s-modules/CustomVocab'],
+            'github url'       => ['https://github.com/omeka-s-modules/CustomVocab'],
+            'git url'          => ['https://github.com/omeka-s-modules/CustomVocab.git'],
+        ];
+    }
+
+    #[DataProvider('gitSources')]
+    public function testAGitSourceIsRefusedBeforeAnythingIsDownloaded(string $source): void
     {
         try {
             $this->bundler()->bundle(new Blueprint([
                 'preferredVersions' => ['omeka' => '4.1.1'],
-                'modules' => ['Common', ['name' => 'CustomVocab', 'source' => 'gh:omeka-s-modules/CustomVocab']],
+                'modules' => ['Common', ['name' => 'CustomVocab', 'source' => $source]],
             ]), "{$this->dir}/out");
             $this->fail('a git source must be refused');
         } catch (Exception $e) {
