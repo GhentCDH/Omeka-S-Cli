@@ -3,6 +3,7 @@ namespace OSC\Downloader;
 
 use Closure;
 use Exception;
+use InvalidArgumentException;
 use OSC\Addon\AddonType;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\ResourceUriParser;
@@ -15,7 +16,7 @@ use OSC\Manager\AbstractManager;
  * - a catalog name: looked up through the repository manager, picking a version compatible with the
  *   target Omeka S;
  * - a ZIP release (URL or file);
- * - a git repository (URL or gh:owner/repo), at an optional ref.
+ * - a git repository (git URL, https://github.com/owner/repo or gh:owner/repo), at an optional ref.
  *
  * Shared by module:download, theme:download and blueprint:bundle. It needs no Omeka S install: the
  * Omeka S version is asked for only when a catalog lookup needs it.
@@ -40,22 +41,36 @@ class AddonResolver
         if ($source === null || $source === '') {
             return $version ? "{$name}:{$version}" : $name;
         }
-        $isGit = str_starts_with($source, 'gh:') || str_ends_with($source, '.git');
-        if ($version && $isGit && !str_contains($source, '#')) {
+        if ($version && !str_contains($source, '#') && self::isGitSource($source)) {
             return "{$source}#{$version}";
         }
         return $source;
     }
 
-    /** Whether a reference (as uriFor() builds it) is a git repository: a git URL or gh:owner/repo. */
+    /**
+     * Whether a reference (as uriFor() builds it) is a git repository: a git URL,
+     * https://github.com/owner/repo or gh:owner/repo.
+     *
+     * @throws InvalidArgumentException When the reference has no known form
+     */
     public static function isGit(string $uri): bool
     {
         $type = ResourceUriParser::parse($uri)->getType();
         return $type === ResourceUriType::GitRepo || $type === ResourceUriType::GitHubRepo;
     }
 
+    /** isGit() for a source as written: one of no known form is not git (the resolver reports it). */
+    private static function isGitSource(string $source): bool
+    {
+        try {
+            return self::isGit($source);
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+    }
+
     /**
-     * @param string            $uri          id[:version], a ZIP URL/file, a git URL[#ref] or gh:owner/repo[#ref]
+     * @param string            $uri          id[:version], a ZIP URL/file, a git URL[#ref], https://github.com/owner/repo[#ref] or gh:owner/repo[#ref]
      * @param Closure(): string $omekaVersion The target Omeka S version; called only for a catalog lookup
      * @param bool              $force        Accept a pinned catalog version that is incompatible
      * @throws NotFoundException When the catalog has no such add-on or version

@@ -638,6 +638,7 @@ class BlueprintLoaderTest extends TestCase
         $sources = [
             'gh:Daniel-KM/Omeka-S-module-Common#3.4.71',
             'https://github.com/Daniel-KM/Omeka-S-module-Log.git',
+            'https://github.com/Daniel-KM/Omeka-S-module-Log#3.4.30',
             'git@github.com:Daniel-KM/Omeka-S-module-Log.git',
             'https://example.org/AdvancedSearch-3.4.22.zip',
         ];

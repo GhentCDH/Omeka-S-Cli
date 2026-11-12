@@ -65,6 +65,9 @@ class AddonResolverTest extends TestCase
         $this->assertTrue(AddonResolver::isGit('gh:omeka-s-modules/CustomVocab#v2.1.0'));
         $this->assertTrue(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab.git#v2.1.0'));
         $this->assertTrue(AddonResolver::isGit('git@github.com:omeka-s-modules/CustomVocab.git'));
+        $this->assertTrue(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab'));
+        $this->assertTrue(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab#v2.1.0'));
+        $this->assertFalse(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab/archive/refs/tags/v2.1.0.zip'));
         $this->assertFalse(AddonResolver::isGit('https://example.org/CustomVocab-2.1.0.zip'));
         $this->assertFalse(AddonResolver::isGit('./modules/CustomVocab-2.1.0.zip'));
         $this->assertFalse(AddonResolver::isGit('CustomVocab:2.1.0'));
@@ -91,6 +94,19 @@ class AddonResolverTest extends TestCase
         $this->assertSame(ResolvedAddon::GIT, $resolved->form);
         $this->assertSame('https://github.com/owner/repo.git', $resolved->downloader->getDownloadUrl());
         $this->assertSame('1.2.0', $resolved->downloader->getRef());
+    }
+
+    public function testAGitHubUrlClonesLikeTheShorthand(): void
+    {
+        $resolved = $this->resolver(null)->resolve('https://github.com/owner/repo/#1.2.0', $this->noLookup());
+
+        $this->assertSame(ResolvedAddon::GIT, $resolved->form);
+        $this->assertSame('https://github.com/owner/repo.git', $resolved->downloader->getDownloadUrl());
+        $this->assertSame('1.2.0', $resolved->downloader->getRef());
+
+        $default = $this->resolver(null)->resolve('https://github.com/owner/repo', $this->noLookup());
+        $this->assertSame('https://github.com/owner/repo.git', $default->downloader->getDownloadUrl());
+        $this->assertNull($default->downloader->getRef());
     }
 
     public function testACatalogNameSelectsTheLatestCompatibleRelease(): void
@@ -137,5 +153,8 @@ class AddonResolverTest extends TestCase
         $this->assertSame('gh:owner/a#1.2.0', AddonResolver::uriFor('A', 'gh:owner/a', '1.2.0'));
         $this->assertSame('https://example.org/owner/b.git#1.2.0', AddonResolver::uriFor('B', 'https://example.org/owner/b.git', '1.2.0'));
         $this->assertSame('gh:owner/c#main', AddonResolver::uriFor('C', 'gh:owner/c#main', '1.2.0'));
+        $this->assertSame('https://github.com/owner/d#1.2.0', AddonResolver::uriFor('D', 'https://github.com/owner/d', '1.2.0'));
+        $this->assertSame('https://github.com/owner/e#main', AddonResolver::uriFor('E', 'https://github.com/owner/e#main', '1.2.0'));
+        $this->assertSame('https://example.org/dl?id=5', AddonResolver::uriFor('F', 'https://example.org/dl?id=5', '1.2.0'));
     }
 }

@@ -28,7 +28,8 @@ A few things the specification leaves to the tool:
   without enabling it; `download` only puts the files in `modules/`.
 - Without a `source`, a module or theme is looked up by name, as `module:download <name>` and
   `theme:download <name>` do. A `source` can be anything [`module:download`](../commands/modules.md)
-  accepts: a zip release URL, a local zip (relative to the blueprint), a git URL or `gh:owner/repo`.
+  accepts: a zip release URL, a local zip (relative to the blueprint), a git URL,
+  `https://github.com/owner/repo` or `gh:owner/repo`.
   `version` picks the catalog release or the git tag.
 - A module or theme that is already in `modules/` or `themes/` is used as it is, unless `version`
   differs from the one on disk or you deploy with `--update`.

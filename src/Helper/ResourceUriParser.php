@@ -23,6 +23,11 @@ class ResourceUriParser {
             return new ResourceUri(ResourceUriType::GitRepo, $matches[1], $matches[4] ?? null);
         }
 
+        // https://github.com/user/repo[/][#branch], the URL copied from GitHub: same as gh:user/repo
+        if (preg_match('/^https:\/\/github\.com\/([a-zA-Z0-9_.-]+\/(?![a-zA-Z0-9_.-]*\.git(?:[\/#]|$))[a-zA-Z0-9_.-]+)\/?(#([a-zA-Z0-9_.-]+))?$/', $string, $matches)) {
+            return new ResourceUri(ResourceUriType::GitHubRepo, $matches[1], $matches[3] ?? null);
+        }
+
         // id:version
         if (preg_match('/^([a-zA-Z0-9_-]+)(:([a-zA-Z0-9_.-]+))?$/', $string, $matches)) {
             return new ResourceUri(ResourceUriType::IdVersion, $matches[1], $matches[3] ?? null);
