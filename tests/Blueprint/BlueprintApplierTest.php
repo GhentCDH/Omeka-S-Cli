@@ -9,12 +9,18 @@ use OSC\Addon\AddonVersion;
 use OSC\Addon\InstalledAddons;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintApplier;
+use OSC\Blueprint\OnError;
 use OSC\Commands\AbstractCommand;
+use OSC\Exceptions\WarningException;
+use OSC\Helper\Config\MediaConfig;
 use OSC\Downloader\ZipDownloader;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\OmekaInstance;
 use OSC\Omeka\SiteApi;
+use OSC\Resource\PortableJsonLd;
+use OSC\Resource\ResourceImportException;
+use OSC\Resource\SimpleContentMapper;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -30,6 +36,11 @@ use ZipArchive;
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(Path::class)]
 #[UsesClass(ResourceFetcher::class)]
+#[UsesClass(OnError::class)]
+#[UsesClass(SimpleContentMapper::class)]
+#[UsesClass(PortableJsonLd::class)]
+#[UsesClass(MediaConfig::class)]
+#[UsesClass(ResourceImportException::class)]
 class BlueprintApplierTest extends TestCase
 {
     /** A scratch directory holding the fake Omeka S root (`omeka/`) and the file sources. */
@@ -483,5 +494,150 @@ class BlueprintApplierTest extends TestCase
         $this->assertContains("would download theme 'freedom' ({$zip}) into themes/freedom", $notes);
         // a catalog theme keeps the catalog's folder name
         $this->assertContains("would download theme 'cozy' (cozy:1.0.0)", $notes);
+    }
+
+    // ── content: onError ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * An import command that hands each import config (decoded) to $onImport, in place of
+     * item:import / item-set:import.
+     */
+    private function fakeImportCommand(string $name, \Closure $onImport): AbstractCommand
+    {
+        return new class ($name, $onImport) extends AbstractCommand {
+            public function __construct(string $name, private \Closure $onImport)
+            {
+                parent::__construct($name);
+            }
+
+            public function execute(?string $source = null, ?string $config = null): void
+            {
+                ($this->onImport)(json_decode((string) file_get_contents((string) $config), true));
+            }
+        };
+    }
+
+    /**
+     * Run the content phases for real against fake import commands. $onImport receives the kind
+     * ('item' or 'item set') and the import config, and may throw.
+     *
+     * @param array<string,AbstractCommand>|null $commands Replaces the fake commands when given
+     * @return array{0: BlueprintApplier, 1: string[]} [the applier, the warnings]
+     */
+    private function applyContent(array $blueprint, \Closure $onImport, ?array $commands = null): array
+    {
+        $warnings = [];
+        $commands ??= [
+            'item-set:import' => $this->fakeImportCommand('item-set:import', fn(array $config) => $onImport('item set', $config)),
+            'item:import' => $this->fakeImportCommand('item:import', fn(array $config) => $onImport('item', $config)),
+        ];
+        $app = $this->createMock(\Ahc\Cli\Application::class);
+        $app->method('commands')->willReturn($commands);
+        $command = $this->createMock(AbstractCommand::class);
+        $command->method('app')->willReturn($app);
+        $command->method('resolveOmekaPath')->willReturn($this->dir . '/omeka');
+        $command->method('warn')->willReturnCallback(function (string $m) use (&$warnings) { $warnings[] = $m; });
+
+        $applier = new BlueprintApplier($command);
+        $applier->applyConfiguration(new Blueprint($blueprint));
+        return [$applier, $warnings];
+    }
+
+    /** A fake import that fails for the entry titled $title and records the others in $imported. */
+    private function failingFor(string $title, array &$imported, ?\Throwable $error = null): \Closure
+    {
+        return function (string $kind, array $config) use ($title, &$imported, $error) {
+            if (($config['title'] ?? null) === $title) {
+                throw $error ?? new ResourceImportException($title, ['link "o:item_set" to item sets with dcterms:title = "Postcards" not found']);
+            }
+            $imported[] = "{$kind} " . ($config['title'] ?? basename((string) ($config['source'] ?? '?')));
+        };
+    }
+
+    public function testAContentErrorStopsTheDeployByDefault(): void
+    {
+        $imported = [];
+        try {
+            $this->applyContent(['items' => [['title' => 'A'], ['title' => 'B']]], $this->failingFor('A', $imported));
+            $this->fail('expected the deploy to stop');
+        } catch (ResourceImportException $e) {
+            $this->assertSame('A', $e->label());
+        }
+        $this->assertSame([], $imported);
+    }
+
+    public function testAContentErrorIsSkippedWithOnErrorSkip(): void
+    {
+        $imported = [];
+        [$applier, $warnings] = $this->applyContent(
+            ['itemSets' => [['title' => 'S']], 'items' => [['title' => 'A', 'onError' => 'skip'], ['title' => 'B']]],
+            $this->failingFor('A', $imported)
+        );
+
+        $this->assertSame(['item set S', 'item B'], $imported);
+        $this->assertSame(["skipped item 'A': link \"o:item_set\" to item sets with dcterms:title = \"Postcards\" not found"], $warnings);
+        $this->assertSame(
+            [['kind' => 'item', 'label' => 'A', 'message' => 'link "o:item_set" to item sets with dcterms:title = "Postcards" not found']],
+            $applier->takeSkipped()
+        );
+        $this->assertSame([], $applier->takeSkipped());
+    }
+
+    public function testAnExtensionEntryTakesOnErrorToo(): void
+    {
+        $imported = [];
+        [$applier] = $this->applyContent(
+            ['x-omeka-s-cli' => ['itemSets' => [['source' => '/bp/a.jsonld', 'title' => 'A', 'onError' => 'skip'], ['source' => '/bp/b.jsonld']]]],
+            $this->failingFor('A', $imported)
+        );
+
+        $this->assertSame(['item set b.jsonld'], $imported);
+        $this->assertSame('A', $applier->takeSkipped()[0]['label']);
+    }
+
+    public function testOnErrorIsNotPassedToTheImportCommand(): void
+    {
+        $configs = [];
+        $this->applyContent(
+            [
+                'items' => [['title' => 'A', 'onError' => 'skip']],
+                'x-omeka-s-cli' => ['items' => [['source' => '/bp/b.jsonld', 'onError' => 'fail']]],
+            ],
+            function (string $kind, array $config) use (&$configs) { $configs[] = $config; }
+        );
+
+        $this->assertCount(2, $configs);
+        foreach ($configs as $config) {
+            $this->assertArrayNotHasKey('onError', $config);
+        }
+    }
+
+    public function testAnExistingRecordIsNotAnError(): void
+    {
+        $imported = [];
+        [$applier, $warnings] = $this->applyContent(
+            ['items' => [['title' => 'A'], ['title' => 'B']]],
+            $this->failingFor('A', $imported, new WarningException("Item 'A' already exists (id 3); skipped."))
+        );
+
+        $this->assertSame(['item B'], $imported);
+        $this->assertSame(["Item 'A' already exists (id 3); skipped."], $warnings);
+        $this->assertSame([], $applier->takeSkipped());
+    }
+
+    public function testABugIsNotSkipped(): void
+    {
+        $imported = [];
+        $this->expectException(\TypeError::class);
+        $this->applyContent(
+            ['items' => [['title' => 'A', 'onError' => 'skip']]],
+            $this->failingFor('A', $imported, new \TypeError('bug'))
+        );
+    }
+
+    public function testAMissingImportCommandStopsEvenWithSkip(): void
+    {
+        $this->expectExceptionMessage("Required command 'item:import' is not available.");
+        $this->applyContent(['items' => [['title' => 'A', 'onError' => 'skip']]], fn() => null, []);
     }
 }

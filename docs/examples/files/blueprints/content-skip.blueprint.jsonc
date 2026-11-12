@@ -1,0 +1,13 @@
+{
+    "$schema": "https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json",
+    "meta": { "title": "Demo content", "description": "Required content, and sample content that may be left out." },
+    "x-omeka-s-cli": {
+        "itemSets": [ { "title": "Letters" } ],
+        "items": [
+            // required: the deploy stops if it cannot be created
+            { "title": "Letter to the mayor", "itemSets": ["Letters"] },
+            // sample content: left out with a warning if it cannot be created
+            { "source": "./content/items/sketch.jsonld", "title": "Harbour sketch", "onError": "skip" }
+        ]
+    }
+}

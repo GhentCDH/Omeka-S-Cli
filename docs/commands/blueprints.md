@@ -25,8 +25,9 @@ resource template, an editor, a site and a few settings.
 
 The validation is strict: an unknown key is an error, which catches typos. Besides the schema, it
 checks that every theme a site uses is declared in `themes` (`default` always is), that site slugs are
-valid, and that site permissions name declared users. This blueprint has a typo (`stat`) and uses a
-theme it does not declare:
+valid, and that site permissions name declared users. An item set that an item names but the
+blueprint does not declare is only a warning, since it may already exist in the instance. This
+blueprint has a typo (`stat`) and uses a theme it does not declare:
 
 ```jsonc
 --8<-- "docs/examples/files/blueprints/invalid.blueprint.jsonc"
@@ -57,7 +58,8 @@ object (the exit code is the same):
 ```text
 {
     "valid": true,
-    "errors": []
+    "errors": [],
+    "warnings": []
 }
 ```
 

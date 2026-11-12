@@ -1,0 +1,12 @@
+{
+    "@context": {
+        "dcterms": "http://purl.org/dc/terms/",
+        "o": "http://omeka.org/s/vocabs/o#",
+        "o-ref": "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"
+    },
+    "@type": "o:Item",
+    "o-ref:id": {"dcterms:identifier": "sk-1"},
+    "o:item_set": [{"o-ref:ref": {"dcterms:identifier": "set-sketches"}}],
+    "dcterms:title": [{"type": "literal", "@value": "Harbour sketch"}],
+    "dcterms:identifier": [{"type": "literal", "@value": "sk-1"}]
+}

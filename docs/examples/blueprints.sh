@@ -110,6 +110,21 @@ omeka-s-cli item:list --site collections --json | jq -e 'any(.[]; .title == "Mar
 # a second deploy skips what exists
 omeka-s-cli blueprint:deploy ~/blueprints/content.blueprint.jsonc --skip core --force 2>&1 | grep -q "Item 'Harbour at dawn' already exists"
 
+# --8<-- [start:deploy-content-skip]
+omeka-s-cli blueprint:deploy ~/blueprints/content-skip.blueprint.jsonc --skip core --force
+# --8<-- [end:deploy-content-skip]
+omeka-s-cli blueprint:deploy ~/blueprints/content-skip.blueprint.jsonc --skip core --force 2>&1 \
+    | grep -q "skipped item 'Harbour sketch': link \"o:item_set\" to item sets with dcterms:identifier = \"set-sketches\" not found"
+omeka-s-cli item:list --json | jq -e 'any(.[]; .title == "Letter to the mayor" and .itemSets == 1)
+    and all(.[]; .title != "Harbour sketch")' > /dev/null
+# without onError the same entry stops the deploy
+mkdir -p "$SCRATCH_DIR/content-fail/content/items"
+cp ~/blueprints/content/items/sketch.jsonld "$SCRATCH_DIR/content-fail/content/items/"
+grep -v '^ *//' ~/blueprints/content-skip.blueprint.jsonc | jq 'del(."x-omeka-s-cli".items[1].onError)' \
+    > "$SCRATCH_DIR/content-fail/blueprint.json"
+failure_output omeka-s-cli blueprint:deploy "$SCRATCH_DIR/content-fail/blueprint.json" --skip core --force \
+    | grep 'dcterms:identifier = "set-sketches" not found' > /dev/null
+
 # --8<-- [start:export-content]
 omeka-s-cli item:export --property dcterms:identifier=ph-1 --reference-by dcterms:identifier \
     --output-dir ~/content/items

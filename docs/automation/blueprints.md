@@ -132,11 +132,12 @@ switches that on unless you pass `--no-assign-new-items`.
 ```
 
 The simple entries come first, then the `x-omeka-s-cli` entries, each in blueprint order. An item is
-created together with its media: if Omeka S rejects a media file, the item is not created either and
-the deploy stops. An item or item set that already exists (by its `o-ref:id`, else by its title) is
-skipped, so a deploy can run again. A simple item names its item sets by title, and the item set is
-found by the title in its JSON-LD file. Validation only sees the blueprint, so when a simple item names
-an `x-omeka-s-cli` item set, give that entry a `title` equal to the title in its file.
+created together with its media: if Omeka S rejects a media file, the item is not created either. An
+item or item set that already exists (by its `o-ref:id`, else by its title) is skipped, so a deploy can
+run again. A simple item names its item sets by title, and the item set is found by the title in its
+JSON-LD file, or in the instance. Validation only sees the blueprint, so it warns about an item set
+that the blueprint does not declare; when a simple item names an `x-omeka-s-cli` item set, give that
+entry a `title` equal to the title in its file.
 
 To build the JSON-LD files, curate the content on an instance and export it, one file per item:
 
@@ -145,6 +146,48 @@ To build the JSON-LD files, curate the content on an instance and export it, one
 ```
 
 Then list the files as `x-omeka-s-cli.items` entries, and add the media.
+
+### When an entry fails
+
+An item set or item that cannot be created stops the deploy. These are the errors:
+
+- a missing vocabulary, or an unknown property, class, resource template or data type;
+- a media file that cannot be fetched, or that Omeka S rejects;
+- a reference that matches no record or more than one: an `o-ref:ref` in a JSON-LD file, or an item
+  set that an item names by title.
+
+Content that a deploy can do without, such as sample content on a demo instance, can say
+`"onError": "skip"`: the deploy leaves it out with a warning, carries on, and lists the skipped entries
+at the end. The exit code is still 0. `"onError": "fail"` is the default.
+
+??? example "`content-skip.blueprint.jsonc`"
+
+    ```jsonc
+    --8<-- "docs/examples/files/blueprints/content-skip.blueprint.jsonc"
+    ```
+
+```bash
+--8<-- "docs/examples/blueprints.sh:deploy-content-skip"
+```
+
+```text
+Items
+Item 'Letter to the mayor' created (id 11).
+skipped item 'Harbour sketch': link "o:item_set" to item sets with dcterms:identifier = "set-sketches" not found
+
+Settings — nothing to do
+Skipped 1 entry (onError: skip):
+  - item 'Harbour sketch': link "o:item_set" to item sets with dcterms:identifier = "set-sketches" not found
+Blueprint deployed.
+```
+
+A skipped entry is not created, so an entry that refers to it fails in turn, and its own `onError`
+decides what happens. For the same reason, a reference must point to an entry listed earlier or to a
+record already in the instance: of two items that link to each other, keep the link only in the one
+listed later. A record that already exists is not an error, even when its file no longer applies
+cleanly, so a blueprint can be deployed again. The shared format's `itemSets` and
+`items` take `onError` too, from the next release of the blueprint schema; until then, validation
+accepts it only on `x-omeka-s-cli` entries.
 
 ## Re-run a deploy
 

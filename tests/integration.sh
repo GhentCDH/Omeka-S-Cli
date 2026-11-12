@@ -682,6 +682,9 @@ assert_output_contains "item:import again skips it by title"     "already exists
 assert_output_contains "a missing vocabulary is a clean error"   "which is not installed (vocabulary:import)"   $CLI item:import $ITEMS/item-missing-vocab.jsonld
 assert_fail    "a missing vocabulary fails the import"           $CLI item:import $ITEMS/item-missing-vocab.jsonld
 assert_output_contains "an unknown data type is a clean error"   'data type "unknown:thing" is not available'   $CLI item:import $ITEMS/item-bad-datatype.jsonld
+assert_output_contains "an unresolved link is a clean error"   'to items with dcterms:identifier = "it-obj-missing" not found'   $CLI item:import $ITEMS/item-broken-ref.jsonld
+assert_fail    "an unresolved link fails the import"             $CLI item:import $ITEMS/item-broken-ref.jsonld
+assert_success "an unresolved link creates no item"              bash -c "set -o pipefail; $CLI item:list -p dcterms:identifier=it-obj-broken --json | jq -e 'length == 0'"
 assert_success "item:import a raw Omeka export"                  bash -c "$CLI item:import $ITEMS/item-raw.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 ITEM_COUNT=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length')
 assert_fail    "a rejected media file fails the import"          $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/not-allowed.sh
@@ -840,6 +843,16 @@ assert_output_is "an entry's sites (by title) replace its file's sites" "bp-arch
 assert_output_contains "a second deploy skips what exists"               "already exists"   $CLI blueprint:deploy $CONTENT_BP --skip core --force
 assert_output_is "a second deploy adds no items"                           "$CONTENT_ITEMS"   bash -c "$CLI item:list --limit 1000 --json | jq 'length'"
 assert_success "--skip items skips the items phase"                        bash -c "$CLI blueprint:deploy $CONTENT_BP --skip core,items --force | grep -q 'Items.*skipped (--skip)'"
+# onError: skip leaves a failing entry out, the deploy goes on and succeeds; without it the deploy stops
+SKIP_BP=/app/omeka-s-cli/examples/blueprint/content-skip.blueprint.jsonc
+assert_output_contains "blueprint:validate warns about an undeclared item set" "item set 'BP Nowhere' is not declared"   $CLI blueprint:validate $SKIP_BP
+assert_success "blueprint:deploy skips the entries that fail with onError: skip" $CLI blueprint:deploy $SKIP_BP --skip core --force
+assert_output_contains "blueprint:deploy lists the skipped entries"          "Skipped 2 entries (onError: skip)"   $CLI blueprint:deploy $SKIP_BP --skip core --force
+assert_success "the required item is there, the skipped ones are not"       bash -c "set -o pipefail; $CLI item:list --limit 1000 --json | jq -e 'any(.[]; .title == \"BP Required\" and .itemSets == 1) and all(.[]; .title != \"BP Orphan\" and .title != \"BP Undeclared\")'"
+run            "write the skip blueprint without onError"                   bash -c "rm -rf /tmp/bp-content-fail && mkdir -p /tmp/bp-content-fail/content/items && cp /app/omeka-s-cli/examples/blueprint/content/items/bp-orphan.jsonld /tmp/bp-content-fail/content/items/ && grep -v '^ *//' $SKIP_BP | jq '(.\"x-omeka-s-cli\".items[] | select(.onError)) |= del(.onError)' > /tmp/bp-content-fail/blueprint.json"
+assert_fail    "without onError a failing entry stops the deploy"           $CLI blueprint:deploy /tmp/bp-content-fail/blueprint.json --skip core --force
+assert_output_contains "the deploy stops on the failing entry's error"       'dcterms:identifier = "bp-set-missing" not found'   $CLI blueprint:deploy /tmp/bp-content-fail/blueprint.json --skip core --force
+run            "remove the blueprint without onError"                       rm -rf /tmp/bp-content-fail
 run            "remove a content bundle left by an earlier run"           rm -rf /tmp/bp-content-bundle
 assert_success "blueprint:bundle bundles item sets, items and media"      $CLI blueprint:bundle $CONTENT_BP /tmp/bp-content-bundle
 assert_success "the content bundle is self-contained"                      $CLI blueprint:validate /tmp/bp-content-bundle/blueprint.json --self-contained

@@ -64,7 +64,13 @@ abstract class AbstractBlueprintCommand extends AbstractCommand
             }
         }
 
-        $errors = $this->validator($selfContained)->validateBlueprint($blueprint->toArray());
+        $validator = $this->validator($selfContained);
+        $errors = $validator->validateBlueprint($blueprint->toArray());
+        if (!$quiet) {
+            foreach ($validator->takeWarnings() as $warning) {
+                $this->warn("  {$warning}", true);
+            }
+        }
         if ($errors) {
             $this->error('Blueprint is invalid:', true);
             foreach ($errors as $error) {
