@@ -24,7 +24,7 @@ trait VocabularyImporterTrait
             ->option('-n --namespace-uri', 'Namespace URI for the vocabulary (required)')
             ->option('-p --prefix', 'Namespace prefix for the vocabulary (required)')
             ->option('-f --format', 'Format of the vocabulary (rdfxml, turtle, ntriples, or auto)', [$this, 'filterVocabularyFormat'], 'auto')
-            ->option('-l --lang', 'Preferred language for labels and comments (e.g., en, fr)')
+            ->option('--lang', 'Preferred language for labels and comments (e.g., en, fr)')
             ->option('-lp --label-property', 'RDF property for labels')
             ->option('-cp --comment-property', 'RDF property for comments');
     }

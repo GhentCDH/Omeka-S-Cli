@@ -22,7 +22,7 @@ class UpdateCommand extends AbstractCommand
         $this->argument('[version-number]', 'Core version number');
         $this->option('-f --force', 'Force download', 'boolval', false);
         $this->option('-s --skip-version-check', 'Skip installed version check', 'boolval', false);
-        $this->option('-b --backup', 'Keep the replaced core files in ~/.omeka-s-cli/backups/core/<version>/<date-time>/ (deleted otherwise)', 'boolval', false);
+        $this->option('--backup', 'Keep the replaced core files in ~/.omeka-s-cli/backups/core/<version>/<date-time>/ (deleted otherwise)', 'boolval', false);
         $this->option('--stage-dir', 'Directory to stage the new core files in, outside every web root and on the same filesystem as Omeka S (default: next to the Omeka S directory, or inside it)');
     }
 

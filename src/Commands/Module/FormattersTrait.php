@@ -3,6 +3,7 @@
 namespace OSC\Commands\Module;
 
 use Omeka\Module\Module;
+use OSC\Addon\AddonVersion;
 use OSC\Helper\Offline;
 use OSC\Manager\Result;
 use OSC\Repository\Module\ModuleDetails;
@@ -25,7 +26,8 @@ trait FormattersTrait
             'version' => $version,
             'installedVersion' => $module->getDb('version'),
             'latestVersion' => $latestVersion,
-            'updateAvailable' => $latestVersion && $version ? ($version !== $latestVersion) : null,
+            // what module:update would install: the latest release compatible with this Omeka S
+            'updateAvailable' => $searchResult ? AddonVersion::updateAvailable($version, $searchResult->getItem()->getVersions(), $this->getOmekaVersion()) : null,
             'author' => $module->getIni('author'),
             'path' => dirname($module->getModuleFilePath()),
         ];

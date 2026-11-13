@@ -4,6 +4,7 @@ namespace OSC\Addon;
 
 use Composer\Semver\Comparator;
 use Composer\Semver\Semver;
+use Composer\Semver\VersionParser;
 use OSC\Repository\OmekaVersionableInterface;
 
 /**
@@ -21,6 +22,44 @@ final class AddonVersion
     public static function equals(string $a, string $b): bool
     {
         return self::normalize($a) === self::normalize($b);
+    }
+
+    /**
+     * Whether $candidate is a newer version than $current: 'v' prefixes ignored, parts compared as
+     * numbers, a missing trailing zero is equal (1.1 = 1.1.0), a pre-release is below its release.
+     * A version Composer cannot parse is compared as given.
+     */
+    public static function isNewer(string $candidate, string $current): bool
+    {
+        return version_compare(self::comparable($candidate), self::comparable($current), '>');
+    }
+
+    /**
+     * Whether an update would install a newer version than $installed: the latest release that is
+     * compatible with $omekaVersion (what module:download/theme:download pick), not the latest one.
+     * A local version newer than that is not updatable, so --all never downgrades it.
+     *
+     * @param OmekaVersionableInterface[]|null $versions The repository's releases (null: not in a repository)
+     * @return bool|null Null when the installed or the repository versions are unknown
+     */
+    public static function updateAvailable(?string $installed, ?array $versions, string $omekaVersion): ?bool
+    {
+        if ($installed === null || $installed === '' || $versions === null) {
+            return null;
+        }
+        $target = self::latestCompatible($versions, $omekaVersion);
+        return $target !== null && self::isNewer($target->getVersionNumber(), $installed);
+    }
+
+    /** $version in Composer's normalized form (1.1 -> 1.1.0.0), or as given when it cannot be parsed. */
+    private static function comparable(string $version): string
+    {
+        $version = self::normalize($version);
+        try {
+            return (new VersionParser())->normalize($version);
+        } catch (\UnexpectedValueException) {
+            return $version;
+        }
     }
 
     /**

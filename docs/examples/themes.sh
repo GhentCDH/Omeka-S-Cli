@@ -52,7 +52,8 @@ omeka-s-cli theme:list --outdated --json | jq -r '.[].id'
 omeka-s-cli theme:list --outdated --json | jq -e 'any(.[]; .id == "freedom")' > /dev/null
 
 # --8<-- [start:update]
-omeka-s-cli theme:download freedom --force --backup
+omeka-s-cli theme:update --all --dry-run
+omeka-s-cli theme:update freedom --backup
 # --8<-- [end:update]
 omeka-s-cli theme:status freedom --json | jq -e '.[0].updateAvailable == false' > /dev/null
 ls -d ~/.omeka-s-cli/backups/themes/freedom/*/config > /dev/null

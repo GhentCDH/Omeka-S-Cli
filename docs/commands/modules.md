@@ -268,8 +268,9 @@ A module that fails does not stop the others.
 --8<-- "docs/examples/modules.sh:update"
 ```
 
-You can also pass a version (`module:update sharing:1.5.0`). `--all` updates every module that
-`--outdated` lists; check the list with `--dry-run` first:
+You can also pass a version (`module:update sharing:1.5.0`). `--backup` keeps the old copy, as with
+`module:download --backup`. `--all` updates every module that `--outdated` lists; check the list with
+`--dry-run` first:
 
 ```bash
 --8<-- "docs/examples/modules.sh:update-all"

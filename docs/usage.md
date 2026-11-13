@@ -93,7 +93,7 @@ printed, even with `--quiet`:
 ```
 
 ```text
-Module 'Common' already exists in '/var/www/omeka-s/modules/Common'. Use the --force option download anyway.
+Module 'Common' already exists in '/var/www/omeka-s/modules/Common'. Use the --force option to download anyway.
 ```
 
 Errors go to standard error, everything else (including warnings) to standard output. Messages are coloured, also when the
@@ -156,7 +156,7 @@ exits with 0. Downloading a module that is already there, for example:
 
 ```text
 Selected 'Common' v3.4.93 (compatible with Omeka S 4.2.1).
-Module 'Common' already exists in '/var/www/omeka-s/modules/Common'. Use the --force option download anyway.
+Module 'Common' already exists in '/var/www/omeka-s/modules/Common'. Use the --force option to download anyway.
 exit code: 0
 ```
 
@@ -189,8 +189,8 @@ and [Sites](commands/sites.md).
 ## Preview changes
 
 Commands that change modules (`module:install`, `module:uninstall`, `module:enable`, `module:disable`,
-`module:upgrade`, `module:update`, `module:delete`), `config:import` and `blueprint:deploy` accept
-`--dry-run`. They report what they would do, and change nothing:
+`module:upgrade`, `module:update`, `module:delete`), `theme:update`, `config:import` and
+`blueprint:deploy` accept `--dry-run`. They report what they would do, and change nothing:
 
 ```bash
 --8<-- "docs/examples/usage.sh:dry-run"
@@ -264,8 +264,8 @@ In offline mode:
   usual. A download by name of an add-on that is already on disk gives the usual "already exists"
   warning (exit code 0). A download by name of anything else fails, since it needs the repositories.
 - Commands that cannot do their job without the repositories fail right away (exit code 255):
-  `module:search`, `theme:search`, `--outdated`, `module:update`, `core:download` and `core:update`
-  without a version number.
+  `module:search`, `theme:search`, `--outdated`, `module:update`, `theme:update`, `core:download` and
+  `core:update` without a version number.
 - `blueprint:deploy`, `blueprint:download` and `blueprint:bundle` validate against the schema shipped
   with `omeka-s-cli`. They fail on a module or theme entry without a `source` that must be
   downloaded (`blueprint:deploy` skips add-ons already on disk), and on a blueprint without
@@ -281,7 +281,7 @@ In offline mode:
 ```
 
 ```text
-Module 'Common' already exists in '/var/www/omeka-s/modules/Common'. Use the --force option download anyway.
+Module 'Common' already exists in '/var/www/omeka-s/modules/Common'. Use the --force option to download anyway.
 exit code: 0
 Offline mode: cannot look up 'mapping' in the module repositories. Pass a release ZIP URL/path or git source instead, or drop --offline / unset OMEKA_S_CLI_OFFLINE.
 exit code: 255

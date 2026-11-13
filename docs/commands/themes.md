@@ -131,15 +131,20 @@ listed without contacting the repository, so `latestVersion` and `updateAvailabl
 --8<-- "docs/examples/themes.sh:outdated"
 ```
 
-There is no update command for themes: download the theme again with `--force`. Add `--backup` to move
-the old copy to `~/.omeka-s-cli/backups/themes/<theme>/<date-time>/` instead of deleting it, which
-keeps any changes you made to its files:
+`theme:update` downloads the newest compatible release into the theme's current folder, also when the
+repository uses another folder name (a theme installed from git as `themes/Cozy` stays there). Pass a
+version to pin one (`theme:update freedom:1.0.7`). `--all` updates every theme that `--outdated`
+lists; check the list with `--dry-run` first. Add `--backup` to move the old copy to
+`~/.omeka-s-cli/backups/themes/<theme>/<date-time>/` instead of deleting it, which keeps any changes
+you made to its files:
 
 ```bash
 --8<-- "docs/examples/themes.sh:update"
 ```
 
 ```text
+Dry run, no changes are made.
+1 theme(s) would be updated: freedom.
 Selected 'freedom' v1.1.0 (compatible with Omeka S 4.2.1).
 Download https://github.com/omeka-s-themes/freedom/releases/download/v1.1.0/freedom-v1.1.0.zip ... done
 Theme 'freedom' v1.1.0 downloaded.
@@ -169,6 +174,8 @@ All commands also accept the [global options](../reference/global-options.md).
 --8<-- "build/docs/commands/theme-search.md"
 
 --8<-- "build/docs/commands/theme-download.md"
+
+--8<-- "build/docs/commands/theme-update.md"
 
 --8<-- "build/docs/commands/theme-list.md"
 
