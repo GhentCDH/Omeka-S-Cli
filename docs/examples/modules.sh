@@ -83,6 +83,12 @@ omeka-s-cli module:delete CSSEditor --quiet
 omeka-s-cli module:list
 # --8<-- [end:list]
 
+# --8<-- [start:list-offline]
+omeka-s-cli module:list --offline --json
+# --8<-- [end:list-offline]
+omeka-s-cli module:list --offline --json | jq -e 'length > 0 and all(.[]; .latestVersion == null and .updateAvailable == null)' > /dev/null
+! omeka-s-cli module:search foo --offline 2> /dev/null || exit 1
+
 # --8<-- [start:list-filter]
 omeka-s-cli module:list --not-active
 omeka-s-cli module:list --json | jq -r '.[] | select(.state != "active") | .id'

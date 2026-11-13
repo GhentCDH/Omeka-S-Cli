@@ -22,9 +22,9 @@ class SelfContainedCheckTest extends TestCase
         ]), true);
 
         $this->assertSame([
-            "modules 'Common' has no source: it would be downloaded from a catalog.",
-            "modules 'Log' has no source: it would be downloaded from a catalog.",
-            "themes 'freedom' has no source: it would be downloaded from a catalog.",
+            "modules 'Common' has no source: it would be downloaded from a module repository.",
+            "modules 'Log' has no source: it would be downloaded from a module repository.",
+            "themes 'freedom' has no source: it would be downloaded from a theme repository.",
         ], $violations);
     }
 

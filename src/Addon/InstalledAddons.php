@@ -2,6 +2,7 @@
 namespace OSC\Addon;
 
 use OSC\Exceptions\NotFoundException;
+use OSC\Helper\Path;
 
 /**
  * The add-ons on disk in an Omeka S installation (downloaded, whether installed in Omeka S or not).
@@ -22,6 +23,27 @@ final class InstalledAddons
     public function exists(AddonType $type, string $name): bool
     {
         return $name !== '' && is_dir($this->path($type, $name));
+    }
+
+    /**
+     * The folder of an add-on on disk, matching the name case-insensitively (as the repositories do),
+     * or null when it is not on disk. An exact match wins.
+     */
+    public function find(AddonType $type, string $name): ?string
+    {
+        if (!Path::isSafeFolderName($name)) {
+            return null;
+        }
+        if ($this->exists($type, $name)) {
+            return $name;
+        }
+        $dir = rtrim($this->omekaPath, '/') . '/' . $type->dir();
+        foreach (is_dir($dir) ? scandir($dir) : [] as $entry) {
+            if (strcasecmp($entry, $name) === 0 && is_dir("{$dir}/{$entry}")) {
+                return $entry;
+            }
+        }
+        return null;
     }
 
     /** The version in the add-on's ini, or null when it is not on disk or declares none. */

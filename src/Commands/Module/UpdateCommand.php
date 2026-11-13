@@ -3,6 +3,7 @@ namespace OSC\Commands\Module;
 
 use InvalidArgumentException;
 use OSC\Exceptions\WarningException;
+use OSC\Helper\Offline;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUriType;
 use Throwable;
@@ -27,6 +28,9 @@ class UpdateCommand extends AbstractModuleCommand
         }
 
         if ($moduleId) {
+            // the update is looked up in the repositories (also for --dry-run, which reports it)
+            Offline::assertOnline('check for an update of the module');
+
             // parse module id to check format
             $moduleUri = ResourceUriParser::parse($moduleId);
             if ($moduleUri->getType() !== ResourceUriType::IdVersion) {
@@ -60,6 +64,7 @@ class UpdateCommand extends AbstractModuleCommand
         }
 
         if ($all) {
+            Offline::assertOnline('check for module updates');
             $modulesToUpdate = $this->collectModulesToUpdate();
 
             if (!count($modulesToUpdate)) {

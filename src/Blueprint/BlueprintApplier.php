@@ -276,8 +276,8 @@ class BlueprintApplier
                 continue;
             }
             $uri = AddonResolver::uriFor($theme['name'], $theme['source'], $theme['version']);
-            // `name` is the theme's folder: a sourced theme is installed there (a catalog theme keeps
-            // the catalog's folder name)
+            // `name` is the theme's folder: a sourced theme is installed there (a repository theme keeps
+            // the repository's folder name)
             $dir = $theme['source'] !== null ? $theme['name'] : null;
             if ($this->dryRun) {
                 $this->command->note("would download theme '{$theme['name']}' ({$uri})" . ($dir !== null ? " into themes/{$dir}" : ''), true);

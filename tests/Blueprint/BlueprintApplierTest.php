@@ -492,7 +492,7 @@ class BlueprintApplierTest extends TestCase
         ]]);
 
         $this->assertContains("would download theme 'freedom' ({$zip}) into themes/freedom", $notes);
-        // a catalog theme keeps the catalog's folder name
+        // a repository theme keeps the repository's folder name
         $this->assertContains("would download theme 'cozy' (cozy:1.0.0)", $notes);
     }
 

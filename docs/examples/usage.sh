@@ -102,3 +102,24 @@ test -d ~/.cache/omeka-s-cli
 rm -rf ~/.cache/omeka-s-cli
 # --8<-- [end:clear-cache]
 omeka-s-cli module:search mapping --json | jq -e 'length > 0'
+
+# --8<-- [start:offline]
+omeka-s-cli module:list --offline
+OMEKA_S_CLI_OFFLINE=1 omeka-s-cli theme:list
+# --8<-- [end:offline]
+# offline: no repository warning, no latest versions, and the note says why
+offline_list=$(omeka-s-cli module:list --offline 2>&1)
+! grep -qi 'unavailable' <<< "$offline_list" || exit 1
+grep -q 'Offline: latest versions not checked' <<< "$offline_list"
+omeka-s-cli module:list --offline --json | jq -e 'length > 0 and all(.[]; .latestVersion == null and .updateAvailable == null)' > /dev/null
+
+# --8<-- [start:offline-download]
+omeka-s-cli module:download common --offline
+echo "exit code: $?"
+omeka-s-cli module:download mapping --offline || echo "exit code: $?"
+# --8<-- [end:offline-download]
+grep -q 'already exists' <<< "$(omeka-s-cli module:download common --offline 2>&1)"
+test ! -d modules/Mapping
+! omeka-s-cli module:download mapping --offline 2> /dev/null || exit 1
+! omeka-s-cli module:search mapping --offline 2> /dev/null || exit 1
+! omeka-s-cli module:list --outdated --offline 2> /dev/null || exit 1

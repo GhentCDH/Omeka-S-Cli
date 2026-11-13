@@ -20,6 +20,8 @@ class StatusCommand extends AbstractThemeCommand
 
         $theme = $this->requireTheme($themeId);
 
-        $this->outputFormatted([$this->formatThemeStatus($theme, $extended)], $format);
+        $status = $this->formatThemeStatus($theme, $extended);
+        $this->noteOfflineLatestVersions();
+        $this->outputFormatted([$status], $format);
     }
 }

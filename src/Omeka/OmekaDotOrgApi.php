@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Omeka;
 
+use OSC\Helper\ResourceFetcher;
+
 class OmekaDotOrgApi
 {
     private const THEME_API_URL = 'https://omeka.org/add-ons/json/s_theme.json';
@@ -43,9 +45,12 @@ class OmekaDotOrgApi
         return $themeInfo['versions'][$version] ?? null;
     }
 
+    /**
+     * @throws \Exception When the API cannot be reached (ResourceFetcher's timeouts apply)
+     */
     public function getLatestOmekaVersion(): string
     {
-        return trim(file_get_contents(self::OMEKA_VERSION_API_URL));
+        return trim(ResourceFetcher::fetch(self::OMEKA_VERSION_API_URL));
     }
 
     /** The release ZIP of an Omeka S version, as published on GitHub. */

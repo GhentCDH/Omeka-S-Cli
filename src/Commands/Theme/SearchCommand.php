@@ -2,6 +2,7 @@
 namespace OSC\Commands\Theme;
 
 use OSC\Addon\AddonVersion;
+use OSC\Helper\Offline;
 
 class SearchCommand extends AbstractThemeCommand
 {
@@ -21,6 +22,7 @@ class SearchCommand extends AbstractThemeCommand
 
     public function execute(?string $query, ?bool $extended = false, ?bool $includeIncompatible = false): void
     {
+        Offline::assertOnline('search the theme repositories');
         $format = $this->getOutputFormat('table');
         $query = $query ? strtolower($query) : null;
 

@@ -21,7 +21,7 @@ class ValidateCommand extends AbstractBlueprintCommand
         $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
         $this->option(
             '--self-contained',
-            'Also require every source to be a relative path inside the blueprint (no catalog, git or remote references)',
+            'Also require every source to be a relative path inside the blueprint (no repository names, git or remote references)',
             'boolval',
             false
         );

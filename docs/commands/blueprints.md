@@ -307,7 +307,7 @@ and item-set JSON-LD files and media files (`items/`, `item-sets/`, `media/`). S
 
 ## Check that a blueprint is self-contained
 
-`--self-contained` also rejects every source outside the blueprint's directory: catalog names, git
+`--self-contained` also rejects every source outside the blueprint's directory: repository names, git
 repositories, URLs, and a missing `x-omeka-s-cli.install.source`. `blueprint:deploy` accepts the same
 flag.
 

@@ -6,6 +6,7 @@ use Ahc\Cli\Application as App;
 use Ahc\Cli\Input\Command;
 use Exception;
 use OSC\Exceptions\IgnoredNotFoundException;
+use OSC\Helper\Offline;
 use OSC\Helper\Path;
 use OSC\Helper\OmekaVersion;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
@@ -80,6 +81,11 @@ abstract class AbstractCommand extends Command
         // add omeka base-path option
         $this->option('-b --base-path', 'Base path to Omeka S installation', 'strval');
         $this->option('-q --quiet', 'Suppress info and warning messages', 'boolval')->on([$this, 'beQuiet']);
+        $this->option(
+            '--offline',
+            'Do not contact the module/theme repositories or the Omeka version API (also: ' . Offline::ENV . '=1)',
+            'boolval'
+        )->on(fn () => Offline::enable());
 
         return $this;
     }
@@ -242,6 +248,14 @@ abstract class AbstractCommand extends Command
     {
         if ($this->isVerbose(self::VERBOSITY_OUTCOMES)) {
             $this->io()->write($message, $eol);
+        }
+    }
+
+    /** In offline mode, say once why the latest version columns of an add-on status are empty. */
+    protected function noteOfflineLatestVersions(): void
+    {
+        if (Offline::isEnabled()) {
+            $this->note('Offline: latest versions not checked.', true);
         }
     }
 

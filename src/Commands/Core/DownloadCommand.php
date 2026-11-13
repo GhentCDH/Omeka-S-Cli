@@ -6,6 +6,7 @@ use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
+use OSC\Helper\Offline;
 use OSC\Helper\Path;
 use OSC\Omeka\OmekaDotOrgApi;
 
@@ -30,6 +31,11 @@ class DownloadCommand extends AbstractModuleCommand
 
     public function execute(?string $versionNumber, string $destinationPath, ?bool $createDestination, ?bool $force = false, ?string $source = null): void
     {
+        // offline, the latest version cannot be looked up: fail before touching the destination
+        if (!$versionNumber && ($source === null || $source === '')) {
+            Offline::assertOnline('look up the latest Omeka S version', 'pass a version number instead');
+        }
+
         // convert destinatino path to absolute path
         $destinationPath = realpath($destinationPath) ?: $destinationPath;
 

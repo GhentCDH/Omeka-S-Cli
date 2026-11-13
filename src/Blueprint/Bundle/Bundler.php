@@ -16,6 +16,7 @@ use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
+use OSC\Helper\Offline;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\OmekaDotOrgApi;
@@ -24,7 +25,7 @@ use Throwable;
 
 /**
  * Fetch every source a blueprint needs into one directory, and write a rewritten `blueprint.json`
- * there whose sources are relative paths inside it. The bundle then deploys without the catalogs or
+ * there whose sources are relative paths inside it. The bundle then deploys without the repositories or
  * remote URLs the original refers to (see SourceFields for where sources live).
  *
  * Add-ons are bundled as their release ZIPs, unchanged, after checking that each fits the target
@@ -32,7 +33,7 @@ use Throwable;
  * need build steps before it can be installed.
  *
  * Versions are pinned on the way: the Omeka S version (the latest release when the blueprint has
- * none) and every add-on's version. Add-on names become their folder names (catalog dirname or
+ * none) and every add-on's version. Add-on names become their folder names (repository dirname or
  * module namespace), and site themes follow a renamed theme. Everything that is not a source is
  * copied unchanged.
  */
@@ -127,6 +128,7 @@ class Bundler
     {
         $version = trim((string) ($data['preferredVersions']['omeka'] ?? ''));
         if ($version === '') {
+            Offline::assertOnline('look up the latest Omeka S version', 'set preferredVersions.omeka in the blueprint');
             $version = trim(($this->latestOmekaVersion)());
             if ($version === '') {
                 throw new Exception('Could not determine the latest Omeka S version; set preferredVersions.omeka.');
@@ -222,7 +224,7 @@ class Bundler
     /**
      * Download an add-on's release ZIP, check it, and save it unchanged as
      * `<modules|themes>/<Folder>-<version>.zip`. <Folder> is the add-on's folder name: a module's
-     * namespace (Omeka requires it to be the folder), a catalog theme's dirname, else the blueprint name.
+     * namespace (Omeka requires it to be the folder), a repository theme's dirname, else the blueprint name.
      *
      * @return array{string, string, string, string[]} [folder, version, ZIP path relative to $dir, warnings]
      * @throws Exception About the add-on (the caller adds which entry it is)
@@ -267,7 +269,7 @@ class Bundler
                 }
                 $folder = $addon['namespace'];
             } else {
-                // a catalog theme lives in the catalog's folder; a sourced theme in the blueprint name
+                // a repository theme lives in the repository's folder; a sourced theme in the blueprint name
                 $folder = $resolved->dirname ?? $name;
             }
             if ($folder !== $name) {

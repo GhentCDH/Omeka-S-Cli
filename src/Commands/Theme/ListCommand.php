@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Commands\Theme;
 
+use OSC\Helper\Offline;
+
 class ListCommand extends AbstractThemeCommand
 {
     use FormattersTrait;
@@ -17,6 +19,9 @@ class ListCommand extends AbstractThemeCommand
 
     public function execute(?bool $json = false, ?bool $extended = false, ?bool $outdated = false): void
     {
+        if ($outdated) {
+            Offline::assertOnline('check for outdated themes');
+        }
         $format = $this->getOutputFormat('table');
 
         $themes = $this->getOmekaInstance()->getThemeApi()->getThemes();
@@ -31,6 +36,7 @@ class ListCommand extends AbstractThemeCommand
             $output[] = $themeInfo;
         }
 
+        $this->noteOfflineLatestVersions();
         $this->outputFormatted($output, $format);
     }
 }

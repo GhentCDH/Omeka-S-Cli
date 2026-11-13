@@ -311,6 +311,16 @@ class ResourceFetcherTest extends TestCase
     }
 
     #[RequiresPhpExtension('curl')]
+    public function testASlowConnectGetsTheWholeFetchTimeout(): void
+    {
+        $options = (new \ReflectionMethod(ResourceFetcher::class, 'curlFetchOptions'))->invoke(null);
+
+        // a lossy route can take ~20 s to connect (api.omeka.org, measured): a shorter connect timeout
+        // fails a host that works. A blackholed network is tried once per run (AbstractRepository).
+        $this->assertSame(30, $options[CURLOPT_TIMEOUT]);
+        $this->assertGreaterThanOrEqual(30, $options[CURLOPT_CONNECTTIMEOUT] ?? PHP_INT_MAX);
+    }
+
     public function testCurlOnlySpeaksHttp(): void
     {
         foreach (['curlFetchOptions', 'curlDownloadOptions'] as $method) {

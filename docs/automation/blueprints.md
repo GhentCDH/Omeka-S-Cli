@@ -30,7 +30,7 @@ A few things the specification leaves to the tool:
   `theme:download <name>` do. A `source` can be anything [`module:download`](../commands/modules.md)
   accepts: a zip release URL, a local zip (relative to the blueprint), a git URL,
   `https://github.com/owner/repo` or `gh:owner/repo`.
-  `version` picks the catalog release or the git tag.
+  `version` picks the repository release or the git tag.
 - A module or theme that is already in `modules/` or `themes/` is used as it is, unless `version`
   differs from the one on disk or you deploy with `--update`.
 - A user without `password` cannot log in until a password is set (for example with *Forgot
@@ -352,7 +352,7 @@ The bundle pins what it downloaded:
 Modules and themes are bundled as their release ZIPs, unchanged. A git or `gh:` source can't be
 bundled, because a checkout may need build steps before it can be installed: point its `source` to a
 release ZIP (a URL or a path) instead. Add-ons are named after their folder: a module after its
-namespace, a catalog theme after its catalog folder.
+namespace, a repository theme after its repository folder.
 
 Media that are links (`url` media with an `http(s)` URL, `iiif`, `youtube`, `html`, ...) stay links:
 a deploy from the bundle still needs the network for them. A media file without an extension gets
@@ -363,7 +363,7 @@ own extension key, `x-omeka-s-cli.install.source`. Other tools ignore that key. 
 blueprint, to a release ZIP path or URL, and the core phase installs from it.
 
 Deploy the bundle with `--self-contained`. It refuses a blueprint that still refers to anything
-outside its directory: a catalog name, a git repository, a URL, or a missing
+outside its directory: a repository name, a git repository, a URL, or a missing
 `x-omeka-s-cli.install.source`.
 
 ```bash
