@@ -443,4 +443,29 @@ class CoreSwapTest extends TestCase
         $this->expectExceptionMessage('it is not a directory');
         (new CoreSwap($this->root))->stage($this->release, "{$this->tmp}/missing");
     }
+
+    public function testAFileWhoseOldVersionIsBackIsNotReportedAsUnrestored(): void
+    {
+        // vendor fails to move out; on rollback, moving the new index.php back fails, but moving the
+        // old index.php back overwrites it, so index.php is restored after all
+        $before = $this->tree($this->root);
+        $swap = null;
+        $swap = new CoreSwap($this->root, function (string $from, string $to) use (&$swap): void {
+            if ($from === "{$this->root}/vendor" || ($from === "{$this->root}/index.php" && str_contains($to, '/new/'))) {
+                throw new RuntimeException('boom');
+            }
+            Path::checked(fn() => rename($from, $to), "Could not move '{$from}' to '{$to}'");
+        });
+        $swap->stage($this->release);
+
+        try {
+            $swap->swap();
+            $this->fail('expected a CoreSwapException');
+        } catch (CoreSwapException $e) {
+            $this->assertTrue($e->restored(), $e->getMessage());
+            $this->assertStringContainsString('The previous core was restored.', $e->getMessage());
+        }
+        $this->assertSame($before, $this->tree($this->root));
+        $swap->cleanup();
+    }
 }

@@ -12,6 +12,7 @@ use OSC\Helper\OmekaVersion;
 use OSC\Helper\Path;
 use OSC\Omeka\OmekaDotOrgApi;
 use RuntimeException;
+use Throwable;
 
 class UpdateCommand extends AbstractCommand
 {
@@ -92,22 +93,24 @@ class UpdateCommand extends AbstractCommand
             $this->io()->eol();
         }
 
+        // everything after the download is under one try, so the download is always removed
+        $swap = null;
         try {
-            $this->info("Verify core files ... ");
-            $srcPath = Path::findSubpath($tmpDownloadPath, 'application');
-            if (!$srcPath) {
-                throw new Exception("The downloaded core files are invalid.");
+            try {
+                $this->info("Verify core files ... ");
+                $srcPath = Path::findSubpath($tmpDownloadPath, 'application');
+                if (!$srcPath) {
+                    throw new Exception("The downloaded core files are invalid.");
+                }
+                $this->info("done");
+            } finally {
+                $this->io()->eol();
             }
-            $this->info("done");
-        } finally {
-            $this->io()->eol();
-        }
 
-        // the new files are staged first and swapped in with renames: a failure leaves the previous
-        // core in place (or names what could not be restored)
-        $oldVersion = OmekaVersion::getVersion($destPath) ?? 'unknown';
-        $swap = new CoreSwap($destPath);
-        try {
+            // the new files are staged first and swapped in with renames: a failure leaves the previous
+            // core in place (or names what could not be restored)
+            $oldVersion = OmekaVersion::getVersion($destPath) ?? 'unknown';
+            $swap = new CoreSwap($destPath);
             try {
                 $this->info("Stage new core files ... ");
                 $swap->stage($srcPath, $stageDir);
@@ -145,14 +148,19 @@ class UpdateCommand extends AbstractCommand
                 }
             }
         } finally {
-            $warning = $swap->cleanup();
+            $warning = $swap?->cleanup();
             if ($warning !== null) {
                 $this->warn($warning, true);
             }
-            // Clean up temporary files
-            $this->info("Cleaning up {$tmpDownloadPath} ... ");
-            Path::removeFolder($tmpDownloadPath);
-            $this->info("done", true);
+            // a failure here must not hide the error that is propagating (it may say where the previous files are)
+            try {
+                $this->info("Cleaning up {$tmpDownloadPath} ... ");
+                Path::removeFolder($tmpDownloadPath);
+                $this->info("done", true);
+            } catch (Throwable $e) {
+                $this->io()->eol();
+                $this->warn("Could not remove the download '{$tmpDownloadPath}': {$e->getMessage()}", true);
+            }
         }
 
         $this->ok("Omeka S core updated to version {$versionNumber}.", true);

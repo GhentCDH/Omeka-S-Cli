@@ -203,7 +203,7 @@ assert_success   "the backup holds the old core" \
     bash -c "ls ~/.omeka-s-cli/backups/core/4.1.1/*/application/Module.php"
 assert_success   "no staging directory is left behind" \
     bash -c "! ls -d /var/www/omeka-s/.omeka-s-cli-update-* /var/www/.omeka-s-cli-update-* 2>/dev/null"
-assert_success   "config/database.ini is untouched"                    grep -q 'dbname' /var/www/omeka-s/config/database.ini
+assert_success   "config/database.ini is untouched"                    grep -q 'dbname = "omeka"' /var/www/omeka-s/config/database.ini
 assert_fail      "core:update --stage-dir on another filesystem fails before the download" \
     $CLI core:update 4.2.1 --force --stage-dir /dev/shm
 run              "make a stage directory on the Omeka S filesystem"      bash -c "rm -rf /var/www/omeka-s/logs/osc-stage && mkdir /var/www/omeka-s/logs/osc-stage"

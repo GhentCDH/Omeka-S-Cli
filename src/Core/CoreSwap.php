@@ -27,6 +27,8 @@ use Throwable;
  * - a short life: it exists only while the update runs.
  * It is created in a directory the caller names (outside every web root, ideally), else next to the
  * Omeka S root when that directory is writable and on the same filesystem, else inside the root.
+ * Limit: under Apache, a .htaccess with its own Require rules inside the stage (a customised one in
+ * old/) overrides the deny rule for its subtree; the name and the mode still protect it.
  *
  * No Omeka S bootstrap: this only touches the filesystem.
  */
@@ -141,12 +143,16 @@ final class CoreSwap
                 }
             }
         } catch (Throwable $e) {
+            $this->stage = null;
             try {
                 Path::removeFolder($stage);
             } catch (Throwable) {
-                // the stage error is the one to report
+                throw new RuntimeException(
+                    rtrim($e->getMessage(), '.') . ". The staging directory '{$stage}' could not be removed; delete it by hand.",
+                    0,
+                    $e
+                );
             }
-            $this->stage = null;
             throw $e;
         }
     }
@@ -302,10 +308,16 @@ final class CoreSwap
     {
         $failed = [];
         foreach (array_reverse($this->journal) as [$from, $to]) {
+            $entry = basename($from);
             try {
                 ($this->rename)($to, $from);
+                if (str_starts_with($to, "{$this->stage}/old/")) {
+                    // the previous version is back in place (for a file, over a new one that could not be
+                    // moved out of the way), so the entry is restored
+                    unset($failed[$entry]);
+                }
             } catch (Throwable $e) {
-                $failed[basename($from)] ??= rtrim($e->getMessage(), '.');
+                $failed[$entry] ??= rtrim($e->getMessage(), '.');
             }
         }
         $this->journal = [];

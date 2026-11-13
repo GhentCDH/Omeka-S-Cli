@@ -7,9 +7,10 @@ omeka-s-cli core:download /var/www/omeka-s
 test -f /var/www/omeka-s/application/Module.php
 
 # --8<-- [start:download-version]
-omeka-s-cli core:download /opt/omeka-s-4.1.1 4.1.1 --create-destination
+omeka-s-cli core:download ~/omeka-s-4.1.1 4.1.1 --create-destination
 # --8<-- [end:download-version]
-rm -rf /opt/omeka-s-4.1.1
+test -f ~/omeka-s-4.1.1/application/Module.php
+rm -rf ~/omeka-s-4.1.1
 
 # --8<-- [start:database-ini]
 cd /var/www/omeka-s

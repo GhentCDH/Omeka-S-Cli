@@ -96,7 +96,8 @@ outside every web root, pass `--stage-dir` with a directory on the same filesyst
 Then the files are swapped in one entry at a time. If that fails, the previous
 files are put back, so a failed update leaves the old core in place. A file you cannot write to
 yourself, such as a `.htaccess` owned by another user, does not stop the update, as long as you can
-write to the Omeka S directory.
+write to the Omeka S directory. A core folder you cannot write to, such as `application/` owned by
+the web server, does: the update then rolls back.
 
 A customised `.htaccess` is replaced by the release's; the previous one is saved next to it as
 `.htaccess.bak-<date-time>`, so you can merge your changes back. Add `--backup` to keep the replaced
