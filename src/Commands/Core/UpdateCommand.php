@@ -2,28 +2,30 @@
 namespace OSC\Commands\Core;
 
 use Exception;
-use OSC\Commands\Module\AbstractModuleCommand;
-use OSC\Commands\Module\FormattersTrait;
+use OSC\Commands\AbstractCommand;
+use OSC\Core\CoreSwap;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Offline;
+use OSC\Helper\OmekaVersion;
 use OSC\Helper\Path;
 use OSC\Omeka\OmekaDotOrgApi;
+use RuntimeException;
 
-class UpdateCommand extends AbstractModuleCommand
+class UpdateCommand extends AbstractCommand
 {
-    use FormattersTrait;
-
     public function __construct()
     {
         parent::__construct('core:update', 'Update Omeka S core');
         $this->argument('[version-number]', 'Core version number');
         $this->option('-f --force', 'Force download', 'boolval', false);
         $this->option('-s --skip-version-check', 'Skip installed version check', 'boolval', false);
+        $this->option('-b --backup', 'Keep the replaced core files in ~/.omeka-s-cli/backups/core/<version>/<date-time>/ (deleted otherwise)', 'boolval', false);
+        $this->option('--stage-dir', 'Directory to stage the new core files in, outside every web root and on the same filesystem as Omeka S (default: next to the Omeka S directory, or inside it)');
     }
 
-    public function execute(?string $versionNumber, ?bool $force, ?bool $skipVersionCheck): void
+    public function execute(?string $versionNumber, ?bool $force, ?bool $skipVersionCheck, ?bool $backup = false, ?string $stageDir = null): void
     {
         // Get the latest version if no version number is provided
         if (!$versionNumber) {
@@ -65,6 +67,13 @@ class UpdateCommand extends AbstractModuleCommand
         if (!is_dir($destPath) || !is_writable($destPath)) {
             throw new Exception("The destination path '{$destPath}' does not exist or is not writable.");
         }
+        // checked before the download
+        if ($stageDir !== null && $stageDir !== '') {
+            $stageDir = Path::toAbsolutePath($stageDir, $this->getCwd());
+            CoreSwap::assertStageDir($stageDir, $destPath);
+        } else {
+            $stageDir = null;
+        }
 
         // Download the specified version
         if ($versionNumber === "dev") {
@@ -94,29 +103,52 @@ class UpdateCommand extends AbstractModuleCommand
             $this->io()->eol();
         }
 
+        // the new files are staged first and swapped in with renames: a failure leaves the previous
+        // core in place (or names what could not be restored)
+        $oldVersion = OmekaVersion::getVersion($destPath) ?? 'unknown';
+        $swap = new CoreSwap($destPath);
         try {
-            // Clean source folders
-            $this->info("Clean downloaded core files ... ");
-            Path::removeFolder(Path::createPath([$srcPath, 'modules']));
-            Path::removeFolder(Path::createPath([$srcPath, 'files']));
-            Path::removeFolder(Path::createPath([$srcPath, 'themes']));
-            Path::removeFolder(Path::createPath([$srcPath, 'config']));
-            Path::removeFolder(Path::createPath([$srcPath, 'logs']));
-            $this->info('done', true);
-
-            // Install the new Omeka S core files
             try {
-                $this->info("Install new core files ...");
-                // Clean destination folders
-                Path::removeFolder(Path::createPath([$destPath, 'application']));
-                Path::removeFolder(Path::createPath([$destPath, 'vendor']));
-                // Copy new files
-                Path::copyFolder($srcPath, $destPath);
+                $this->info("Stage new core files ... ");
+                $swap->stage($srcPath, $stageDir);
+                $this->info("done in {$swap->stagePath()}");
+            } finally {
+                $this->io()->eol();
+            }
+
+            try {
+                $this->info("Replace core files ... ");
+                $swap->swap();
                 $this->info("done");
             } finally {
                 $this->io()->eol();
             }
+
+            // the core is replaced from here on: a failure below is a warning, and CoreSwap then keeps the
+            // previous files in the stage
+            try {
+                $savedHtaccess = $swap->saveChangedHtaccess();
+                if ($savedHtaccess !== null) {
+                    $this->warn("The release replaced your customised .htaccess; the previous one is saved as '{$savedHtaccess}'. Merge your changes back if needed.", true);
+                }
+            } catch (RuntimeException $e) {
+                $this->warn($e->getMessage(), true);
+            }
+
+            if ($backup) {
+                $backupDir = Path::createPath([getenv('HOME') . '/.omeka-s-cli/backups/core', $oldVersion, date('d-m-Y-H-i-s')]);
+                try {
+                    $swap->keepBackup($backupDir);
+                    $this->info("Previous core kept in '{$backupDir}'.", true);
+                } catch (RuntimeException $e) {
+                    $this->warn($e->getMessage(), true);
+                }
+            }
         } finally {
+            $warning = $swap->cleanup();
+            if ($warning !== null) {
+                $this->warn($warning, true);
+            }
             // Clean up temporary files
             $this->info("Cleaning up {$tmpDownloadPath} ... ");
             Path::removeFolder($tmpDownloadPath);
