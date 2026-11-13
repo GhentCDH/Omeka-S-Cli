@@ -2,8 +2,8 @@
 
 namespace OSC\Commands\Config;
 
-use Exception;
 use OSC\Commands\AbstractCommand;
+use OSC\Helper\Path;
 use OSC\Settings\SettingsExport;
 use OSC\Settings\SettingsSerializer;
 use OSC\Settings\SettingsScope;
@@ -86,9 +86,7 @@ class ExportCommand extends AbstractCommand
             return;
         }
 
-        if (!is_dir($outputDir) && !@mkdir($outputDir, 0777, true) && !is_dir($outputDir)) {
-            throw new Exception("Could not create output directory '{$outputDir}'.");
-        }
+        Path::ensureDir($outputDir, 0777, "Could not create output directory '{$outputDir}'");
 
         $serializer = new SettingsSerializer();
         foreach ($files as $file) {

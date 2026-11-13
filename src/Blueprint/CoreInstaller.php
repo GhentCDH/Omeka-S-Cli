@@ -6,6 +6,7 @@ use OSC\Commands\AbstractCommand;
 use OSC\Helper\Config\DatabaseConfig;
 use OSC\Helper\Config\UserConfig;
 use OSC\Helper\Offline;
+use OSC\Helper\Path;
 use PDO;
 use Throwable;
 
@@ -25,6 +26,24 @@ class CoreInstaller
     }
 
     /**
+     * Whether a database.ini holds real credentials (a dbname and a user). A missing file, or Omeka's
+     * empty template, has none. A file that cannot be read or parsed is an error, never "none": that
+     * would overwrite it.
+     *
+     * @internal public for the tests
+     *
+     * @throws \RuntimeException When the file exists but cannot be read or parsed
+     */
+    public static function hasCredentials(string $iniPath): bool
+    {
+        if (!file_exists($iniPath)) {
+            return false;
+        }
+        $existing = Path::readIniFile($iniPath, false, "Could not load the database configuration file '{$iniPath}'");
+        return !empty($existing['dbname']) && !empty($existing['user']);
+    }
+
+    /**
      * Ensure the core is downloaded, configured and installed at $targetPath.
      */
     public function run(Blueprint $blueprint, string $targetPath, DatabaseConfig $database, UserConfig $admin, bool $force): void
@@ -38,9 +57,7 @@ class CoreInstaller
         //    enough: write our credentials whenever the current file has none (fresh install), and
         //    keep it only when it already holds real credentials (a reset reuses them).
         $iniPath = $targetPath . '/config/database.ini';
-        $existing = file_exists($iniPath) ? (@parse_ini_file($iniPath) ?: []) : [];
-        $hasRealCredentials = !empty($existing['dbname']) && !empty($existing['user']);
-        if (!$hasRealCredentials) {
+        if (!self::hasCredentials($iniPath)) {
             $this->command->note('Writing database.ini ...', true);
             $database->writeIniFile($iniPath);
         }

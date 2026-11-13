@@ -2,6 +2,7 @@
 namespace OSC\Commands\CustomVocabulary;
 
 use Exception;
+use OSC\Helper\Path;
 use OSC\Omeka\CustomVocabImportExport;
 use OSC\Resource\OmekaCatalog;
 
@@ -47,9 +48,7 @@ class ExportCommand extends AbstractCustomVocabularyCommand
         } else {
             // Write to file
             $exportJson = json_encode($exportContent, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            if (file_put_contents($filename, $exportJson.PHP_EOL) === false) {
-                throw new Exception("Failed to write custom vocabulary to file '{$filename}'.");
-            }
+            Path::writeFile($filename, $exportJson.PHP_EOL, "Failed to write custom vocabulary to file '{$filename}'");
             $this->ok("Custom vocabulary '{$existingVocabulary->label()}' exported to '{$filename}'.", true);
         }
     }

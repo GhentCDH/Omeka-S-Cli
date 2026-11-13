@@ -316,13 +316,8 @@ class BlueprintApplier
                     Path::removeFolder($tmp);
                 }
             } else {
-                $dir = dirname($target);
-                if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-                    throw new Exception("Could not create directory '{$dir}'.");
-                }
-                if (file_put_contents($target, ResourceFetcher::fetch($source)) === false) {
-                    throw new Exception("Could not write '{$target}'.");
-                }
+                Path::ensureDir(dirname($target), 0755);
+                Path::writeFile($target, ResourceFetcher::fetch($source));
             }
             $this->command->ok("File '{$destination}' " . ($extract ? 'extracted' : 'written') . '.', true);
         }
@@ -363,11 +358,11 @@ class BlueprintApplier
             // config file, so inline and $import-referenced configs follow one code path. Its
             // `source` was already resolved by the loader against the source that declared it.
             $configFile = Path::createTempFile('bp-vocab-');
-            file_put_contents(
-                $configFile,
-                json_encode($vocabulary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
-            );
             try {
+                Path::writeFile(
+                    $configFile,
+                    json_encode($vocabulary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+                );
                 $this->propagateContext($cmd);
                 $cmd->execute($configFile, $this->update);
             } catch (WarningException $e) {
@@ -641,7 +636,7 @@ class BlueprintApplier
                     ? SimpleContentMapper::item($entry)
                     : [SimpleContentMapper::itemSet($entry), []];
                 $temp[] = $documentFile = Path::createTempFile('bp-item-');
-                file_put_contents($documentFile, json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+                Path::writeFile($documentFile, json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
                 $config = ['source' => $documentFile, 'title' => $label, 'media' => array_map(fn(MediaConfig $m) => $m->toArray(), $media)];
                 if ($kind === 'item') {
                     // no sites: the default site, as in the shared format (not every site that takes new items)
@@ -651,7 +646,7 @@ class BlueprintApplier
                 $config = $entry;
             }
             $temp[] = $configFile = Path::createTempFile('bp-item-');
-            file_put_contents($configFile, json_encode($config, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            Path::writeFile($configFile, json_encode($config, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $this->runCommand($cmd, fn($c) => $c->execute(null, $configFile));
         } finally {
             foreach ($temp as $file) {

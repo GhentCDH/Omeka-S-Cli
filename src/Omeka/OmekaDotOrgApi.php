@@ -1,17 +1,24 @@
 <?php
 namespace OSC\Omeka;
 
+use Closure;
 use OSC\Helper\ResourceFetcher;
+use UnexpectedValueException;
 
 class OmekaDotOrgApi
 {
-    private const THEME_API_URL = 'https://omeka.org/add-ons/json/s_theme.json';
     private const OMEKA_VERSION_API_URL = 'https://api.omeka.org/latest-version-s';
 
-    private ?array $modules = null;
-    private ?array $themes = null;
-
     private static array $instances = [];
+
+    /** @var Closure(string): string Fetches a URL */
+    private Closure $fetch;
+
+    /** @param Closure(string): string|null $fetch Fetches a URL (default ResourceFetcher::fetch) */
+    public function __construct(?Closure $fetch = null)
+    {
+        $this->fetch = $fetch ?? fn(string $url): string => ResourceFetcher::fetch($url);
+    }
 
     public static function getInstance(): static
     {
@@ -23,34 +30,19 @@ class OmekaDotOrgApi
         return self::$instances[$cls];
     }
 
-    public function getThemes(): ?array
-    {
-        if ( !$this->themes ) {
-            $this->themes = json_decode(file_get_contents(self::THEME_API_URL), true) ?? [];
-        }
-        return $this->themes;
-    }
-
-    public function getTheme(string $id) {
-        return $this->getThemes()[$id] ?? null;
-    }
-
-    public function getThemeVersion(string $id, string $version = null): ?array {
-        $themeInfo = $this->getTheme($id);
-        if (!$themeInfo) {
-            return null;
-        }
-
-        $version = $version ?? $themeInfo['latest_version'];
-        return $themeInfo['versions'][$version] ?? null;
-    }
-
     /**
      * @throws \Exception When the API cannot be reached (ResourceFetcher's timeouts apply)
+     * @throws UnexpectedValueException When the answer is not an x.y.z version (e.g. an error page)
      */
     public function getLatestOmekaVersion(): string
     {
-        return trim(ResourceFetcher::fetch(self::OMEKA_VERSION_API_URL));
+        $answer = trim(($this->fetch)(self::OMEKA_VERSION_API_URL));
+        if (!preg_match('/^\d+\.\d+\.\d+$/', $answer)) {
+            throw new UnexpectedValueException(
+                "The Omeka S version API returned an unexpected answer: '" . mb_substr($answer, 0, 40) . "'."
+            );
+        }
+        return $answer;
     }
 
     /** The release ZIP of an Omeka S version, as published on GitHub. */

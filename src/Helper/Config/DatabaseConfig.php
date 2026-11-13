@@ -4,7 +4,9 @@ namespace OSC\Helper\Config;
 
 use Exception;
 use InvalidArgumentException;
+use OSC\Helper\Path;
 use PDO;
+use RuntimeException;
 
 /**
  * Database credentials of an Omeka S instance, read from config/database.ini.
@@ -64,13 +66,7 @@ class DatabaseConfig
         $config = [];
 
         if (file_exists($configFile)) {
-            if (!is_readable($configFile)) {
-                throw new Exception("The database configuration file '{$configFile}' is not readable.");
-            }
-            $config = parse_ini_file($configFile);
-            if ($config === false) {
-                throw new Exception("Could not parse the database configuration file '{$configFile}'.");
-            }
+            $config = Path::readIniFile($configFile, false, "Could not load the database configuration file '{$configFile}'");
         }
 
         $overrides = array_filter($overrides, fn($value) => $value !== null && $value !== '');
@@ -175,10 +171,7 @@ class DatabaseConfig
             ; log_path = ""
             INI;
 
-        // the failure is reported as an exception, the warning would only duplicate it
-        if (@file_put_contents($path, $contents) === false) {
-            throw new Exception("Could not write the database configuration file '{$path}'.");
-        }
+        Path::writeFile($path, $contents, "Could not write the database configuration file '{$path}'");
     }
 
     /**
@@ -211,13 +204,18 @@ class DatabaseConfig
      */
     public function writeDefaultsFile(): string
     {
-        $path = tempnam(sys_get_temp_dir(), 'osc_mysql_');
-        if ($path === false) {
-            throw new Exception('Unable to create a temporary file for the database credentials.');
-        }
+        $path = Path::checked(
+            fn() => tempnam(sys_get_temp_dir(), 'osc_mysql_'),
+            'Unable to create a temporary file for the database credentials'
+        );
 
         // Restrict the permissions before the credentials are written.
-        chmod($path, 0600);
+        try {
+            Path::checked(fn() => chmod($path, 0600), 'Unable to restrict the temporary database credentials file');
+        } catch (RuntimeException $e) {
+            @unlink($path);
+            throw $e;
+        }
 
         $escape = fn(string $value) => addcslashes($value, "\\\"'\n");
         $lines = [
@@ -232,9 +230,11 @@ class DatabaseConfig
             $lines[] = 'port=' . $this->port;
         }
 
-        if (file_put_contents($path, implode("\n", $lines) . "\n") === false) {
+        try {
+            Path::writeFile($path, implode("\n", $lines) . "\n", 'Unable to write the temporary database credentials file');
+        } catch (RuntimeException $e) {
             @unlink($path);
-            throw new Exception('Unable to write the temporary database credentials file.');
+            throw $e;
         }
 
         return $path;

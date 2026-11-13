@@ -4,6 +4,7 @@ namespace OSC\Commands\Blueprint;
 use Exception;
 use OSC\Blueprint\BlueprintExporter;
 use OSC\Blueprint\ExportOptions;
+use OSC\Helper\Path;
 
 class ExportCommand extends AbstractBlueprintCommand
 {
@@ -42,9 +43,7 @@ class ExportCommand extends AbstractBlueprintCommand
             return;
         }
 
-        if (file_put_contents($output, $jsonc . "\n") === false) {
-            throw new Exception("Could not write the blueprint to '{$output}'.");
-        }
+        Path::writeFile($output, $jsonc . "\n", "Could not write the blueprint to '{$output}'");
         $this->ok("Blueprint exported to '{$output}'.", true);
     }
 

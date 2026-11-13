@@ -5,7 +5,9 @@ use Laminas\ServiceManager\ServiceManager;
 use Omeka\Stdlib\ErrorStore;
 use OSC\Helper\Config\MediaConfig;
 use OSC\Helper\ErrorStoreFormatter;
+use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
+use RuntimeException;
 
 /**
  * The media ingesters of an instance: list them, and let the CLI ingest local files.
@@ -65,7 +67,12 @@ final class MediaIngesters
             }
             $tempFile = $services->get('Omeka\File\TempFileFactory')->build();
             try {
-                copy($source, $tempFile->getTempPath());
+                try {
+                    Path::copyFile($source, $tempFile->getTempPath());
+                } catch (RuntimeException $e) {
+                    $problems[] = "media[{$number}]: {$e->getMessage()}";
+                    continue;
+                }
                 $tempFile->setSourceName(basename($source));
                 $errors = new ErrorStore();
                 if (!$services->get('Omeka\File\Validator')->validate($tempFile, $errors)) {

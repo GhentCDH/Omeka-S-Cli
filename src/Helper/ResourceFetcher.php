@@ -84,9 +84,7 @@ class ResourceFetcher
             if (!is_file($source)) {
                 throw new InvalidArgumentException("File not found: {$source}");
             }
-            if (!@copy($source, $target)) {
-                throw new Exception("Failed to copy '{$source}' to '{$target}'.");
-            }
+            Path::copyFile($source, $target, "Failed to copy '{$source}' to '{$target}'");
             return null;
         }
 
@@ -94,10 +92,7 @@ class ResourceFetcher
             return self::downloadWithStreamWrapper($source, $target, $headers);
         }
 
-        $handle = fopen($target, 'wb');
-        if ($handle === false) {
-            throw new Exception("Failed to write '{$target}'.");
-        }
+        $handle = Path::checked(fn() => fopen($target, 'wb'), "Failed to write '{$target}'");
         $ch = curl_init($source);
         curl_setopt_array($ch, [CURLOPT_FILE => $handle, CURLOPT_HTTPHEADER => $headers] + self::curlDownloadOptions());
         $ok = curl_exec($ch);
@@ -182,13 +177,7 @@ class ResourceFetcher
             throw new InvalidArgumentException("File is not readable: {$filePath}");
         }
 
-        $content = @file_get_contents($filePath);
-
-        if ($content === false) {
-            throw new Exception("Failed to read file: {$filePath}");
-        }
-
-        return $content;
+        return Path::readFile($filePath);
     }
 
     /**
@@ -360,10 +349,7 @@ class ResourceFetcher
             throw new Exception("Failed to download '{$url}'" . ($reason !== '' ? ": {$reason}" : ''));
         }
         try {
-            $out = @fopen($target, 'wb');
-            if ($out === false) {
-                throw new Exception("Failed to write '{$target}'.");
-            }
+            $out = Path::checked(fn() => fopen($target, 'wb'), "Failed to write '{$target}'");
             $copied = stream_copy_to_stream($in, $out);
             fclose($out);
             if ($copied === false) {

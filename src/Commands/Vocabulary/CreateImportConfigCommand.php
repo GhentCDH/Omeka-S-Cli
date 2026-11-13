@@ -1,8 +1,8 @@
 <?php
 namespace OSC\Commands\Vocabulary;
 
-use Exception;
 use OSC\Helper\Config\VocabularyConfig;
+use OSC\Helper\Path;
 
 class CreateImportConfigCommand extends AbstractVocabularyCommand
 {
@@ -30,9 +30,7 @@ class CreateImportConfigCommand extends AbstractVocabularyCommand
         $json = json_encode($config->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         if ($output) {
-            if (file_put_contents($output, $json . "\n") === false) {
-                throw new Exception("Failed to write to file: {$output}");
-            };
+            Path::writeFile($output, $json . "\n", "Failed to write to file '{$output}'");
             $this->ok("Config file written to '{$output}'.", true);
         } else {
             $this->echo($json, true);

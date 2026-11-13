@@ -151,9 +151,7 @@ class DownloadCommand extends AbstractThemeCommand
     private function backupTheme(string $path): void
     {
         $backupDir = getenv('HOME') . '/.omeka-s-cli/backups/themes';
-        if (!is_dir($backupDir) && !mkdir($backupDir, 0777, true)) {
-            throw new Exception("Could not create backup directory '{$backupDir}'.");
-        }
+        Path::ensureDir($backupDir, 0777, "Could not create backup directory '{$backupDir}'");
 
         Path::moveFolder($path, Path::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
     }

@@ -129,4 +129,21 @@ class BundleOutputTest extends TestCase
         $this->expectException(Exception::class);
         BundleOutput::prepare('/tmp/..', true);
     }
+
+    public function testAnUnwritableParentNamesTheReason(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root can write to any directory');
+        }
+        $readOnly = "{$this->dir}/ro";
+        mkdir($readOnly, 0555);
+        try {
+            BundleOutput::prepare("{$readOnly}/bundle", false);
+            $this->fail('expected an exception');
+        } catch (Exception $e) {
+            $this->assertStringEndsWith(': Permission denied.', $e->getMessage());
+        } finally {
+            chmod($readOnly, 0700);
+        }
+    }
 }

@@ -2,6 +2,7 @@
 namespace Tests\Addon;
 
 use OSC\Addon\ModuleNamespace;
+use OSC\Exceptions\NotFoundException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
@@ -21,5 +22,17 @@ class ModuleNamespaceTest extends TestCase
     public function testNoNamespaceIsNull(): void
     {
         $this->assertNull(ModuleNamespace::fromModulePhp("<?php\nclass Module {}\n"));
+    }
+
+    public function testRequireReturnsTheNamespace(): void
+    {
+        $this->assertSame('Foo', ModuleNamespace::requireFromModulePhp("<?php\nnamespace Foo;\n"));
+    }
+
+    public function testRequireOfAModulePhpWithoutNamespaceIsNotFound(): void
+    {
+        $this->expectException(NotFoundException::class);
+        $this->expectExceptionMessage('No namespace found in Module.php.');
+        ModuleNamespace::requireFromModulePhp('');
     }
 }
