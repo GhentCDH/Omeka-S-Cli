@@ -10,6 +10,8 @@ osc_fetch_blueprint_schema(false);
 
 // Shared test fixtures (the Tests\ namespace is not autoloaded)
 require_once __DIR__ . '/Resource/FakeCatalog.php';
+require_once __DIR__ . '/Repository/FakeRepository.php';
+require_once __DIR__ . '/Repository/TemporaryCache.php';
 
 // Tests start online, whatever the environment exports (an offline build server may set it); tests of
 // offline mode switch it on themselves.

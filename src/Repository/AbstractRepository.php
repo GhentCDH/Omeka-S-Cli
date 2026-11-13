@@ -3,6 +3,7 @@ namespace OSC\Repository;
 
 use OSC\Cache;
 use OSC\Cache\CacheInterface;
+use Throwable;
 
 /**
  * @template T
@@ -12,6 +13,9 @@ abstract class AbstractRepository implements RepositoryInterface
     private CacheInterface $cache;
     private ?string $cacheKey = null;
 
+    /** Why entries() failed in this process: rethrown instead of fetching an unreachable repository again. */
+    private ?Throwable $failure = null;
+
     public function __construct()
     {
         $this->cache = Cache::getCache();
@@ -19,13 +23,27 @@ abstract class AbstractRepository implements RepositoryInterface
 
     abstract protected function entries(): array;
 
+    /**
+     * @throws Throwable The fetch failure, also on later calls in the same process
+     */
     public function list(): array
     {
+        // an unreachable repository is tried once per run: on a blackholed network every attempt
+        // waits for the timeouts
+        if ($this->failure) {
+            throw $this->failure;
+        }
+
         $cacheKey = $this->getCacheKey();
         $entries = $this->cache->get($cacheKey);
 
         if ( !$entries ) {
-            $entries = $this->entries();
+            try {
+                $entries = $this->entries();
+            } catch (Throwable $e) {
+                $this->failure = $e;
+                throw $e;
+            }
             $this->cache->set($cacheKey, $entries);
         }
         return $entries;
@@ -88,6 +106,7 @@ abstract class AbstractRepository implements RepositoryInterface
 
     public function refresh(): void
     {
+        $this->failure = null;
         $cacheKey = $this->getCacheKey();
         $this->cache->delete($cacheKey);
     }
