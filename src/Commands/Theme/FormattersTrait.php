@@ -3,6 +3,7 @@
 namespace OSC\Commands\Theme;
 
 use Omeka\Site\Theme\Theme;
+use OSC\Helper\Offline;
 use OSC\Manager\Result;
 use OSC\Repository\Theme\ThemeDetails;
 
@@ -10,7 +11,8 @@ use OSC\Repository\Theme\ThemeDetails;
 trait FormattersTrait
 {
     private function formatThemeStatus(Theme $theme, bool $extended = false): array {
-        $searchResult = $this->getThemeRepositoryManager()->find($theme->getId());
+        // offline the repositories are not queried: the latest version stays empty
+        $searchResult = Offline::isEnabled() ? null : $this->getThemeRepositoryManager()->find($theme->getId());
 
         $latestVersion = $searchResult?->getItem()?->getLatestVersionNumber() ?? null;
 

@@ -5,6 +5,7 @@ use Exception;
 use OSC\Commands\AbstractCommand;
 use OSC\Helper\Config\DatabaseConfig;
 use OSC\Helper\Config\UserConfig;
+use OSC\Helper\Offline;
 use PDO;
 use Throwable;
 
@@ -86,6 +87,12 @@ class CoreInstaller
         $this->command->note('Downloading Omeka S core ...', true);
         $version = $blueprint->preferredOmekaVersion();
         $source = $blueprint->installSource();
+        if ($version === null && $source === null) {
+            Offline::assertOnline(
+                'look up the latest Omeka S version',
+                'set preferredVersions.omeka (or ' . SourceFields::CORE_SOURCE . ') in the blueprint'
+            );
+        }
         $this->runSubcommand('core:download', fn($c) => $c->execute($version, $targetPath, true, false, $source));
     }
 

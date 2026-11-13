@@ -25,6 +25,8 @@ use OSC\Helper\ResourceFetcher;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUri;
 use OSC\Manager\AbstractManager;
+use OSC\Exceptions\OfflineException;
+use OSC\Helper\Offline;
 use OSC\Manager\Result;
 use OSC\Omeka\OmekaDotOrgApi;
 use OSC\Repository\Module\ModuleDetails;
@@ -39,6 +41,8 @@ use PHPUnit\Framework\TestCase;
 use ZipArchive;
 
 #[CoversClass(Bundler::class)]
+#[UsesClass(Offline::class)]
+#[UsesClass(OfflineException::class)]
 #[UsesClass(MediaExtension::class)]
 #[UsesClass(Blueprint::class)]
 #[UsesClass(BlueprintLoader::class)]
@@ -118,12 +122,12 @@ class BundlerTest extends TestCase
         ]);
     }
 
-    /** @param list<ModuleDetails|ThemeDetails> $catalog */
-    private function resolver(string $kind, array $catalog): AddonResolver
+    /** @param list<ModuleDetails|ThemeDetails> $repository */
+    private function resolver(string $kind, array $repository): AddonResolver
     {
         $manager = $this->createMock(AbstractManager::class);
-        $manager->method('find')->willReturnCallback(function (string $id) use ($catalog) {
-            foreach ($catalog as $details) {
+        $manager->method('find')->willReturnCallback(function (string $id) use ($repository) {
+            foreach ($repository as $details) {
                 if (strcasecmp($details->getDirname(), $id) === 0) {
                     return new Result($details, $this->createMock(RepositoryInterface::class));
                 }
@@ -134,7 +138,7 @@ class BundlerTest extends TestCase
     }
 
     /**
-     * A bundler over a catalog with Common 1.0.0 and the freedom theme, whose downloads come from
+     * A bundler over a repository with Common 1.0.0 and the freedom theme, whose downloads come from
      * $remote (url => [content, content type]) or are local copies.
      */
     private function bundler(array $remote = [], ?Closure $latest = null): Bundler
@@ -254,6 +258,20 @@ class BundlerTest extends TestCase
         $this->bundler()->bundle($first, "{$this->dir}/again");
 
         $this->assertEquals($this->bundled('out'), $this->bundled('again'));
+    }
+
+    public function testOfflineABlueprintWithoutAnOmekaVersionAsksForOne(): void
+    {
+        Offline::enable();
+        try {
+            $this->bundler([], fn() => '4.1.1')->bundle(new Blueprint([]), "{$this->dir}/out");
+            $this->fail('bundle() should not look up the latest Omeka S version offline');
+        } catch (OfflineException $e) {
+            $this->assertStringContainsString('Set preferredVersions.omeka in the blueprint', $e->getMessage());
+        } finally {
+            putenv(Offline::ENV);
+            unset($_ENV[Offline::ENV]);
+        }
     }
 
     public function testPinsTheLatestOmekaVersionWhenTheBlueprintHasNone(): void
@@ -502,7 +520,7 @@ class BundlerTest extends TestCase
         $this->assertSame(["modules[0] 'Foo': version 1.0.0 is pinned, but the ZIP contains 1.2.0; the ZIP wins"], $warnings);
     }
 
-    public function testACatalogThemeUsesTheCatalogFolderName(): void
+    public function testARepositoryThemeUsesTheRepositoryFolderName(): void
     {
         $this->bundleAddons([], ['Freedom']);
 

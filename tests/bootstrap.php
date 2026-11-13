@@ -10,3 +10,8 @@ osc_fetch_blueprint_schema(false);
 
 // Shared test fixtures (the Tests\ namespace is not autoloaded)
 require_once __DIR__ . '/Resource/FakeCatalog.php';
+
+// Tests start online, whatever the environment exports (an offline build server may set it); tests of
+// offline mode switch it on themselves.
+putenv('OMEKA_S_CLI_OFFLINE');
+unset($_ENV['OMEKA_S_CLI_OFFLINE']);

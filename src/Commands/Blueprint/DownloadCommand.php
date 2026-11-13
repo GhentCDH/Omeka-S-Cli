@@ -27,7 +27,7 @@ class DownloadCommand extends AbstractBlueprintCommand
         $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
         $this->option(
             '--self-contained',
-            'Refuse a blueprint that has a source outside it (a catalog, git or remote reference): download a bundle offline',
+            'Refuse a blueprint that has a source outside it (a repository name, git or remote reference): download a bundle offline',
             'boolval',
             false
         );

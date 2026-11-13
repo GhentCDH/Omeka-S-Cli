@@ -7,16 +7,20 @@ use OSC\Blueprint\BlueprintLoader;
 use OSC\Blueprint\BlueprintValidator;
 use OSC\Blueprint\SelfContainedCheck;
 use OSC\Commands\AbstractCommand;
+use OSC\Helper\Offline;
 
 abstract class AbstractBlueprintCommand extends AbstractCommand
 {
     /**
-     * The schema validator. A self-contained check uses the copy shipped with the CLI, so it never
-     * needs the network; otherwise the shared schema is fetched (with the bundled copy as fallback).
+     * The schema validator. A self-contained check, and offline mode, use the copy shipped with the
+     * CLI, so they never need the network; otherwise the shared schema is fetched (with the bundled
+     * copy as fallback).
      */
     protected function validator(bool $selfContained): BlueprintValidator
     {
-        return $selfContained ? new BlueprintValidator(BlueprintValidator::bundledSchemaPath()) : new BlueprintValidator();
+        return $selfContained || Offline::isEnabled()
+            ? new BlueprintValidator(BlueprintValidator::bundledSchemaPath())
+            : new BlueprintValidator();
     }
 
     /**

@@ -24,6 +24,7 @@ class StatusCommand extends AbstractModuleCommand
         if ($format === 'table') {
             $moduleInfo['updateAvailable'] = $moduleInfo['updateAvailable'] ? 'yes' : $moduleInfo['updateAvailable'];
         }
+        $this->noteOfflineLatestVersions();
         $this->outputFormatted([$moduleInfo], $format);
     }
 }

@@ -3,6 +3,7 @@
 namespace OSC\Commands\Module;
 
 use Omeka\Module\Module;
+use OSC\Helper\Offline;
 use OSC\Manager\Result;
 use OSC\Repository\Module\ModuleDetails;
 
@@ -10,7 +11,8 @@ use OSC\Repository\Module\ModuleDetails;
 trait FormattersTrait
 {
     private function formatModuleStatus(Module $module, bool $extended = false): array {
-        $searchResult = $this->getModuleRepositoryManager()->find($module->getId());
+        // offline the repositories are not queried: the latest version stays empty
+        $searchResult = Offline::isEnabled() ? null : $this->getModuleRepositoryManager()->find($module->getId());
 
         $latestVersion = $searchResult?->getItem()?->getLatestVersionNumber() ?? null;
 

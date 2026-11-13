@@ -3,7 +3,7 @@ namespace OSC\Blueprint;
 
 /**
  * The self-contained rules a loader cannot see, because nothing is written to resolve: an add-on
- * entry without a source (it would be looked up in a catalog) and, when the core will be installed,
+ * entry without a source (it would be looked up in a repository) and, when the core will be installed,
  * a missing core source (the release would be downloaded). Reference violations are collected by
  * BlueprintLoader in self-contained mode.
  */
@@ -29,7 +29,8 @@ final class SelfContainedCheck
                 if ($key === 'themes' && in_array($name, self::CORE_THEMES, true)) {
                     continue;
                 }
-                $violations[] = "{$key} '{$name}' has no source: it would be downloaded from a catalog.";
+                $repository = $key === 'modules' ? 'module' : 'theme';
+                $violations[] = "{$key} '{$name}' has no source: it would be downloaded from a {$repository} repository.";
             }
         }
         if ($coreWillInstall && $blueprint->installSource() === null) {

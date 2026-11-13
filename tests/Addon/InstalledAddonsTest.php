@@ -45,6 +45,30 @@ class InstalledAddonsTest extends TestCase
         $this->assertFalse($this->installed->exists(AddonType::Module, ''));
     }
 
+    public function testFindMatchesTheFolderNameIgnoringCase(): void
+    {
+        // a repository name is matched case-insensitively, so 'common' finds the folder 'Common'
+        $this->assertSame('Common', $this->installed->find(AddonType::Module, 'Common'));
+        $this->assertSame('Common', $this->installed->find(AddonType::Module, 'common'));
+        $this->assertSame('default', $this->installed->find(AddonType::Theme, 'DEFAULT'));
+        $this->assertNull($this->installed->find(AddonType::Module, 'Missing'));
+        $this->assertNull($this->installed->find(AddonType::Module, ''));
+    }
+
+    public function testFindOnlyLooksAtFoldersInsideTheAddonDirectory(): void
+    {
+        $this->assertNull($this->installed->find(AddonType::Module, '.'));
+        $this->assertNull($this->installed->find(AddonType::Module, '..'));
+        $this->assertNull($this->installed->find(AddonType::Module, '../themes/default'));
+    }
+
+    public function testFindIgnoresFiles(): void
+    {
+        file_put_contents($this->dir . '/modules/Notes.txt', '');
+
+        $this->assertNull($this->installed->find(AddonType::Module, 'notes.txt'));
+    }
+
     public function testVersionIsReadFromTheIni(): void
     {
         $this->assertSame('3.4.1', $this->installed->version(AddonType::Module, 'Common'));

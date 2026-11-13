@@ -10,6 +10,8 @@ use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
+use OSC\Exceptions\OfflineException;
+use OSC\Helper\Offline;
 use OSC\Helper\ResourceUriParser;
 use OSC\Helper\Types\ResourceUri;
 use OSC\Addon\AddonVersion;
@@ -23,6 +25,8 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(AddonResolver::class)]
+#[UsesClass(Offline::class)]
+#[UsesClass(OfflineException::class)]
 #[UsesClass(ResolvedAddon::class)]
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(GitDownloader::class)]
@@ -35,6 +39,54 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(Result::class)]
 class AddonResolverTest extends TestCase
 {
+    private string|false $savedOffline;
+
+    protected function setUp(): void
+    {
+        $this->savedOffline = getenv(Offline::ENV);
+        putenv(Offline::ENV);
+        unset($_ENV[Offline::ENV]);
+    }
+
+    protected function tearDown(): void
+    {
+        putenv(Offline::ENV);
+        unset($_ENV[Offline::ENV]);
+        if ($this->savedOffline !== false) {
+            putenv(Offline::ENV . '=' . $this->savedOffline);
+        }
+    }
+
+    public function testAddonIdIsTheIdOfARepositoryReferenceOnly(): void
+    {
+        $this->assertSame('common', AddonResolver::addonId('common'));
+        $this->assertSame('Common', AddonResolver::addonId('Common:3.4.82'));
+        $this->assertNull(AddonResolver::addonId('https://example.org/Mapping-2.1.0.zip'));
+        $this->assertNull(AddonResolver::addonId('./Mapping-2.1.0.zip'));
+        $this->assertNull(AddonResolver::addonId('gh:omeka-s-modules/Mapping#v2.1.0'));
+    }
+
+    public function testOfflineARepositoryReferenceIsRefused(): void
+    {
+        Offline::enable();
+
+        $this->expectException(OfflineException::class);
+        $this->expectExceptionMessage("cannot look up 'Common' in the module repositories");
+
+        $this->resolver($this->common())->resolve('Common', fn() => '4.1.0');
+    }
+
+    public function testOfflineAZipOrGitSourceStillResolves(): void
+    {
+        Offline::enable();
+
+        $zip = $this->resolver(null)->resolve('https://example.org/Mapping-2.1.0.zip', $this->noLookup());
+        $git = $this->resolver(null)->resolve('gh:omeka-s-modules/Mapping#v2.1.0', $this->noLookup());
+
+        $this->assertSame(ResolvedAddon::ZIP, $zip->form);
+        $this->assertSame(ResolvedAddon::GIT, $git->form);
+    }
+
     private function resolver(?ModuleDetails $details): AddonResolver
     {
         $manager = $this->createMock(AbstractManager::class);
@@ -53,10 +105,10 @@ class AddonResolverTest extends TestCase
         ]);
     }
 
-    /** An Omeka S version callback that must not be called (no catalog lookup expected). */
+    /** An Omeka S version callback that must not be called (no repository lookup expected). */
     private function noLookup(): Closure
     {
-        return fn() => throw new LogicException('no catalog lookup expected');
+        return fn() => throw new LogicException('no repository lookup expected');
     }
 
     public function testIsGit(): void
@@ -73,7 +125,7 @@ class AddonResolverTest extends TestCase
         $this->assertFalse(AddonResolver::isGit('CustomVocab:2.1.0'));
     }
 
-    public function testAZipSourceNeedsNoCatalog(): void
+    public function testAZipSourceNeedsNoRepository(): void
     {
         $url = 'https://example.org/Mapping-2.1.0.zip';
         $resolved = $this->resolver(null)->resolve($url, $this->noLookup());
@@ -109,11 +161,11 @@ class AddonResolverTest extends TestCase
         $this->assertNull($default->downloader->getRef());
     }
 
-    public function testACatalogNameSelectsTheLatestCompatibleRelease(): void
+    public function testARepositoryReferenceSelectsTheLatestCompatibleRelease(): void
     {
         $resolved = $this->resolver($this->common())->resolve('common', fn() => '4.1.1');
 
-        $this->assertSame(ResolvedAddon::CATALOG, $resolved->form);
+        $this->assertSame(ResolvedAddon::REPOSITORY, $resolved->form);
         $this->assertSame('Common', $resolved->dirname);
         $this->assertSame('1.0.0', $resolved->version);
         $this->assertSame('https://example.org/Common-1.0.0.zip', $resolved->downloader->getDownloadUrl());

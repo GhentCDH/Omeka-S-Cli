@@ -1,6 +1,6 @@
 # Modules
 
-The `module:*` commands find modules in the online catalogs, download them into the `modules/`
+The `module:*` commands find modules in the online repositories, download them into the `modules/`
 directory of an Omeka S installation, and take them through their life cycle: install, enable,
 disable, update, upgrade, uninstall and delete. Commands that take a module id accept it in any case
 (`sharing` finds `Sharing`).
@@ -8,7 +8,7 @@ disable, update, upgrade, uninstall and delete. Commands that take a module id a
 ## Find a module
 
 `module:search` looks for the query in the id, name, description and tags of every module in the
-catalogs:
+repositories:
 
 ```bash
 --8<-- "docs/examples/modules.sh:search"
@@ -24,25 +24,25 @@ catalogs:
 ```
 
 The `Id` column is what you pass to `module:download`. Add `--extended` for the URL, description, owner
-and the catalog a module comes from:
+and the repository a module comes from:
 
 ```bash
 --8<-- "docs/examples/modules.sh:search-extended"
 ```
 
-Without a query, `module:search` lists every module. The catalogs are downloaded on first use and cached
+Without a query, `module:search` lists every module. The repositories are downloaded on first use and cached
 for 24 hours in `~/.cache/omeka-s-cli`; `--refresh` fetches them again.
 
-### Catalogs
+### Repositories
 
-Modules come from two catalogs, which `module:repositories` lists:
+Modules come from two repositories, which `module:repositories` lists:
 
 - `omeka.org`: the [official add-ons directory](https://omeka.org/s/modules/), with the full release
   history of each module.
 - `daniel-km`: the [module list maintained by Daniel Berthereau](https://github.com/Daniel-KM/UpgradeToOmekaS),
   which also covers modules that are not registered on omeka.org, but only knows their latest release.
 
-When a module is in both, the omeka.org entry wins. `--repository` limits a search to one catalog, and
+When a module is in both, the omeka.org entry wins. `--repository` limits a search to one repository, and
 `--unregistered` shows only the modules that are missing from omeka.org:
 
 ```bash
@@ -102,7 +102,7 @@ Add the version after a colon to download a specific release:
 --8<-- "docs/examples/modules.sh:download-version"
 ```
 
-Pinning works for modules in the omeka.org catalog. The daniel-km catalog only knows the latest
+Pinning works for modules in the omeka.org repository. The daniel-km repository only knows the latest
 release, so for a module that is only listed there, download an older version from its release zip or
 git repository instead (see below).
 
@@ -114,11 +114,11 @@ Cannot use module 'CSSEditor' version '1.3.0': incompatible with Omeka S 4.2.1.
 ```
 
 `--force` skips this check. It also lets you download a release that has no Omeka S constraint in the
-catalog: the automatic selection treats such releases as incompatible, so pin their version.
+repository: the automatic selection treats such releases as incompatible, so pin their version.
 
 ### Download from a zip file or a git repository
 
-The argument of `module:download` is a module URI. Besides a catalog id, it accepts a release zip, on
+The argument of `module:download` is a module URI. Besides a module id, it accepts a release zip, on
 the web or on disk, and a git repository:
 
 | Syntax | Example |
@@ -169,7 +169,7 @@ When `--force` replaces a module, the old directory is deleted. Add `--backup` t
 ## List modules and check their status
 
 `module:list` shows every module in the `modules/` directory, with its state, the version on disk, the
-version recorded in the database, and the latest version in the catalogs:
+version recorded in the database, and the latest version in the repositories:
 
 ```bash
 --8<-- "docs/examples/modules.sh:list"
@@ -195,6 +195,14 @@ show several), `--outdated` on the update column. For anything else, filter the 
 
 ```bash
 --8<-- "docs/examples/modules.sh:list-filter"
+```
+
+On a server without internet access, add `--offline` (or set `OMEKA_S_CLI_OFFLINE=1`). The modules are
+listed without contacting the repositories, so `latestVersion` and `updateAvailable` stay empty, and
+`--outdated` fails. See [Work without internet access](../usage.md#work-without-internet-access).
+
+```bash
+--8<-- "docs/examples/modules.sh:list-offline"
 ```
 
 `module:status` shows the same row for one module, and fails if the module is not in `modules/`:
@@ -238,7 +246,7 @@ A module that fails does not stop the others.
 
 ## Update modules
 
-`module:list --outdated` shows the modules for which the catalogs have a newer release:
+`module:list --outdated` shows the modules for which the repositories have a newer release:
 
 ```bash
 --8<-- "docs/examples/modules.sh:outdated"
@@ -268,7 +276,7 @@ You can also pass a version (`module:update sharing:1.5.0`). `--all` updates eve
 ```
 
 !!! note
-    The `LatestVersion` column is the latest release in the catalog, even when that release does not
+    The `LatestVersion` column is the latest release in the repository, even when that release does not
     support your Omeka S version. `module:update` still only downloads a compatible release.
 
 ### Upgrade

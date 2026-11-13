@@ -39,6 +39,12 @@ omeka-s-cli theme:download https://github.com/omeka-s-themes/cozy/releases/downl
 omeka-s-cli theme:list
 # --8<-- [end:list]
 
+# --8<-- [start:list-offline]
+omeka-s-cli theme:list --offline --json
+# --8<-- [end:list-offline]
+omeka-s-cli theme:list --offline --json | jq -e 'length > 0 and all(.[]; .latestVersion == null and .updateAvailable == null)' > /dev/null
+! omeka-s-cli theme:search foo --offline 2> /dev/null || exit 1
+
 # --8<-- [start:outdated]
 omeka-s-cli theme:list --outdated
 omeka-s-cli theme:list --outdated --json | jq -r '.[].id'

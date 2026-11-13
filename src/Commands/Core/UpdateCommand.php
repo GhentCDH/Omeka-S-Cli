@@ -7,6 +7,7 @@ use OSC\Commands\Module\FormattersTrait;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\WarningException;
+use OSC\Helper\Offline;
 use OSC\Helper\Path;
 use OSC\Omeka\OmekaDotOrgApi;
 
@@ -26,6 +27,7 @@ class UpdateCommand extends AbstractModuleCommand
     {
         // Get the latest version if no version number is provided
         if (!$versionNumber) {
+            Offline::assertOnline('look up the latest Omeka S version', 'pass a version number instead');
             try {
                 $this->info("No version number supplied, getting latest core version number ... ");
                 $versionNumber = $this->webApi->getLatestOmekaVersion();

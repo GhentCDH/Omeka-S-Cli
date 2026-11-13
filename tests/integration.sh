@@ -231,6 +231,30 @@ assert_success "module:update common --upgrade (update to latest version and upg
 
 assert_success "module:download log (from zip release, install)"       $CLI module:download https://github.com/Daniel-KM/Omeka-S-module-Log/releases/download/3.4.36/Log-3.4.36.zip --install
 assert_output_is "verify log module is outdated" "1"   bash -c "$CLI module:list --outdated --json | jq '. | length'"
+
+# offline mode: no repository lookups, the installed modules are still listed
+assert_output_is "module:list --offline --json lists the same modules" "2" \
+    bash -c "$CLI module:list --offline --json | jq '. | length'"
+assert_success "module:list --offline --json has no version update info" \
+    bash -c "$CLI module:list --offline --json | jq -e 'all(.[]; .latestVersion == null and .updateAvailable == null)'"
+assert_success "module:list --offline matches online apart from the update info" \
+    bash -c "diff <($CLI module:list --json | jq -S 'map(del(.latestVersion, .updateAvailable))') <($CLI module:list --offline --json | jq -S 'map(del(.latestVersion, .updateAvailable))')"
+assert_success "OMEKA_S_CLI_OFFLINE=1 module:list --json has no version update info" \
+    bash -c "OMEKA_S_CLI_OFFLINE=1 $CLI module:list --json | jq -e 'length == 2 and all(.[]; .latestVersion == null)'"
+assert_output_contains "module:list --offline (table) says the latest versions were not checked" "Offline: latest versions not checked" \
+    $CLI module:list --offline
+assert_success "module:list --offline (table) prints no repository warning" \
+    bash -c "! $CLI module:list --offline 2>&1 | grep -qi 'unavailable'"
+assert_fail    "module:list --offline --outdated fails" $CLI module:list --offline --outdated
+assert_fail    "module:search --offline fails" $CLI module:search common --offline
+assert_success "module:download common --offline: already on disk, warns and exits 0" \
+    bash -c "out=\$($CLI module:download common --offline 2>&1) && echo \"\$out\" | grep -q 'already exists'"
+assert_output_contains "module:download --offline of a module not on disk fails" "Offline mode" \
+    $CLI module:download nonexistent-module-xyz --offline
+assert_fail    "module:download --offline of a module not on disk exits non-zero" $CLI module:download nonexistent-module-xyz --offline
+assert_success "module:download --offline from a zip release still works" \
+    $CLI module:download https://github.com/Daniel-KM/Omeka-S-module-Log/releases/download/3.4.36/Log-3.4.36.zip --offline --force
+assert_fail    "module:update --all --offline fails" $CLI module:update --all --offline
 assert_fail    "module:download nonexistent-module-xyz"   $CLI module:download nonexistent-module-xyz --install
 
 assert_success "module:download customvocab --install (from git repo)"             $CLI module:download https://github.com/omeka-s-modules/CustomVocab.git --install
@@ -375,6 +399,23 @@ section "Themes"
 assert_output_is "theme:list with default theme" "1"   bash -c "$CLI theme:list --json | jq '. | length'"
 assert_success "download and install freedom theme"    $CLI theme:download freedom
 assert_output_is "theme:list with two themes" "2"   bash -c "$CLI theme:list --json | jq '. | length'"
+
+# offline mode: no repository lookups, the installed themes are still listed
+assert_output_is "theme:list --offline --json lists the same themes" "2" \
+    bash -c "$CLI theme:list --offline --json | jq '. | length'"
+assert_success "theme:list --offline --json has no version update info" \
+    bash -c "$CLI theme:list --offline --json | jq -e 'all(.[]; .latestVersion == null and .updateAvailable == null)'"
+assert_success "theme:list --offline matches online apart from the update info" \
+    bash -c "diff <($CLI theme:list --json | jq -S 'map(del(.latestVersion, .updateAvailable))') <($CLI theme:list --offline --json | jq -S 'map(del(.latestVersion, .updateAvailable))')"
+assert_success "OMEKA_S_CLI_OFFLINE=1 theme:list --json has no version update info" \
+    bash -c "OMEKA_S_CLI_OFFLINE=1 $CLI theme:list --json | jq -e 'length == 2 and all(.[]; .latestVersion == null)'"
+assert_success "theme:list --offline (table) prints no repository warning" \
+    bash -c "! $CLI theme:list --offline 2>&1 | grep -qi 'unavailable'"
+assert_fail    "theme:list --offline --outdated fails" $CLI theme:list --offline --outdated
+assert_fail    "theme:search --offline fails" $CLI theme:search freedom --offline
+assert_success "theme:download freedom --offline: already on disk, warns and exits 0" \
+    bash -c "out=\$($CLI theme:download freedom --offline 2>&1) && echo \"\$out\" | grep -q 'already exists'"
+assert_fail    "theme:download --offline of a theme not on disk exits non-zero" $CLI theme:download nonexistent-theme-xyz --offline
 assert_success "delete freedom theme"    $CLI theme:delete freedom
 assert_success "download and install freedom theme again"    $CLI theme:download freedom
 assert_fail    "install unknown theme fails"   $CLI theme:download nonexistent-theme-xyz --install
@@ -1033,7 +1074,7 @@ JSON
   "modules": [ { "name": "CustomVocab", "source": "gh:omeka-s-modules/CustomVocab" } ] }
 JSON
 fi
-assert_output_contains "blueprint:validate --self-contained flags catalog sources" "has no source" \
+assert_output_contains "blueprint:validate --self-contained flags repository sources" "has no source" \
     $CLI blueprint:validate "$BUNDLE_SRC/site.blueprint.json" --self-contained
 assert_output_contains "blueprint:validate rejects a php:// source" "uses an unsupported URL scheme" \
     $CLI blueprint:validate "$BUNDLE_SRC/php.blueprint.json"
@@ -1047,7 +1088,7 @@ assert_success "the bundle holds the core release"                         test 
 assert_output_is "the ZIP module became a local zip" "true"                bash -c "jq -r '.modules[1].source | startswith(\"./modules/CustomVocab-\")' $BUNDLE/blueprint.json"
 assert_success "the bundled module ZIP is the release, unchanged" \
     bash -c "curl -fsSL -o /tmp/bp-customvocab.zip $CUSTOMVOCAB_ZIP && cmp /tmp/bp-customvocab.zip $BUNDLE/modules/CustomVocab-2.1.0.zip; rc=\$?; rm -f /tmp/bp-customvocab.zip; exit \$rc"
-assert_output_is "the catalog theme keeps its folder name" "freedom"       jq -r '.themes[1].name' "$BUNDLE/blueprint.json"
+assert_output_is "the repository theme keeps its folder name" "freedom"       jq -r '.themes[1].name' "$BUNDLE/blueprint.json"
 assert_output_is "every source in the bundle is relative" "0" \
     bash -c "jq '[.. | objects | .source? // empty | select(startswith(\"./\") | not)] | length' $BUNDLE/blueprint.json"
 assert_success "blueprint:validate --self-contained accepts the bundle"    $CLI blueprint:validate "$BUNDLE/blueprint.json" --self-contained

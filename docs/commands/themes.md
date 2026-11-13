@@ -1,6 +1,6 @@
 # Themes
 
-The `theme:*` commands find themes in the omeka.org catalog, download them into the `themes/` directory
+The `theme:*` commands find themes in the omeka.org repository, download them into the `themes/` directory
 of an Omeka S installation, and list, check and delete them. A theme needs no installation step: once it
 is in `themes/`, you can assign it to a site.
 
@@ -13,7 +13,7 @@ those whose id, name, owner or tags contain the query:
 --8<-- "docs/examples/themes.sh:search"
 ```
 
-`--extended` adds the URL, owner and catalog of each theme:
+`--extended` adds the URL, owner and repository of each theme:
 
 ```bash
 --8<-- "docs/examples/themes.sh:search-query"
@@ -28,13 +28,13 @@ those whose id, name, owner or tags contain the query:
 ```
 
 As with modules, a search inside an Omeka S installation hides the themes that have no release for the
-installed Omeka S version (`--include-incompatible` shows them), and the catalog is cached for 24 hours
+installed Omeka S version (`--include-incompatible` shows them), and the repository is cached for 24 hours
 (`--refresh` fetches it again).
 
 ## Download a theme
 
 `theme:download` takes the same kind of URI as [`module:download`](modules.md#download-from-a-zip-file-or-a-git-repository):
-a catalog id, optionally with a version, a release zip (URL or file), or a git repository.
+a theme id, optionally with a version, a release zip (URL or file), or a git repository.
 
 ```bash
 --8<-- "docs/examples/themes.sh:download"
@@ -59,15 +59,15 @@ From a git repository, at a tag, branch or commit, or from a release zip:
 ```
 
 !!! warning "Directory name"
-    A theme downloaded by catalog id goes in a directory named after that id (`themes/cozy`). A theme
+    A theme downloaded by its id goes in a directory named after that id (`themes/cozy`). A theme
     downloaded from a zip or git repository goes in a directory named after the `name` in its
     `theme.ini` (`themes/Cozy`). The directory name is the theme id Omeka S stores for a site, so pick
     one way of downloading a theme and stick to it: mixing them leaves two copies of the same theme.
 
 ## Choose the theme folder
 
-The folder is the theme's ID in Omeka S; sites refer to it. A theme from the catalog keeps the
-catalog's folder. A ZIP or git theme gets its `theme.ini` name, unless you pick the folder with
+The folder is the theme's ID in Omeka S; sites refer to it. A theme from the repository keeps the
+repository's folder. A ZIP or git theme gets its `theme.ini` name, unless you pick the folder with
 `--dir`:
 
 ```bash
@@ -86,7 +86,7 @@ Choose the theme of a site when you create it, or change it later with
 ## List themes and check their status
 
 `theme:list` shows every theme in the `themes/` directory, with its version and the latest version in the
-catalog:
+repository:
 
 ```bash
 --8<-- "docs/examples/themes.sh:list"
@@ -106,6 +106,14 @@ The state is the one Omeka S reports: `active` means the theme is valid and can 
 site uses it. Other states, such as `invalid_ini` or `invalid_omeka_version`, point to a theme that
 Omeka S cannot use. `--extended` adds the path of each theme, `--json` and `--csv` change the format.
 
+On a server without internet access, add `--offline` (or set `OMEKA_S_CLI_OFFLINE=1`). The themes are
+listed without contacting the repository, so `latestVersion` and `updateAvailable` stay empty, and
+`--outdated` fails. See [Work without internet access](../usage.md#work-without-internet-access).
+
+```bash
+--8<-- "docs/examples/themes.sh:list-offline"
+```
+
 `theme:status` shows the same row for one theme, and fails if it is not in `themes/`:
 
 ```bash
@@ -114,7 +122,7 @@ Omeka S cannot use. `--extended` adds the path of each theme, `--json` and `--cs
 
 ## Update a theme
 
-`theme:list --outdated` shows the themes for which the catalog has a newer release:
+`theme:list --outdated` shows the themes for which the repository has a newer release:
 
 ```bash
 --8<-- "docs/examples/themes.sh:outdated"

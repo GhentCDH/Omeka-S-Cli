@@ -2,6 +2,7 @@
 namespace OSC\Commands\Module;
 
 use OSC\Addon\AddonVersion;
+use OSC\Helper\Offline;
 use OSC\Manager\Module\Manager as ModuleRepositoryManager;
 
 class SearchCommand extends AbstractModuleCommand
@@ -28,6 +29,7 @@ class SearchCommand extends AbstractModuleCommand
 
     public function execute(?string $query, ?bool $json = false, ?bool $extended = false, ?string $repository = null, ?bool $unregistered = false, ?bool $includeIncompatible = false): void
     {
+        Offline::assertOnline('search the module repositories');
         $format = $this->getOutputFormat('table');
 
         $manager = ModuleRepositoryManager::getInstance();

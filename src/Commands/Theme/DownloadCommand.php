@@ -8,6 +8,7 @@ use OSC\Addon\InstalledAddons;
 use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\AddonResolver;
 use OSC\Exceptions\NotFoundException;
+use OSC\Helper\Offline;
 use OSC\Helper\Path;
 
 class DownloadCommand extends AbstractThemeCommand
@@ -20,7 +21,7 @@ class DownloadCommand extends AbstractThemeCommand
         $this->argument('<theme>', 'Theme URI (syntax: theme-id:version, zip-release-url, zip-file, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force theme overwrite', 'boolval', false);
         $this->option('-b --backup', 'Backup current theme before download (delete otherwise)', 'boolval', false);
-        $this->option('--dir', 'Folder (the theme ID) to install into (default: the catalog folder, or the theme.ini name for a zip or git source)');
+        $this->option('--dir', 'Folder (the theme ID) to install into (default: the folder the repository gives, or the theme.ini name for a zip or git source)');
         $this->usage(
             'theme:download freedom<eol>' .
             'theme:download freedom:1.0.7<eol>' .
@@ -38,6 +39,19 @@ class DownloadCommand extends AbstractThemeCommand
         if (!is_writable($modulesPath)) {
             throw new Exception("Themes directory is not writable. Please check permissions.");
         }
+        $installed = new InstalledAddons($this->getOmekaPath());
+
+        // offline, a repository name cannot be looked up; a theme already on disk (in --dir, if given)
+        // needs no lookup and gets the same "already exists" warning as online
+        if (!$force && Offline::isEnabled()) {
+            // --dir is an exact folder name; a repository name matches case-insensitively, as the repository does
+            $existing = ($dir !== null && $dir !== '')
+                ? ($installed->exists(AddonType::Theme, $dir) ? $dir : null)
+                : $installed->find(AddonType::Theme, AddonResolver::addonId((string) $theme) ?? '');
+            if ($existing) {
+                throw new ThemeExistsException("Theme '{$existing}' already exists in '{$installed->path(AddonType::Theme, $existing)}'. Use the --force option to download anyway.");
+            }
+        }
 
         $resolved = (new AddonResolver($this->getThemeRepositoryManager(), AddonType::Theme))
             ->resolve($theme, fn() => $this->getOmekaVersion(), (bool) $force);
@@ -49,7 +63,6 @@ class DownloadCommand extends AbstractThemeCommand
         }
         $themeDirName = $resolved->dirname;
         $downloader = $resolved->downloader;
-        $installed = new InstalledAddons($this->getOmekaPath());
         if ($dir !== null && $dir !== '') {
             if (!Path::isSafeFolderName($dir)) {
                 throw new Exception("Invalid --dir '{$dir}': use a plain folder name (letters, digits, '_', '-', '.').");

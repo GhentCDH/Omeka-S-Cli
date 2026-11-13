@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Commands\Module;
 
+use OSC\Helper\Offline;
+
 class ListCommand extends AbstractModuleCommand
 {
     use FormattersTrait;
@@ -20,6 +22,9 @@ class ListCommand extends AbstractModuleCommand
 
     public function execute(?bool $extended = false, ?bool $outdated = false): void
     {
+        if ($outdated) {
+            Offline::assertOnline('check for outdated modules');
+        }
         $format = $this->getOutputFormat('table');
 
         $modules = $this->getOmekaInstance()->getModuleApi()->getModules();
@@ -47,6 +52,7 @@ class ListCommand extends AbstractModuleCommand
             $output[] = $moduleInfo;
         }
 
+        $this->noteOfflineLatestVersions();
         $this->outputFormatted($output, $format);
     }
 }

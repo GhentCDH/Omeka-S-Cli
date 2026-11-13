@@ -10,7 +10,7 @@ modules and themes, upgrades, users, sites, vocabularies, resource templates and
 - **Core**: download any Omeka S version, install it, update it and run the database migrations.
 - **Modules and themes**: search the [omeka.org](https://omeka.org/s/modules/) and
   [Daniel Berthereau's](https://daniel-km.github.io/UpgradeToOmekaS/en/omeka_s_modules.html)
-  catalogs, download from a catalog, a zip release or a git repository, picking the latest version
+  repositories, download from a repository, a zip release or a git repository, picking the latest version
   that is compatible with your Omeka S; install, upgrade, enable, disable and delete, one at a time
   or in batch.
 - **Users and sites**: add, update and delete users, manage API keys, create sites and give users a
