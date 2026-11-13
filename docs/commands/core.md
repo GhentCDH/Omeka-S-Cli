@@ -82,11 +82,26 @@ answer through the exit code (0 for yes, 1 for no). That makes an installation s
 
 ## Update Omeka S
 
-`core:update` replaces the Omeka S code with a newer release (the latest, unless you name a version)
+`core:update` replaces the Omeka S code with a newer release (the latest, unless you name a version).
 It replaces `application/`, `vendor/` and the files in the root directory, and leaves `config/`,
 `files/`, `logs/`, `modules/` and `themes/` alone. A new release can change the
 database schema; `core:migrate` applies those changes, like the *Update database* button in the
 admin interface.
+
+The new files are first copied to a private staging directory, next to the Omeka S directory when
+it can and inside it otherwise. It has a random name that cannot be guessed, only you can read it,
+and its `.htaccess` denies web access and directory listings. Keep directory listings off for the
+folder that holds it (they usually are), so its name does not show up there. To stage the files
+outside every web root, pass `--stage-dir` with a directory on the same filesystem as Omeka S.
+Then the files are swapped in one entry at a time. If that fails, the previous
+files are put back, so a failed update leaves the old core in place. A file you cannot write to
+yourself, such as a `.htaccess` owned by another user, does not stop the update, as long as you can
+write to the Omeka S directory. A core folder you cannot write to, such as `application/` owned by
+the web server, does: the update then rolls back.
+
+A customised `.htaccess` is replaced by the release's; the previous one is saved next to it as
+`.htaccess.bak-<date-time>`, so you can merge your changes back. Add `--backup` to keep the replaced
+files under `~/.omeka-s-cli/backups/core/<version>/<date-time>/` instead of deleting them.
 
 ```bash
 --8<-- "docs/examples/core.sh:update"

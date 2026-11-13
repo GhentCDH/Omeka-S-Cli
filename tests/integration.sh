@@ -195,7 +195,21 @@ section "Core"
 assert_output_is "core:version shows version" "4.1.1"  $CLI core:version
 assert_output_contains "core:status is 'installed'" "installed"   $CLI core:status
 assert_fail "core:upgrade to nonexistent version fails" $CLI core:upgrade 9.9.9
-assert_success "core:update to 4.2.1" $CLI core:update 4.2.1
+run              "clear core backups of earlier runs"                   bash -c "rm -rf ~/.omeka-s-cli/backups/core"
+run              "make .htaccess read-only (the reported failure)"   chmod 0444 /var/www/omeka-s/.htaccess
+assert_success   "core:update to 4.2.1 replaces a read-only .htaccess"  $CLI core:update 4.2.1 --backup
+assert_output_is "core:version after update" "4.2.1"                  $CLI core:version
+assert_success   "the backup holds the old core" \
+    bash -c "ls ~/.omeka-s-cli/backups/core/4.1.1/*/application/Module.php"
+assert_success   "no staging directory is left behind" \
+    bash -c "! ls -d /var/www/omeka-s/.omeka-s-cli-update-* /var/www/.omeka-s-cli-update-* 2>/dev/null"
+assert_success   "config/database.ini is untouched"                    grep -q 'dbname = "omeka"' /var/www/omeka-s/config/database.ini
+assert_fail      "core:update --stage-dir on another filesystem fails before the download" \
+    $CLI core:update 4.2.1 --force --stage-dir /dev/shm
+run              "make a stage directory on the Omeka S filesystem"      bash -c "rm -rf /var/www/omeka-s/logs/osc-stage && mkdir /var/www/omeka-s/logs/osc-stage"
+assert_success   "core:update --stage-dir stages there"                 $CLI core:update 4.2.1 --force --stage-dir /var/www/omeka-s/logs/osc-stage
+assert_success   "the stage directory is empty again"                   bash -c "test -z \"\$(ls -A /var/www/omeka-s/logs/osc-stage)\""
+run              "remove the stage directory"                            rm -rf /var/www/omeka-s/logs/osc-stage
 assert_output_contains "core:status is 'needs_migration'" "needs_migration"   $CLI core:status
 assert_success "core:migrate" $CLI core:migrate
 
