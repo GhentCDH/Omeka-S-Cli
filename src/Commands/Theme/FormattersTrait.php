@@ -3,6 +3,7 @@
 namespace OSC\Commands\Theme;
 
 use Omeka\Site\Theme\Theme;
+use OSC\Addon\AddonVersion;
 use OSC\Helper\Offline;
 use OSC\Manager\Result;
 use OSC\Repository\Theme\ThemeDetails;
@@ -22,17 +23,18 @@ trait FormattersTrait
             'id' => $theme->getId(),
             'name' => $theme->getName(),
             'state' => $theme->getState(),
-            'version' => null,
+            // also for a theme this Omeka S rejects (its ini is still read): an update often fixes that,
+            // so theme:update --all must see it (null when there is no readable ini)
+            'version' => $version,
             'latestVersion' => $latestVersion,
-            'updateAvailable' => null,
+            // what theme:update would install: the latest release compatible with this Omeka S
+            'updateAvailable' => $searchResult ? AddonVersion::updateAvailable($version, $searchResult->getItem()->getVersions(), $this->getOmekaVersion()) : null,
             'author' => null,
             'path' => null,
         ];
         if ( !$this->getOmekaInstance()->getThemeApi()->hasErrors($theme) ) {
-            $status['version'] = $version;
             $status['author'] = $theme->getIni('author');
             $status['path'] = $theme->getPath();
-            $status['updateAvailable'] = $latestVersion && $version ? ($version !== $latestVersion) : null;
         }
         if (!$extended) {
             unset($status['path']);

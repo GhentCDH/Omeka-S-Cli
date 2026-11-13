@@ -18,13 +18,17 @@ class UpdateCommand extends AbstractModuleCommand
         $this->argumentModuleId(true);
         $this->option('-a --all', 'Update all modules', null, false);
         $this->option('-u --upgrade', 'Upgrade module after download', 'boolval', false);
+        $this->option('--backup', 'Backup current module before download (delete otherwise)', 'boolval', false);
         $this->optionDryRun();
     }
 
-    public function execute(?string $moduleId, ?bool $upgrade = false, ?bool $all = false): void
+    public function execute(?string $moduleId, ?bool $upgrade = false, ?bool $all = false, ?bool $backup = false): void
     {
         if ($moduleId && $all) {
             throw new InvalidArgumentException("You cannot specify both a module ID and the --all option.");
+        }
+        if (!$moduleId && !$all) {
+            throw new InvalidArgumentException("Specify a module ID or the --all option.");
         }
 
         if ($moduleId) {
@@ -51,7 +55,7 @@ class UpdateCommand extends AbstractModuleCommand
             // download the module
             /** @var DownloadCommand $command */
             $command = $this->app()->commands()['module:download'] ?? null;
-            $command && $command->execute($moduleId, force: true);
+            $command && $command->execute($moduleId, force: true, backup: (bool) $backup);
 
             // upgrade the module if requested
             if ($upgrade) {
@@ -73,10 +77,10 @@ class UpdateCommand extends AbstractModuleCommand
             }
 
             // download modules
-            $download = function ($moduleId) {
+            $download = function ($moduleId) use ($backup) {
                 /** @var DownloadCommand $command */
                 $command = $this->app()->commands()['module:download'] ?? null;
-                $command && $command->execute($moduleId, force: true);
+                $command && $command->execute($moduleId, force: true, backup: (bool) $backup);
             };
 
             $hasErrors = !$this->runBulkOperation($modulesToUpdate, $download, 'Updating', 'updated');

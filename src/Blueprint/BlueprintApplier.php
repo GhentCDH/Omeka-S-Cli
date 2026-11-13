@@ -6,10 +6,9 @@ use Omeka\Module\Manager as ModuleManager;
 use OSC\Addon\AddonType;
 use OSC\Addon\InstalledAddons;
 use OSC\Commands\AbstractCommand;
-use OSC\Commands\Module\Exceptions\ModuleExistsException;
-use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ZipDownloader;
+use OSC\Exceptions\AddonExistsException;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Config\MediaConfig;
 use OSC\Helper\Config\SiteConfig;
@@ -182,7 +181,7 @@ class BlueprintApplier
             }
             try {
                 $this->run('module:download', fn($c) => $c->execute($uri, $force), false);
-            } catch (ModuleExistsException) {
+            } catch (AddonExistsException) {
                 $this->command->note("{$module['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }
@@ -285,7 +284,7 @@ class BlueprintApplier
             }
             try {
                 $this->run('theme:download', fn($c) => $c->execute($uri, $force, false, $dir), false);
-            } catch (ThemeExistsException) {
+            } catch (AddonExistsException) {
                 $this->command->note("{$theme['name']}: already present at the required version, skipping (use --update to replace)", true);
             }
         }

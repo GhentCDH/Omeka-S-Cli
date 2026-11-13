@@ -58,4 +58,65 @@ class AddonVersionTest extends TestCase
     {
         return new ModuleVersion($number, '2026-01-01', "https://example.org/{$number}.zip", $constraint);
     }
+
+    public function testIsNewerComparesVersionsNumerically(): void
+    {
+        $this->assertTrue(AddonVersion::isNewer('1.10.0', '1.9.0'));
+        $this->assertFalse(AddonVersion::isNewer('1.9.0', '1.10.0'));
+    }
+
+    public function testIsNewerIgnoresAVPrefix(): void
+    {
+        $this->assertFalse(AddonVersion::isNewer('v1.1.0', '1.1.0'));
+        $this->assertFalse(AddonVersion::isNewer('1.1.0', 'v1.1.0'));
+        $this->assertTrue(AddonVersion::isNewer('v1.2.0', '1.1.0'));
+    }
+
+    public function testAnOlderRepositoryVersionIsNotNewer(): void
+    {
+        $this->assertFalse(AddonVersion::isNewer('1.0.7', '1.1.0'));
+    }
+
+    public function testIsNewerTreatsAMissingTrailingZeroAsEqual(): void
+    {
+        $this->assertFalse(AddonVersion::isNewer('1.1.0', '1.1'));
+        $this->assertFalse(AddonVersion::isNewer('1.1', '1.1.0'));
+    }
+
+    public function testIsNewerRanksAPreReleaseBelowItsRelease(): void
+    {
+        $this->assertTrue(AddonVersion::isNewer('1.0.0', '1.0.0-beta'));
+        $this->assertFalse(AddonVersion::isNewer('1.0.0-beta', '1.0.0'));
+    }
+
+    public function testIsNewerFallsBackForAVersionItCannotParse(): void
+    {
+        $this->assertTrue(AddonVersion::isNewer('2.0', 'not a version'));
+    }
+
+    public function testAnUpdateIsTheLatestCompatibleRelease(): void
+    {
+        $versions = [self::version('1.2.0', '^4.0'), self::version('1.3.0', '^5.0')];
+
+        $this->assertTrue(AddonVersion::updateAvailable('1.1.0', $versions, '4.2.1'));
+        // 1.3.0 is the latest release, but it needs Omeka S 5: the update would install 1.2.0
+        $this->assertFalse(AddonVersion::updateAvailable('1.2.0', $versions, '4.2.1'));
+    }
+
+    public function testANewerLocalVersionIsNotDowngraded(): void
+    {
+        $versions = [self::version('1.2.0', '^4.0'), self::version('1.3.0', '^5.0')];
+        $this->assertFalse(AddonVersion::updateAvailable('1.2.5', $versions, '4.2.1'));
+    }
+
+    public function testNoCompatibleReleaseIsNoUpdate(): void
+    {
+        $this->assertFalse(AddonVersion::updateAvailable('1.0.0', [self::version('2.0.0', '^5.0')], '4.2.1'));
+    }
+
+    public function testWithoutAnInstalledVersionOrRepositoryItIsUnknown(): void
+    {
+        $this->assertNull(AddonVersion::updateAvailable(null, [self::version('2.0.0', '^4.0')], '4.2.1'));
+        $this->assertNull(AddonVersion::updateAvailable('1.0.0', null, '4.2.1'));
+    }
 }

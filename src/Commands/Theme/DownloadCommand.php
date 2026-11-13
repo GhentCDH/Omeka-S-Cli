@@ -5,8 +5,8 @@ use Exception;
 use OSC\Addon\AddonIni;
 use OSC\Addon\AddonType;
 use OSC\Addon\InstalledAddons;
-use OSC\Commands\Theme\Exceptions\ThemeExistsException;
 use OSC\Downloader\AddonResolver;
+use OSC\Exceptions\AddonExistsException;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\Offline;
 use OSC\Helper\Path;
@@ -20,7 +20,7 @@ class DownloadCommand extends AbstractThemeCommand
         parent::__construct('theme:download', 'Download theme');
         $this->argument('<theme>', 'Theme URI (syntax: theme-id:version, zip-release-url, zip-file, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force theme overwrite', 'boolval', false);
-        $this->option('-b --backup', 'Backup current theme before download (delete otherwise)', 'boolval', false);
+        $this->option('--backup', 'Backup current theme before download (delete otherwise)', 'boolval', false);
         $this->option('--dir', 'Folder (the theme ID) to install into (default: the folder the repository gives, or the theme.ini name for a zip or git source)');
         $this->usage(
             'theme:download freedom<eol>' .
@@ -49,7 +49,7 @@ class DownloadCommand extends AbstractThemeCommand
                 ? ($installed->exists(AddonType::Theme, $dir) ? $dir : null)
                 : $installed->find(AddonType::Theme, AddonResolver::addonId((string) $theme) ?? '');
             if ($existing) {
-                throw new ThemeExistsException("Theme '{$existing}' already exists in '{$installed->path(AddonType::Theme, $existing)}'. Use the --force option to download anyway.");
+                throw new AddonExistsException(AddonType::Theme, $existing, $installed->path(AddonType::Theme, $existing));
             }
         }
 
@@ -76,7 +76,7 @@ class DownloadCommand extends AbstractThemeCommand
 
             // Check if theme is already available
             if ($installed->exists(AddonType::Theme, $themeDirName) && !$force) {
-                throw new ThemeExistsException("Theme '{$themeDirName}' already exists in '{$themeDestinationPath}'. Use the --force option to download anyway.");
+                throw new AddonExistsException(AddonType::Theme, $themeDirName, $themeDestinationPath);
             }
         }
 
@@ -106,7 +106,7 @@ class DownloadCommand extends AbstractThemeCommand
             // Check if theme is already available
             if (is_dir($themeDestinationPath)) {
                 if (!$force) {
-                    throw new ThemeExistsException("Theme '{$themeDirName}' already exists in '{$themeDestinationPath}'. Use the --force option to download anyway.");
+                    throw new AddonExistsException(AddonType::Theme, $themeDirName, $themeDestinationPath);
                 }
 
                 // Backup or remove previous version

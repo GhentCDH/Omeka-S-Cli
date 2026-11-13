@@ -6,7 +6,7 @@
 
 ## Big-Picture Architecture
 - Command layer: each domain has `src/Commands/<Domain>/Index.php` that returns instantiated command classes.
-- Commands are thin adapters: domain logic lives in `src/<Domain>/` (`Blueprint`, `Resource`, `Settings`, `Dummy`, ...), not under `src/Commands/`. Only command-level glue stays next to the commands (formatter traits, `*ExistsException`, `Types/`, `VocabularyImporterTrait`, the domain `Abstract*Command`).
+- Commands are thin adapters: domain logic lives in `src/<Domain>/` (`Blueprint`, `Resource`, `Settings`, `Dummy`, ...), not under `src/Commands/`. Only command-level glue stays next to the commands (formatter traits, `Types/`, `VocabularyImporterTrait`, the domain `Abstract*Command`).
 - Shared command behavior is centralized in `src/Commands/AbstractCommand.php` (global options, output formatting, Omeka path detection/bootstrap).
 - Omeka bridge is `src/Omeka/*`: `OmekaInstance` bootstraps Omeka runtime, then `ModuleApi` / `ThemeApi` / `SiteApi` wrap Omeka services (`SiteApi` encodes the site pitfalls: partial updates, whole-list permission writes, `default_site`, and `seedThemeSettings()`: Omeka only stores `theme_settings_<theme>` when the admin form is saved, so `site:add`/`site:update --theme` store the theme.ini defaults when the site has none).
 - Remote metadata layer is `src/Manager/*/Manager.php` + `src/Repository/**` (official `omeka.org` + Daniel-KM CSV for modules).
@@ -28,6 +28,7 @@
 - New commands should extend `src/Commands/AbstractCommand.php` (or a domain abstract such as `src/Commands/Module/AbstractModuleCommand.php`).
 - Always register new commands in the domain `Index.php`; unregistered commands are invisible to the CLI.
 - Prefer built-in output options (`optionJson`, `optionTable`, `optionCSV`, `optionEnv`) plus `outputFormatted()`.
+- A module/theme already on disk is `OSC\Exceptions\AddonExistsException` (a `WarningException`, built from the `AddonType`, folder and path).
 - Non-fatal situations should use `WarningException` (handled in `src/Cli/Application.php` as warning + exit code 0).
 - Output rule: errors always print (even under `--quiet`); `--quiet`/`--json` silence info and warnings, including benign `WarningException` notices. Exit code is the contract. A command that must skip a missing resource under `--ignore-not-found` throws `IgnoredNotFoundException` (a silent marker; the note is emitted verbosity-aware beforehand) so the call site needs no null check.
 - Offline mode (`OSC\Helper\Offline`, `--offline` / `OMEKA_S_CLI_OFFLINE`) is a use-case policy. Repositories, managers and API clients (`OmekaDotOrgApi`) don't know about it. A command, or a use-case service (`AddonResolver`, `Bundler`, `CoreInstaller`), that queries the module/theme repositories or the Omeka version API checks `Offline` first: it skips the lookup (list/status) or calls `Offline::assertOnline($what, $alternative)`. Sources the user names (ZIPs, git, vocabularies, media) and the LOV vocabulary repository are not covered.

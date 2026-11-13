@@ -241,7 +241,9 @@ assert_success "module:download common version 3.4.82 (force download)"    $CLI 
 assert_output_contains "module:status common is 'not_installed'" "not_installed"   $CLI module:status common
 assert_success "module:status common --json"    bash -c "$CLI module:status common --json | jq ."
 assert_success "module:install common"    $CLI module:install common
-assert_success "module:update common:3.4.83"    $CLI module:update common:3.4.83
+run            "clear Common backups of earlier runs"   bash -c "rm -rf ~/.omeka-s-cli/backups/modules/Common"
+assert_success "module:update common:3.4.83 --backup"    $CLI module:update common:3.4.83 --backup
+assert_success "module:update --backup keeps the old copy"    bash -c "ls -d ~/.omeka-s-cli/backups/modules/Common/*/config"
 assert_output_contains "module:status common is 'needs_upgrade'" "needs_upgrade"   $CLI module:status common
 assert_success "module:upgrade common"    $CLI module:upgrade common
 assert_output_is "module:list returns one module" "1"   bash -c "$CLI module:list --json  | jq '. | length'"
@@ -324,6 +326,7 @@ assert_fail "module:enable without module id or --all fails"                  $C
 assert_fail "module:install without module id or --all fails"                 $CLI module:install
 assert_fail "module:disable with both module id and --all fails"              $CLI module:disable common --all
 assert_fail "module:upgrade with both module id and --all fails"              $CLI module:upgrade common --all
+assert_fail "module:update without module id or --all fails"                $CLI module:update
 assert_fail "module:delete with both module id and --not-installed fails"     $CLI module:delete common --not-installed
 assert_fail "module:uninstall with both --all and --not-active fails"         $CLI module:uninstall --all --not-active
 
@@ -445,7 +448,33 @@ assert_fail    "theme:delete on an unknown theme fails"                      $CL
 assert_success "theme:delete --ignore-not-found skips an unknown theme"      $CLI theme:delete ghosttheme --ignore-not-found
 assert_output_is "the themes are untouched by the skip" "2"   bash -c "$CLI theme:list --json | jq '. | length'"
 
-# todo: check outdated themes
+# theme:update
+run              "clear theme backups of earlier runs"           bash -c "rm -rf ~/.omeka-s-cli/backups/themes/freedom"
+assert_success   "install an older freedom"                      $CLI theme:download freedom:1.0.7 --force
+# the bundled default theme can be outdated too (core:update leaves themes/ alone), so only freedom is checked
+assert_output_contains "theme:update --all --dry-run lists freedom" "would be updated: .*freedom"  $CLI theme:update --all --dry-run
+assert_output_is "--dry-run changed nothing" "1.0.7"             bash -c "$CLI theme:status freedom --json | jq -r '.[0].version'"
+assert_success   "theme:update freedom --backup"                 $CLI theme:update freedom --backup
+assert_output_is "freedom is up to date" "false"                 bash -c "$CLI theme:status freedom --json | jq -r '.[0].updateAvailable'"
+assert_success   "the backup holds the old copy"                 bash -c "ls -d ~/.omeka-s-cli/backups/themes/freedom/*/config"
+assert_success   "theme:update --all updates the other outdated themes"  $CLI theme:update --all
+assert_output_contains "theme:update --all with nothing to do" "No themes to update."  $CLI theme:update --all
+# an outdated theme that this Omeka S version rejects (e.g. after a core:update) is updated too
+assert_success   "install an older freedom again"                $CLI theme:download freedom:1.0.7 --force
+run              "make freedom require a future Omeka S"         bash -c "sed -i '/^omeka_version_constraint/d; /^\[info\]/a omeka_version_constraint = \"^99.0\"' /var/www/omeka-s/themes/freedom/config/theme.ini"
+assert_output_is "freedom is invalid for this Omeka S" "invalid_omeka_version"  bash -c "$CLI theme:status freedom --json | jq -r '.[0].state'"
+assert_output_contains "theme:update --all --dry-run lists the invalid theme" "would be updated: .*freedom"  $CLI theme:update --all --dry-run
+assert_success   "theme:update --all updates it"                  $CLI theme:update --all
+assert_success   "freedom is valid again"                         bash -c "$CLI theme:status freedom --json | jq -e '.[0].state != \"invalid_omeka_version\" and .[0].updateAvailable == false'"
+assert_fail      "theme:update of an unknown theme fails"        $CLI theme:update ghosttheme
+assert_success   "theme:update --ignore-not-found skips it"      $CLI theme:update ghosttheme --ignore-not-found
+assert_fail      "theme:update --offline fails"                  $CLI theme:update freedom --offline
+assert_fail      "theme:update with an id and --all fails"       $CLI theme:update freedom --all
+# a git-installed theme keeps its folder (#62)
+assert_success   "install Cozy from git"                         $CLI theme:download gh:omeka-s-themes/cozy#v1.6.3 --force
+assert_output_contains "theme:update Cozy downloads it"         "Theme 'Cozy' .*downloaded"  $CLI theme:update Cozy
+assert_success   "Cozy stays in themes/Cozy, no themes/cozy"     bash -c "test -d /var/www/omeka-s/themes/Cozy && ! test -e /var/www/omeka-s/themes/cozy"
+run              "remove Cozy"                                   $CLI theme:delete Cozy --force
 
 # ── users ────────────────────────────────────────────────────────────────────
 

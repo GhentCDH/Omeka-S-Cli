@@ -6,5 +6,6 @@ return [
     new ListCommand(),
     new DeleteCommand(),
     new DownloadCommand(),
+    new UpdateCommand(),
     new StatusCommand(),
 ];

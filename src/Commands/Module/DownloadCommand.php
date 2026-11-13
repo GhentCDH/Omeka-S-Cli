@@ -5,8 +5,8 @@ use Exception;
 use OSC\Addon\AddonIni;
 use OSC\Addon\AddonType;
 use OSC\Addon\InstalledAddons;
-use OSC\Commands\Module\Exceptions\ModuleExistsException;
 use OSC\Downloader\AddonResolver;
+use OSC\Exceptions\AddonExistsException;
 use OSC\Exceptions\NotFoundException;
 use OSC\Addon\ModuleNamespace;
 use OSC\Helper\Offline;
@@ -21,7 +21,7 @@ class DownloadCommand extends AbstractModuleCommand
         parent::__construct('module:download', 'Download module');
         $this->argument('<module>', 'Module URI (syntax: module-id:version, zip-release-url, zip-file, git-url#version|tag|branch)', null);
         $this->option('-f --force', 'Force module download', 'boolval', false);
-        $this->option('-b --backup', 'Backup current module before download (delete otherwise)', 'boolval', false);
+        $this->option('--backup', 'Backup current module before download (delete otherwise)', 'boolval', false);
         $this->option('-i --install', 'Install module after download', 'boolval', false);
         $this->option('-u --upgrade', 'Upgrade module after download', 'boolval', false);
         $this->usage(
@@ -47,7 +47,7 @@ class DownloadCommand extends AbstractModuleCommand
         if (!$force && Offline::isEnabled()) {
             $existing = $installed->find(AddonType::Module, AddonResolver::addonId((string) $module) ?? '');
             if ($existing) {
-                throw new ModuleExistsException("Module '{$existing}' already exists in '{$installed->path(AddonType::Module, $existing)}'. Use the --force option download anyway.");
+                throw new AddonExistsException(AddonType::Module, $existing, $installed->path(AddonType::Module, $existing));
             }
         }
 
@@ -68,7 +68,7 @@ class DownloadCommand extends AbstractModuleCommand
 
             // Check if module is already available
             if ($installed->exists(AddonType::Module, $moduleDirName) && !$force) {
-                throw new ModuleExistsException("Module '{$moduleDirName}' already exists in '{$moduleDestinationPath}'. Use the --force option download anyway.");
+                throw new AddonExistsException(AddonType::Module, $moduleDirName, $moduleDestinationPath);
             }
         }
 
@@ -112,7 +112,7 @@ class DownloadCommand extends AbstractModuleCommand
             // Backup or remove previous version
             if (is_dir($moduleDestinationPath)) {
                 if (!$force) {
-                    throw new ModuleExistsException("Module '{$moduleDirName}' already exists in '{$moduleDestinationPath}'. Use the --force option download anyway.");
+                    throw new AddonExistsException(AddonType::Module, $moduleDirName, $moduleDestinationPath);
                 }
 
                 try {
