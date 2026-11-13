@@ -27,13 +27,20 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+# root ignores file permissions (the read-only directory checks would fail) and leaves root-owned
+# files in /var/www/omeka-s and /tmp that later runs as uid 1000 can not replace
+if [[ $EUID -eq 0 ]]; then
+    echo "Do not run the integration tests as root; use uid 1000 (docker exec -u 1000:1000 ...)." >&2
+    exit 1
+fi
+
 # ── CLI binary ───────────────────────────────────────────────────────────────
 
 BIN="bin/omeka-s-cli"
 [[ $USE_PHAR -eq 1 ]] && BIN="bin/omeka-s-cli.phar"
 
 # shellcheck disable=SC2089
-CLI="docker exec omeka-s-cli-app-1 php /app/omeka-s-cli/$BIN"
+CLI="docker exec -u 1000:1000 omeka-s-cli-app-1 php /app/omeka-s-cli/$BIN"
 if [[ -f /app/omeka-s-cli/$BIN ]]; then
     CLI="php /app/omeka-s-cli/$BIN"
 fi
@@ -755,6 +762,12 @@ run    "clear the export directory"                              rm -rf /tmp/osc
 assert_success "item:export --output-dir writes one file per item" bash -c "$CLI item:export -p dcterms:identifier=it-obj-1 --output-dir /tmp/osc-items-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-items-export | wc -l) -eq 1"
 assert_output_contains "re-importing the export skips the item" "already exists"   bash -c "$CLI item:import /tmp/osc-items-export/*.jsonld"
 assert_output_contains "item:export of several items needs --output-dir" "use --output-dir"   $CLI item:export
+run    "make a read-only directory"  bash -c "rm -rf /tmp/osc-readonly && mkdir /tmp/osc-readonly && chmod 0555 /tmp/osc-readonly"
+assert_fail            "item:export to an unwritable file fails"       $CLI item:export -p dcterms:identifier=it-obj-1 --output /tmp/osc-readonly/item.jsonld
+assert_output_contains "item:export names the reason" "Permission denied"  $CLI item:export -p dcterms:identifier=it-obj-1 --output /tmp/osc-readonly/item.jsonld
+assert_fail            "a failed item:export prints no success line" \
+    bash -c "$CLI item:export -p dcterms:identifier=it-obj-1 --output /tmp/osc-readonly/item.jsonld 2>&1 | grep -q 'exported to'"
+assert_fail            "item:export --output-dir into an unwritable directory fails"  $CLI item:export -p dcterms:identifier=it-obj-1 --output-dir /tmp/osc-readonly/sub
 assert_success "item:search finds the item"                      bash -c "$CLI item:search 'Mona' --json | jq -e 'any(.[]; .title == \"Mona Lisa\")'"
 assert_output_contains "item:list --class with an unknown class" "Unknown resource class"   $CLI item:list --class dctype:Foo
 assert_success "item-set:list lists the item set"                bash -c "$CLI item-set:list --json | jq -e 'any(.[]; .title == \"Paintings\")'"
@@ -1047,6 +1060,8 @@ run            "delete the colliding site"                                 bash 
 
 # export the live instance and check the result round-trips through validate
 assert_success "blueprint:export writes a blueprint"                        bash -c "$CLI blueprint:export /tmp/exported.blueprint.jsonc"
+run    "make a read-only directory"  bash -c "rm -rf /tmp/osc-readonly && mkdir /tmp/osc-readonly && chmod 0555 /tmp/osc-readonly"
+assert_output_contains "blueprint:export to an unwritable file names the reason" "Permission denied"  $CLI blueprint:export /tmp/osc-readonly/x.jsonc
 assert_success "the exported blueprint validates"                          $CLI blueprint:validate /tmp/exported.blueprint.jsonc
 assert_output_contains "the export captures an installed module" "Common"   $CLI blueprint:export
 assert_output_contains "the export captures a site" '"slug": "bp-site-a"'  $CLI blueprint:export

@@ -1,9 +1,9 @@
 <?php
 namespace OSC\Commands\ResourceTemplates;
 
-use Exception;
 use Omeka\Controller\Admin\ResourceTemplateController;
 use Laminas\Http\Request;
+use OSC\Helper\Path;
 
 class ExportCommand extends AbstractResourceTemplateCommand
 {
@@ -53,9 +53,7 @@ class ExportCommand extends AbstractResourceTemplateCommand
             $this->echo($exportContent, true);
         } else {
             // Write to file
-            if (file_put_contents($filename, $exportContent.PHP_EOL) === false) {
-                throw new Exception("Failed to write resource template to file '{$filename}'.");
-            }
+            Path::writeFile($filename, $exportContent.PHP_EOL, "Failed to write resource template to file '{$filename}'");
             $this->ok("Resource template '{$existingResourceTemplate->label()}' exported to '{$filename}'.", true);
         }
     }

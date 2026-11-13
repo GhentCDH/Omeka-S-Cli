@@ -7,7 +7,9 @@ use Omeka\Entity\Media;
 use Omeka\File\TempFileFactory;
 use Omeka\Media\Ingester\IngesterInterface;
 use Omeka\Stdlib\ErrorStore;
+use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -58,7 +60,13 @@ class LocalFileIngester implements IngesterInterface
                 $errorStore->addError('ingest_source', "File not found: {$source}");
                 return;
             }
-            copy($source, $tempFile->getTempPath());
+            try {
+                Path::copyFile($source, $tempFile->getTempPath());
+            } catch (RuntimeException $e) {
+                $tempFile->delete();
+                $errorStore->addError('ingest_source', $e->getMessage());
+                return;
+            }
             $name = basename($source);
         }
 

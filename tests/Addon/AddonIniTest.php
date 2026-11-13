@@ -90,6 +90,20 @@ class AddonIniTest extends TestCase
         AddonIni::fromFile($this->dir . '/config/module.ini');
     }
 
+    public function testABrokenIniNamesTheParseError(): void
+    {
+        file_put_contents($this->dir . '/config/module.ini', "[info\n");
+
+        try {
+            AddonIni::fromAddonDir($this->dir, AddonType::Module);
+            $this->fail('expected a NotFoundException');
+        } catch (NotFoundException $e) {
+            $this->assertStringContainsString('No valid module.ini found', $e->getMessage());
+            $this->assertStringContainsString('syntax error', $e->getMessage());
+            $this->assertSame(1, substr_count($e->getMessage(), $this->dir), 'the path is named once');
+        }
+    }
+
     public function testTheTypeNamesItsFolderAndIni(): void
     {
         $this->assertSame('modules', AddonType::Module->dir());

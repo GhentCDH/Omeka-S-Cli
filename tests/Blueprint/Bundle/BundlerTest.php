@@ -629,6 +629,15 @@ class BundlerTest extends TestCase
         $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
     }
 
+    public function testABrokenIniNamesTheParseError(): void
+    {
+        $zip = $this->zip('foo.zip', ['Foo/config/module.ini' => "[info\n", 'Foo/Module.php' => "<?php\nnamespace Foo;\n"]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("modules[0] 'Foo': config/module.ini is not a valid ini file: syntax error");
+        $this->bundleAddons([['name' => 'Foo', 'source' => $zip]]);
+    }
+
     public function testAnEncryptedZipIsRefused(): void
     {
         if (!method_exists(ZipArchive::class, 'setEncryptionName')) {

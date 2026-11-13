@@ -92,11 +92,12 @@ class DownloadCommand extends AbstractModuleCommand
             // Get module destination path
             if (!$moduleDirName) {
                 // Get module dirname based on module namespace
-                $moduleSrc = file_get_contents(Path::createPath([$moduleSourcePath, "Module.php"]));
-                if (!$moduleSrc) {
+                $modulePhp = Path::createPath([$moduleSourcePath, "Module.php"]);
+                if (!is_file($modulePhp)) {
                     throw new NotFoundException("No valid Module.php found in download folder.");
                 }
-                $moduleDirName = ModuleNamespace::fromModulePhp($moduleSrc);
+                $moduleSrc = Path::readFile($modulePhp);
+                $moduleDirName = ModuleNamespace::requireFromModulePhp($moduleSrc);
             }
             $moduleDestinationPath = $installed->path(AddonType::Module, $moduleDirName);
 
@@ -168,9 +169,7 @@ class DownloadCommand extends AbstractModuleCommand
     private function backupModule(string $path): void
     {
         $backupDir = getenv('HOME') . '/.omeka-s-cli/backups/modules';
-        if (!is_dir($backupDir) && !mkdir($backupDir, 0777, true)) {
-            throw new Exception("Could not create backup directory '{$backupDir}'.");
-        }
+        Path::ensureDir($backupDir, 0777, "Could not create backup directory '{$backupDir}'");
 
         Path::moveFolder($path, Path::createPath([$backupDir, basename($path), date('d-m-Y-H-i-s')]));
     }

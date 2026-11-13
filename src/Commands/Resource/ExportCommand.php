@@ -63,8 +63,8 @@ class ExportCommand extends AbstractResourceCommand
 
         $exporter = new Exporter($this->catalog($instance), $referenceBy ?? 'dcterms:title');
         $dir = $outputDir === null ? null : Path::toAbsolutePath($outputDir, $this->getCwd());
-        if ($dir !== null && !is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
-            throw new Exception("Could not create {$dir}.");
+        if ($dir !== null) {
+            Path::ensureDir($dir, 0777, "Could not create {$dir}");
         }
 
         foreach ($resources as $resource) {
@@ -75,9 +75,9 @@ class ExportCommand extends AbstractResourceCommand
             $json = json_encode($result->document(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
             if ($dir !== null) {
                 $slug = Slug::text((string) $resource->displayTitle());
-                file_put_contents("{$dir}/{$resource->id()}" . ($slug === '' ? '' : "-{$slug}") . '.jsonld', $json);
+                Path::writeFile("{$dir}/{$resource->id()}" . ($slug === '' ? '' : "-{$slug}") . '.jsonld', $json);
             } elseif ($output !== null) {
-                file_put_contents(Path::toAbsolutePath($output, $this->getCwd()), $json);
+                Path::writeFile(Path::toAbsolutePath($output, $this->getCwd()), $json);
                 $this->ok(ucfirst($this->type->label()) . " {$resource->id()} exported to {$output}.", true);
             } else {
                 $this->io()->writer()->raw($json);

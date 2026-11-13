@@ -4,6 +4,7 @@ namespace OSC\Settings;
 
 use Exception;
 use JsonException;
+use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use Otar\JSONC;
 
@@ -77,9 +78,7 @@ class SettingsSerializer
     public function write(SettingsDocument $document, string $directory): string
     {
         $path = rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $document->filename();
-        if (file_put_contents($path, $this->encode($document)) === false) {
-            throw new Exception("Failed to write '{$path}'.");
-        }
+        Path::writeFile($path, $this->encode($document), "Failed to write '{$path}'");
 
         return $path;
     }

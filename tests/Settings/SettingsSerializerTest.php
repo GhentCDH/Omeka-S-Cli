@@ -8,6 +8,7 @@ use OSC\Settings\SettingsSerializer;
 use OSC\Settings\SettingType;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 #[CoversClass(SettingsSerializer::class)]
 class SettingsSerializerTest extends TestCase
@@ -111,6 +112,25 @@ class SettingsSerializerTest extends TestCase
             $path = $this->serializer->write($doc, $dir . '/');
             $this->assertSame($dir . '/Log.setting.jsonc', $path);
         } finally {
+            @unlink($dir . '/Log.setting.jsonc');
+            @rmdir($dir);
+        }
+    }
+
+    public function testWriteIntoAnUnwritableDirectoryNamesTheReason(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root can write to any directory');
+        }
+        $dir = sys_get_temp_dir() . '/osc-serializer-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0555);
+        try {
+            $doc = new SettingsDocument(SettingType::Setting, 'Log', ['log_a' => 1]);
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage("Failed to write '{$dir}/Log.setting.jsonc': Permission denied.");
+            $this->serializer->write($doc, $dir);
+        } finally {
+            chmod($dir, 0700);
             @unlink($dir . '/Log.setting.jsonc');
             @rmdir($dir);
         }

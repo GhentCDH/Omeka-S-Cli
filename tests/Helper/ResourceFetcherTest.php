@@ -142,6 +142,24 @@ class ResourceFetcherTest extends TestCase
         ResourceFetcher::download($this->testFile . '.missing', $this->testFile . '.x');
     }
 
+    public function testDownloadingAFileIntoAnUnwritableDirectoryNamesTheReason(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('root can write to any directory');
+        }
+        $dir = sys_get_temp_dir() . '/rf_readonly_' . uniqid();
+        mkdir($dir, 0555);
+        $target = "{$dir}/copy.txt";
+        try {
+            $this->expectException(\Exception::class);
+            $this->expectExceptionMessage("Failed to copy '{$this->testFile}' to '{$target}': Permission denied.");
+            ResourceFetcher::download($this->testFile, $target);
+        } finally {
+            chmod($dir, 0700);
+            @rmdir($dir);
+        }
+    }
+
     /**
      * Serve $dir with PHP's built-in server for the duration of $test, which gets the base URL.
      *

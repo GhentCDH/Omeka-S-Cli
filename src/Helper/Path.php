@@ -3,7 +3,6 @@
 namespace OSC\Helper;
 
 use DirectoryIterator;
-use Exception;
 use FilesystemIterator;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
@@ -59,28 +58,132 @@ class Path {
         return true;
     }
 
+    /**
+     * Run a filesystem call and turn its failure into one exception that keeps PHP's reason.
+     *
+     * The call runs under a temporary error handler that collects the PHP warning instead of letting
+     * it print. This works whatever error_reporting/display_errors are, and when another handler (a
+     * module's) would swallow the warning so that error_get_last() stays empty. The previous handler
+     * is always restored.
+     *
+     * @param callable $operation The call; a result === false is a failure
+     * @param string   $failure   What failed, e.g. "Could not write 'x'" (a trailing '.' is dropped)
+     *
+     * @return mixed The operation's result
+     *
+     * @throws RuntimeException "<failure>: <reason>." or "<failure>." when PHP gave no reason
+     */
+    public static function checked(callable $operation, string $failure): mixed
+    {
+        $error = null;
+        set_error_handler(function (int $no, string $message) use (&$error): bool {
+            // the first message is the root cause (a recursive mkdir can emit more than one)
+            $error ??= $message;
+            return true;
+        });
+        try {
+            $result = $operation();
+        } finally {
+            restore_error_handler();
+        }
+        if ($result === false) {
+            // trimmed: a parse_ini_file() syntax error ends in a newline
+            $reason = $error === null ? '' : trim(preg_replace(['/^\w+\(.*?\): /s', '/^Failed to open stream: /i'], '', $error));
+            throw new RuntimeException(rtrim($failure, '.') . ($reason !== '' ? ": {$reason}" : '') . '.');
+        }
+        return $result;
+    }
+
+    /** @throws RuntimeException "Could not write '<path>': <reason>." (or $failure) */
+    public static function writeFile(string $path, string $contents, ?string $failure = null): void
+    {
+        self::checked(fn() => file_put_contents($path, $contents), $failure ?? "Could not write '{$path}'");
+    }
+
+    /** @throws RuntimeException "Could not read '<path>': <reason>." (or $failure) */
+    public static function readFile(string $path, ?string $failure = null): string
+    {
+        return self::checked(fn() => file_get_contents($path), $failure ?? "Could not read '{$path}'");
+    }
+
+    /**
+     * Read and parse an ini file. A file that cannot be read fails as in readFile(); a syntax error
+     * keeps PHP's message, without the path it repeats ("syntax error, unexpected ... on line 3").
+     * An empty file is [].
+     *
+     * @param string|null $failure Replaces both default failures below
+     *
+     * @throws RuntimeException "Could not read '<path>': <reason>." or "Could not parse '<path>': <reason>." (or $failure)
+     */
+    public static function readIniFile(string $path, bool $sections = false, ?string $failure = null): array
+    {
+        self::readFile($path, $failure);
+        try {
+            return self::checked(fn() => parse_ini_file($path, $sections), $failure ?? "Could not parse '{$path}'");
+        } catch (RuntimeException $e) {
+            throw new RuntimeException(str_replace(" in {$path} on line ", ' on line ', $e->getMessage()), 0, $e);
+        }
+    }
+
+    /**
+     * Create a directory and its parents (mkdir -p). An existing directory is fine.
+     *
+     * @throws RuntimeException "Could not create directory '<dir>': <reason>." (or $failure)
+     */
+    public static function ensureDir(string $dir, int $mode = 0777, ?string $failure = null): void
+    {
+        // is_dir() after a failed mkdir() also accepts a directory another process created meanwhile;
+        // a file at $dir still fails, with the reason "File exists"
+        self::checked(fn() => mkdir($dir, $mode, true) || is_dir($dir), $failure ?? "Could not create directory '{$dir}'");
+    }
+
+    /**
+     * Move a file. rename() first (PHP's rename() already copies across filesystems itself). When
+     * rename() is refused, the file is copied instead: overwriting an existing file only needs that
+     * file to be writable, where rename() needs its directory to be (self-update replacing a PHAR in a
+     * directory the user can not write to). The copy gets the source's mode, as rename() would keep
+     * it. A source that can not be removed afterwards is left behind: the move itself succeeded.
+     *
+     * @throws RuntimeException "Could not move '<from>' to '<to>': <reason>." (or $failure), with the copy's reason
+     */
+    public static function move(string $from, string $to, ?string $failure = null): void
+    {
+        $failure ??= "Could not move '{$from}' to '{$to}'";
+        try {
+            self::checked(fn() => rename($from, $to), $failure);
+        } catch (RuntimeException) {
+            self::checked(fn() => copy($from, $to), $failure);
+            $mode = @fileperms($from);
+            if ($mode !== false) {
+                @chmod($to, $mode & 0777);
+            }
+            @unlink($from);
+        }
+    }
+
+    /** @throws RuntimeException "Could not copy '<from>' to '<to>': <reason>." (or $failure) */
+    public static function copyFile(string $from, string $to, ?string $failure = null): void
+    {
+        self::checked(fn() => copy($from, $to), $failure ?? "Could not copy '{$from}' to '{$to}'");
+    }
+
     static function createTempFolder(string $prefix = ''): string
     {
         $randomPart = bin2hex(random_bytes(4)); // Generates 8 random characters
         $folderName = $prefix . $randomPart;
         $tempFolderPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $folderName;
 
-        if (!mkdir($tempFolderPath, 0700, true) && !is_dir($tempFolderPath)) {
-            throw new Exception("Failed to create temporary folder: {$tempFolderPath}");
-        }
+        self::ensureDir($tempFolderPath, 0700, "Failed to create temporary folder '{$tempFolderPath}'");
 
         return $tempFolderPath;
     }
 
     static function createTempFile(string $prefix = ''): string
     {
-        $tempFilePath = tempnam(sys_get_temp_dir(), $prefix);
-
-        if (!is_file($tempFilePath)) {
-            throw new Exception("Failed to create temporary file: {$tempFilePath}");
-        }
-
-        return $tempFilePath;
+        return self::checked(
+            fn() => tempnam(sys_get_temp_dir(), $prefix),
+            'Could not create a temporary file in ' . sys_get_temp_dir()
+        );
     }
 
     static function moveFolder(string $source, string $destination): void
@@ -89,11 +192,7 @@ class Path {
             throw new InvalidArgumentException("Source folder '{$source}' does not exist or is not a directory.");
         }
 
-        if (!is_dir($destination)) {
-            if (!mkdir($destination, 0755, true) && !is_dir($destination)) {
-                throw new RuntimeException("Failed to create destination folder '{$destination}'.");
-            }
-        }
+        self::ensureDir($destination, 0755, "Failed to create destination folder '{$destination}'");
 
         $directoryIterator = new DirectoryIterator($source);
         foreach ($directoryIterator as $fileInfo) {
@@ -107,16 +206,12 @@ class Path {
             if ($fileInfo->isDir() && !$fileInfo->isLink()) {
                 static::moveFolder($sourcePath, $destinationPath);
             } else {
-                if (!rename($sourcePath, $destinationPath)) {
-                    throw new RuntimeException("Failed to move file '{$sourcePath}' to '{$destinationPath}'.");
-                }
+                self::move($sourcePath, $destinationPath, "Failed to move file '{$sourcePath}' to '{$destinationPath}'");
             }
         }
 
         // Remove the source folder after moving its contents
-        if (!rmdir($source)) {
-            throw new RuntimeException("Failed to remove source folder '{$source}'.");
-        }
+        self::checked(fn() => rmdir($source), "Failed to remove source folder '{$source}'");
     }
 
     public static function removeFolder(string $path): void
@@ -132,14 +227,11 @@ class Path {
             if ($fileinfo->isDir() && !$fileinfo->isLink()) {
                 static::removeFolder($fileinfo->getPathname());
             } else {
-                if (!unlink($fileinfo->getPathname())) {
-                    throw new RuntimeException("Failed to delete '{$fileinfo->getPathname()}'.");
-                }
+                $file = $fileinfo->getPathname();
+                self::checked(fn() => unlink($file), "Failed to delete '{$file}'");
             }
         }
-        if (!rmdir($path)) {
-            throw new RuntimeException("Failed to remove folder '{$path}'.");
-        }
+        self::checked(fn() => rmdir($path), "Failed to remove folder '{$path}'");
     }
 
     public static function copyFolder(string $source, string $destination): void
@@ -148,11 +240,7 @@ class Path {
             throw new InvalidArgumentException("Source folder '{$source}' does not exist or is not a directory.");
         }
 
-        if (!is_dir($destination)) {
-            if (!mkdir($destination, 0755, true) && !is_dir($destination)) {
-                throw new RuntimeException("Failed to create destination folder '{$destination}'.");
-            }
-        }
+        self::ensureDir($destination, 0755, "Failed to create destination folder '{$destination}'");
 
         $directoryIterator = new DirectoryIterator($source);
         foreach ($directoryIterator as $fileInfo) {
@@ -166,9 +254,7 @@ class Path {
             if ($fileInfo->isDir() && !$fileInfo->isLink()) {
                 static::copyFolder($sourcePath, $destinationPath);
             } else {
-                if (!copy($sourcePath, $destinationPath)) {
-                    throw new RuntimeException("Failed to copy file '{$sourcePath}' to '{$destinationPath}'.");
-                }
+                self::copyFile($sourcePath, $destinationPath, "Failed to copy file '{$sourcePath}' to '{$destinationPath}'");
             }
         }
     }

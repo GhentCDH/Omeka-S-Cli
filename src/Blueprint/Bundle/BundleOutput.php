@@ -45,13 +45,10 @@ final class BundleOutput
             throw new Exception("Output directory '{$target}' is not empty; use --force to replace it.");
         }
         $parent = dirname($target);
-        if (!is_dir($parent) && !mkdir($parent, 0777, true) && !is_dir($parent)) {
-            throw new Exception("Could not create '{$parent}'.");
-        }
+        Path::ensureDir($parent, 0777, "Could not create '{$parent}'");
         $partial = $target . '.partial-' . bin2hex(random_bytes(4));
-        if (!mkdir($partial, 0777)) {
-            throw new Exception("Could not create '{$partial}'.");
-        }
+        // not ensureDir(): the partial directory must be new
+        Path::checked(fn() => mkdir($partial, 0777), "Could not create '{$partial}'");
         return new self($target, $partial);
     }
 
@@ -85,9 +82,7 @@ final class BundleOutput
         if (is_dir($this->target)) {
             Path::removeFolder($this->target);
         }
-        if (!rename($this->partial, $this->target)) {
-            throw new Exception("Could not move the bundle to '{$this->target}'.");
-        }
+        Path::checked(fn() => rename($this->partial, $this->target), "Could not move the bundle to '{$this->target}'");
     }
 
     /** Remove the partial bundle (after a failure). */

@@ -2,6 +2,8 @@
 namespace OSC\Addon;
 
 use OSC\Exceptions\NotFoundException;
+use OSC\Helper\Path;
+use RuntimeException;
 
 /**
  * The [info] section of an add-on's config/module.ini or config/theme.ini: its name, version and
@@ -28,12 +30,20 @@ final class AddonIni
         return self::fromFile(rtrim($addonDir, '/') . '/config/' . $type->iniName());
     }
 
-    /** @throws NotFoundException When the file is missing or is not a valid ini file */
+    /** @throws NotFoundException When the file is missing or is not a valid ini file (with the reason) */
     public static function fromFile(string $path): self
     {
-        $ini = is_file($path) ? @parse_ini_file($path, true) : false;
-        if (!is_array($ini) || $ini === []) {
-            throw new NotFoundException('No valid ' . basename($path) . " found in '" . dirname($path) . "'.");
+        $notFound = 'No valid ' . basename($path) . " found in '" . dirname($path) . "'";
+        if (!is_file($path)) {
+            throw new NotFoundException("{$notFound}.");
+        }
+        try {
+            $ini = Path::readIniFile($path, true, $notFound);
+        } catch (RuntimeException $e) {
+            throw new NotFoundException($e->getMessage(), 0, $e);
+        }
+        if ($ini === []) {
+            throw new NotFoundException("{$notFound}.");
         }
         $info = isset($ini['info']) && is_array($ini['info']) ? $ini['info'] : $ini;
         return new self($info);

@@ -20,6 +20,7 @@ use OSC\Helper\Offline;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Omeka\OmekaDotOrgApi;
+use RuntimeException;
 use stdClass;
 use Throwable;
 
@@ -279,12 +280,8 @@ class Bundler
             $zipPath = AddonType::from($kind)->dir()
                 . "/{$folder}-" . preg_replace('/[^A-Za-z0-9._-]/', '_', $addon['version']) . '.zip';
             $zipDir = dirname("{$dir}/{$zipPath}");
-            if (!is_dir($zipDir) && !mkdir($zipDir, 0777, true) && !is_dir($zipDir)) {
-                throw new Exception("could not create {$zipDir}");
-            }
-            if (!rename($download, "{$dir}/{$zipPath}")) {
-                throw new Exception("could not write {$zipPath}");
-            }
+            Path::ensureDir($zipDir, 0777, "could not create {$zipDir}");
+            Path::move($download, "{$dir}/{$zipPath}", "could not write {$zipPath}");
             return [$folder, $addon['version'], $zipPath, $warnings];
         } finally {
             if (is_file($download)) {
@@ -318,7 +315,7 @@ class Bundler
         if ($root === null) {
             throw new Exception("no config/module.ini found in {$source}");
         }
-        $moduleSrc = is_file("{$root}/Module.php") ? file_get_contents("{$root}/Module.php") : false;
+        $moduleSrc = is_file("{$root}/Module.php") ? Path::readFile("{$root}/Module.php") : false;
         return self::readIni($root, AddonType::Module) + [
             'namespace' => $moduleSrc !== false ? ModuleNamespace::fromModulePhp($moduleSrc) : null,
         ];
@@ -343,8 +340,11 @@ class Bundler
     {
         try {
             $ini = AddonIni::fromAddonDir($root, $type);
-        } catch (NotFoundException) {
-            throw new Exception("config/{$type->iniName()} is not a valid ini file");
+        } catch (NotFoundException $e) {
+            // keep the reason AddonIni gives after its own prefix (e.g. the syntax error)
+            $prefix = 'No valid ' . $type->iniName() . " found in '" . rtrim($root, '/') . "/config'";
+            $reason = str_starts_with($e->getMessage(), $prefix) ? rtrim(substr($e->getMessage(), strlen($prefix)), '.') : '';
+            throw new Exception("config/{$type->iniName()} is not a valid ini file{$reason}", 0, $e);
         }
         $version = $ini->version();
         if ($version === null) {
@@ -389,9 +389,7 @@ class Bundler
             }
         }
         $target = $this->uniquePath($dir, 'vocabularies', $this->safeName($prefix) . '.' . VocabularyFormat::extension($format, $source));
-        if (!rename($download, "{$dir}/{$target}")) {
-            throw new Exception("{$label}: could not write {$target}.");
-        }
+        Path::move($download, "{$dir}/{$target}", "{$label}: could not write {$target}");
         $vocabulary['source'] = './' . $target;
         return $vocabulary;
     }
@@ -463,9 +461,11 @@ class Bundler
             $this->warnings[] = "{$label}: no file extension; Omeka may reject the file";
         }
         $target = $this->uniquePath($dir, 'media', $extension !== null ? "{$name}.{$extension}" : $name);
-        if (!rename($download, "{$dir}/{$target}")) {
+        try {
+            Path::move($download, "{$dir}/{$target}", "{$label}: could not write {$target}");
+        } catch (RuntimeException $e) {
             @unlink($download);
-            throw new Exception("{$label}: could not write {$target}.");
+            throw $e;
         }
         return $target;
     }
@@ -499,9 +499,7 @@ class Bundler
     private function uniquePath(string $dir, string $subdir, string $name): string
     {
         $path = "{$dir}/{$subdir}";
-        if (!is_dir($path) && !mkdir($path, 0777, true) && !is_dir($path)) {
-            throw new Exception("Could not create {$path}.");
-        }
+        Path::ensureDir($path, 0777, "Could not create {$path}");
         $stem = pathinfo($name, PATHINFO_FILENAME);
         $extension = pathinfo($name, PATHINFO_EXTENSION);
         $candidate = $name;
@@ -554,9 +552,7 @@ class Bundler
             }
         }
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        if (file_put_contents("{$dir}/blueprint.json", $json . "\n") === false) {
-            throw new Exception("Could not write {$dir}/blueprint.json.");
-        }
+        Path::writeFile("{$dir}/blueprint.json", $json . "\n", "Could not write {$dir}/blueprint.json");
     }
 
     private function progress(string $message): void
