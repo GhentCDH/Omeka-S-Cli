@@ -6,6 +6,8 @@ use Laminas\ServiceManager\ServiceManager;
 use Omeka\Api\Exception\NotFoundException;
 use Omeka\Api\Manager as ApiManager;
 use Omeka\Api\Representation\SiteRepresentation;
+use Omeka\Site\Theme\Theme;
+use OSC\Addon\ThemeSettingDefaults;
 use OSC\Helper\Config\SiteConfig;
 
 /**
@@ -13,7 +15,9 @@ use OSC\Helper\Config\SiteConfig;
  * - updates are always partial: a full update resets every omitted key, which deletes the site's
  *   pages and item sets and empties its navigation;
  * - o:site_permission replaces the whole list, so one permission is changed by read, merge, write;
- * - the default site is the global setting `default_site`, not a site field.
+ * - the default site is the global setting `default_site`, not a site field;
+ * - a theme's settings (`theme_settings_<theme>`) are only stored when its admin form is saved, so
+ *   seedThemeSettings() stores the theme's ini defaults when a site gets a theme.
  *
  * Callers must run with an elevated identity (AbstractCommand::getOmekaInstance() elevates): private
  * sites are invisible to an anonymous identity, and writes need ACL rights.
@@ -166,6 +170,28 @@ class SiteApi
             }
         }
         return $this->update($site, ['o:site_permission' => $list]);
+    }
+
+    /**
+     * Store the theme's declared defaults (its theme.ini `attributes.value`s) as the site's settings for
+     * that theme, unless the site already has settings for it: an existing setting is never overwritten.
+     *
+     * @return bool Whether the defaults were stored
+     */
+    public function seedThemeSettings(SiteRepresentation $site, Theme $theme): bool
+    {
+        // the service is shared: target it on every call
+        $siteSettings = $this->serviceLocator->get('Omeka\Settings\Site');
+        $siteSettings->setTargetId($site->id());
+        if ($siteSettings->get($theme->getSettingsKey()) !== null) {
+            return false;
+        }
+        $defaults = ThemeSettingDefaults::fromConfigSpec($theme->getConfigSpec());
+        if (!$defaults) {
+            return false;
+        }
+        $siteSettings->set($theme->getSettingsKey(), $defaults);
+        return true;
     }
 
     public function getDefaultSiteId(): ?int

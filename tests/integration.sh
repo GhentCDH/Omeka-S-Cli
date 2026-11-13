@@ -501,6 +501,14 @@ assert_success "site:list returns results"                                     $
 assert_success "create a site"                                                 $CLI site:add "Integration Site" --slug it-site --summary "A test site"
 assert_output_is "the site got the default theme" "default"                    bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .theme'"
 assert_output_is "the site is public" "true"                                   bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_public'"
+# Omeka only stores theme settings when the admin form is saved; the CLI stores the theme's ini defaults
+SITE_CFG=/tmp/osc-site-cfg
+site_accent_color() {
+    rm -rf "$SITE_CFG"
+    $CLI config:export "$SITE_CFG" --scope site_setting --quiet
+    tail -n +2 "$SITE_CFG/core.site_setting.it-site.jsonc" | jq -r '.settings.theme_settings_default.accent_color'
+}
+assert_output_is "site:add stored the theme's default settings" "#920b0b"      site_accent_color
 assert_fail    "creating a site with an existing slug fails"                   $CLI site:add "Other Site" --slug it-site
 assert_success "site:add --ignore-existing skips an existing slug"             $CLI site:add "Other Site" --slug it-site --ignore-existing
 assert_fail    "site:add rejects an invalid slug"                              $CLI site:add "Bad Site" --slug "bad slug"
@@ -510,8 +518,11 @@ assert_success "update the site title"                                         $
 assert_output_contains "site:update --json shows the new title" "Renamed Site" bash -c "$CLI site:update it-site --title 'Renamed Site' --json"
 # a partial update keeps the pages Omeka created with the site (a full update would delete them)
 assert_output_is "the update kept the site's welcome page" "1"                 bash -c "curl -s 'http://localhost/api/sites?slug=it-site' | jq '.[0][\"o:page\"] | length'"
+run            "change a theme setting of the site"                            bash -c "printf '%s' '{\"type\": \"site_setting\", \"module\": \"core\", \"site\": \"it-site\", \"settings\": {\"theme_settings_default\": {\"accent_color\": \"#000000\"}}}' > $SITE_CFG.json && $CLI config:import $SITE_CFG.json"
 assert_success "a theme in other casing is accepted"                           $CLI site:update it-site --theme Default
 assert_output_is "the theme is stored as its real id" "default"                bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .theme'"
+assert_output_is "site:update --theme kept the changed theme setting" "#000000" site_accent_color
+run            "clean up the site settings export"                             rm -rf "$SITE_CFG" "$SITE_CFG.json"
 assert_success "make the site private"                                         $CLI site:update it-site --private
 assert_output_is "the site is private" "false"                                 bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"it-site\") | .is_public'"
 assert_fail    "site:update rejects --public with --private"                   $CLI site:update it-site --public --private

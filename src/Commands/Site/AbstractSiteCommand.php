@@ -3,6 +3,7 @@ namespace OSC\Commands\Site;
 
 use InvalidArgumentException;
 use Omeka\Api\Representation\SiteRepresentation;
+use Omeka\Site\Theme\Theme;
 use OSC\Commands\User\AbstractUserCommand;
 use OSC\Exceptions\NotFoundException;
 use OSC\Omeka\SiteApi;
@@ -39,22 +40,30 @@ abstract class AbstractSiteCommand extends AbstractUserCommand
     }
 
     /**
-     * The id of an installed theme, in its real casing (Omeka does not check that a theme exists).
+     * An installed theme, by id in any casing (Omeka does not check that a theme exists).
      *
      * @throws InvalidArgumentException If the theme is not installed
      */
-    protected function resolveTheme(string $theme): string
+    protected function requireTheme(string $theme): Theme
     {
         $themeApi = $this->getOmekaInstance()->getThemeApi();
         try {
-            return $themeApi->getTheme($theme)->getId();
+            return $themeApi->getTheme($theme);
         } catch (NotFoundException) {
             // a theme downloaded earlier in this process (e.g. by a blueprint deploy) needs a reload
         }
         try {
-            return $themeApi->getTheme($theme, true)->getId();
+            return $themeApi->getTheme($theme, true);
         } catch (NotFoundException) {
             throw new InvalidArgumentException("Theme not found: {$theme}. Download it first with 'theme:download {$theme}'.");
+        }
+    }
+
+    /** Store the theme's default settings for the site, unless it has settings for that theme already. */
+    protected function seedThemeSettings(SiteRepresentation $site, Theme $theme): void
+    {
+        if ($this->siteApi()->seedThemeSettings($site, $theme)) {
+            $this->info("Theme '{$theme->getId()}': default settings stored for site '{$site->slug()}'.", true);
         }
     }
 

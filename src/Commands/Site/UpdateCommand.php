@@ -46,11 +46,12 @@ class UpdateCommand extends AbstractSiteCommand
         }
 
         // prepare data for update
+        $themeObject = $theme !== null ? $this->requireTheme($theme) : null;
         $data = SiteConfig::forUpdate([
             'title' => $title,
             'slug' => $slug,
             'summary' => $summary,
-            'theme' => $theme !== null ? $this->resolveTheme($theme) : null,
+            'theme' => $themeObject?->getId(),
             'isPublic' => $public || $private ? (bool) $public : null,
             'assignNewItems' => $assignNewItems || $stopAssigningNewItems ? (bool) $assignNewItems : null,
         ])->toApiPatch();
@@ -62,6 +63,9 @@ class UpdateCommand extends AbstractSiteCommand
         // update site
         if ($data) {
             $siteRepresentation = $siteApi->update($siteRepresentation, $data);
+        }
+        if ($themeObject) {
+            $this->seedThemeSettings($siteRepresentation, $themeObject);
         }
 
         // set default site if requested

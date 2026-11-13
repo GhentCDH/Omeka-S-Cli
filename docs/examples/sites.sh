@@ -29,6 +29,10 @@ omeka-s-cli site:add "Staff Intranet" --slug intranet --private \
 omeka-s-cli site:list --json | jq -e '.[] | select(.slug == "intranet")
     | .is_public == false and .is_default == false and .owner == "jane.doe@example.org"'
 test "$(sql "SELECT assign_new_items FROM site WHERE slug = 'intranet'")" = 0
+# the site got the default theme's declared default settings
+rm -rf "$SCRATCH_DIR/check" && omeka-s-cli config:export "$SCRATCH_DIR/check" --scope site_setting --quiet
+tail -n +2 "$SCRATCH_DIR/check/core.site_setting.intranet.jsonc" \
+    | jq -e '.settings.theme_settings_default.accent_color == "#920b0b"'
 
 # without --slug, the title identifies the site: a second add of the same title fails ...
 omeka-s-cli site:add "Exhibitions"

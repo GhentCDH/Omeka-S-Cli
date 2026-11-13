@@ -33,11 +33,12 @@ class AddCommand extends AbstractSiteCommand
         ?bool $ignoreExisting = false,
         ?bool $json = false
     ): void {
+        $themeObject = $this->requireTheme($theme ?? SiteConfig::DEFAULT_THEME);
         $config = SiteConfig::fromArray([
             'title' => $title,
             'slug' => $slug,
             'summary' => $summary,
-            'theme' => $this->resolveTheme($theme ?? SiteConfig::DEFAULT_THEME),
+            'theme' => $themeObject->getId(),
             'isPublic' => !$private,
             'assignNewItems' => $assignNewItems ?? true,
         ]);
@@ -62,6 +63,7 @@ class AddCommand extends AbstractSiteCommand
 
         // create site
         $site = $siteApi->create($config, $ownerId);
+        $this->seedThemeSettings($site, $themeObject);
 
         // set default site if requested
         if ($default) {
