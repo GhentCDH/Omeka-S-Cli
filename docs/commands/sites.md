@@ -22,6 +22,11 @@ Without `--theme` the site uses the `default` theme that ships with Omeka S. Any
 be downloaded first, with [`theme:download`](themes.md); an unknown theme is refused. `--default` makes
 the new site the default site: the site that visitors see at the root URL of the installation.
 
+The site also gets the default settings the theme declares in its `theme.ini`, so the theme looks as its
+author intended before anyone opens its settings form. Settings without a declared default stay unset
+until the form is saved. `site:update --theme` does the same for the new theme, unless the site already
+has settings for it.
+
 By default a site is public, its owner is the first active global administrator, and new items are
 added to it automatically. Each of these can be changed:
 

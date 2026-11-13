@@ -83,6 +83,9 @@ Choose the theme of a site when you create it, or change it later with
 --8<-- "docs/examples/themes.sh:use"
 ```
 
+The site gets the theme's default settings right away. Omeka S itself only stores them when the theme
+settings form is saved in the admin interface. Settings a site already has for the theme are kept.
+
 ## List themes and check their status
 
 `theme:list` shows every theme in the `themes/` directory, with its version and the latest version in the
