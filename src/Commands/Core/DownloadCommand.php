@@ -97,7 +97,7 @@ class DownloadCommand extends AbstractModuleCommand
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {
-            $this->io()->eol();
+            $this->endLine();
         }
 
         try {
@@ -108,7 +108,7 @@ class DownloadCommand extends AbstractModuleCommand
             }
             $this->info("done");
         } finally {
-            $this->io()->eol();
+            $this->endLine();
         }
 
         // Copy folders

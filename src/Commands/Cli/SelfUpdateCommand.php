@@ -79,7 +79,7 @@ class SelfUpdateCommand extends AbstractCommand
             ResourceFetcher::download(self::DOWNLOAD_URL, $tmpFile);
         } catch (Exception $e) {
             @unlink($tmpFile);
-            $this->io()->eol();
+            $this->endLine();
             throw $e;
         }
 

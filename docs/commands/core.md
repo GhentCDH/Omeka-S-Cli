@@ -99,6 +99,11 @@ yourself, such as a `.htaccess` owned by another user, does not stop the update,
 write to the Omeka S directory. A core folder you cannot write to, such as `application/` owned by
 the web server, does: the update then rolls back.
 
+If the staging directory has to stay (it then holds the only copy of the previous files) or cannot
+be removed, `core:update` says where it is, also under `--quiet`; the exit code stays 0 when the
+update itself worked. A staging directory left by an earlier, interrupted run is reported at the
+start of the next `core:update`. Check its `old/` files, then remove it.
+
 A customised `.htaccess` is replaced by the release's; the previous one is saved next to it as
 `.htaccess.bak-<date-time>`, so you can merge your changes back. Add `--backup` to keep the replaced
 files under `~/.omeka-s-cli/backups/core/<version>/<date-time>/` instead of deleting them.

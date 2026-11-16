@@ -157,6 +157,33 @@ final class CoreSwap
         }
     }
 
+    /**
+     * Staging directories an earlier update left behind (a crash, or one kept on purpose), in every
+     * place a stage can be: $stageDir, next to the Omeka S root and inside it. They are reported,
+     * never removed: one can hold the only copy of the previous core.
+     *
+     * @return string[] Sorted paths
+     */
+    public static function findLeftovers(string $omekaPath, ?string $stageDir = null): array
+    {
+        $root = rtrim(realpath($omekaPath) ?: $omekaPath, '/');
+        $places = [dirname($root), $root];
+        if ($stageDir !== null) {
+            $places[] = rtrim(realpath($stageDir) ?: $stageDir, '/');
+        }
+        $found = [];
+        foreach (array_unique($places) as $place) {
+            foreach (glob($place . '/' . self::PREFIX . '*', GLOB_ONLYDIR) ?: [] as $dir) {
+                if (preg_match('/^' . preg_quote(self::PREFIX, '/') . '[0-9a-f]{32}$/', basename($dir))) {
+                    $found[] = $dir;
+                }
+            }
+        }
+        $found = array_values(array_unique($found));
+        sort($found, SORT_STRING);
+        return $found;
+    }
+
     /** The staging directory. */
     public function stagePath(): string
     {

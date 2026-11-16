@@ -468,4 +468,28 @@ class CoreSwapTest extends TestCase
         $this->assertSame($before, $this->tree($this->root));
         $swap->cleanup();
     }
+
+    public function testLeftoverStagesAreFoundInEveryPlaceAStageCanBe(): void
+    {
+        $name = '.omeka-s-cli-update-' . str_repeat('a', 32);
+        mkdir("{$this->root}/{$name}");                  // inside the root
+        mkdir("{$this->tmp}/{$name}");                   // next to the root
+        mkdir("{$this->tmp}/stage-here/{$name}", 0700, true);   // a --stage-dir
+        mkdir("{$this->root}/.omeka-s-cli-update-x");    // not a stage name
+        touch("{$this->root}/.omeka-s-cli-update-" . str_repeat('b', 32));   // a file, not a stage
+
+        $this->assertSame(
+            [realpath($this->tmp) . "/{$name}", realpath($this->root) . "/{$name}", realpath($this->tmp) . "/stage-here/{$name}"],
+            CoreSwap::findLeftovers($this->root, "{$this->tmp}/stage-here")
+        );
+        $this->assertSame(
+            [realpath($this->tmp) . "/{$name}", realpath($this->root) . "/{$name}"],
+            CoreSwap::findLeftovers($this->root)
+        );
+    }
+
+    public function testNoLeftoversIsAnEmptyList(): void
+    {
+        $this->assertSame([], CoreSwap::findLeftovers($this->root));
+    }
 }

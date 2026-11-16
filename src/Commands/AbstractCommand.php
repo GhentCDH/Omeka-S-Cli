@@ -237,6 +237,19 @@ abstract class AbstractCommand extends Command
     }
 
     /**
+     * End a progress line started with info($message) (no eol): only when info() printed it, so
+     * --quiet output gets no empty lines.
+     *
+     * @return void
+     */
+    public function endLine(): void
+    {
+        if ($this->isVerbose(self::VERBOSITY_DETAIL)) {
+            $this->io()->eol();
+        }
+    }
+
+    /**
      * A neutral, structural narrative line (e.g. a deploy step), shown at the outcome tier.
      *
      * @param string $message The message

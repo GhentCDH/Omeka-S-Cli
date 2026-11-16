@@ -36,7 +36,7 @@ class MigrateCommand extends AbstractCommand
             $migrationManager->upgrade();
             $this->info('done');
         } finally {
-            $this->io()->eol();
+            $this->endLine();
         }
 
         $this->ok("Database migrated.", true);

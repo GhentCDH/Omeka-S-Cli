@@ -210,8 +210,22 @@ run              "make a stage directory on the Omeka S filesystem"      bash -c
 assert_success   "core:update --stage-dir stages there"                 $CLI core:update 4.2.1 --force --stage-dir /var/www/omeka-s/logs/osc-stage
 assert_success   "the stage directory is empty again"                   bash -c "test -z \"\$(ls -A /var/www/omeka-s/logs/osc-stage)\""
 run              "remove the stage directory"                            rm -rf /var/www/omeka-s/logs/osc-stage
+# a staging directory left behind is reported, also under --quiet, with exit code 0
+run              "make the core backup directory read-only"              bash -c "mkdir -p ~/.omeka-s-cli/backups/core && chmod 0555 ~/.omeka-s-cli/backups/core"
+assert_success   "core:update --quiet reports a staging directory it had to keep (exit 0)" \
+    bash -c "out=\$($CLI core:update 4.2.1 --force --backup --quiet 2>&1) && echo \"\$out\" | grep -q 'was left behind'"
+run              "make the core backup directory writable again"         bash -c "chmod 0755 ~/.omeka-s-cli/backups/core"
+assert_success   "the next core:update --quiet reports the leftover (exit 0)" \
+    bash -c "out=\$($CLI core:update 4.2.1 --force --quiet 2>&1) && echo \"\$out\" | grep -q 'was left at'"
+run              "remove the leftover staging directories"               bash -c "rm -rf /var/www/omeka-s/.omeka-s-cli-update-* /var/www/.omeka-s-cli-update-*"
+assert_success   "core:update --quiet prints nothing when all goes well" \
+    bash -c "set -o pipefail; bytes=\$($CLI core:update 4.2.1 --force --quiet 2>&1 | wc -c) && test \"\$bytes\" -eq 0"
 assert_output_contains "core:status is 'needs_migration'" "needs_migration"   $CLI core:status
-assert_success "core:migrate" $CLI core:migrate
+assert_success "core:migrate --quiet prints nothing" \
+    bash -c "set -o pipefail; bytes=\$($CLI core:migrate --quiet 2>&1 | wc -c) && test \"\$bytes\" -eq 0"
+assert_success "core:download --quiet prints nothing" \
+    bash -c "set -o pipefail; rm -rf ~/osc-quiet-download; bytes=\$($CLI core:download ~/osc-quiet-download 4.2.1 --create-destination --quiet 2>&1 | wc -c) && test \"\$bytes\" -eq 0 && test -f ~/osc-quiet-download/application/Module.php"
+run            "remove the quiet download"   bash -c "rm -rf ~/osc-quiet-download"
 
 cd /var/www || exit
 assert_output_is "core:version from cwd /var/www with relative base path ./omeka-s" "4.2.1"  $CLI core:version --base-path ./omeka-s
