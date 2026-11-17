@@ -173,13 +173,35 @@ summary() {
 
 # ── setup ────────────────────────────────────────────────────────────────────
 
+# setup_error "message" [output]  — the environment is not ready: report and stop the run
+setup_error() {
+    echo -e "  ${RED}ERROR${NC} $1" >&2
+    if [[ -n "${2:-}" ]]; then echo "$2" | sed 's/^/        /' >&2; fi
+    echo "" >&2
+    echo "  Setup could not prepare a fresh instance; stopping, every section needs one." >&2
+    exit 1
+}
+
+# drop the database and empty the Omeka S directory (hidden entries included). This prepares the
+# environment and tests nothing, so it is not counted: a failure stops the run with the reason
+# instead of failing every test after it.
+reset_instance() {
+    local output
+    if [[ ! -d /var/www/omeka-s ]]; then
+        setup_error "/var/www/omeka-s does not exist; run the tests in the dev container (docker exec -u 1000:1000 omeka-s-cli-app-1 /app/omeka-s-cli/tests/integration.sh)"
+    fi
+    output=$(mysql -u root -proot -h db -e 'DROP DATABASE IF EXISTS omeka; CREATE DATABASE omeka' 2>&1) \
+        || setup_error "could not recreate the database omeka" "$output"
+    # a read-only directory left by an interrupted run can not be emptied: restore write access first
+    chmod -R u+rwX /var/www/omeka-s 2>/dev/null || true
+    output=$(find /var/www/omeka-s -mindepth 1 -delete 2>&1) \
+        || setup_error "could not empty /var/www/omeka-s; for files owned by another user run: docker exec omeka-s-cli-app-1 chown -R 1000:1000 /var/www/omeka-s" "$output"
+    echo "  done  database omeka recreated, /var/www/omeka-s emptied"
+}
+
 section "Setup"
 
-assert_success "drop database omeka" bash -c 'echo "drop database if exists omeka" | mysql -u root -proot -h db'
-assert_success "create database omeka" bash -c 'echo "create database omeka" | mysql -u root -proot -h db'
-
-assert_success "empty /var/www/omeka-s " rm -rf /var/www/omeka-s/*
-assert_success "remove .htaccess" rm -rf /var/www/omeka-s/.htaccess
+if [[ $SECTION_SKIP -eq 0 ]]; then reset_instance; fi
 
 echo ""
 cd /var/www/omeka-s || exit
@@ -189,13 +211,22 @@ assert_success "config:create-db-ini"         $CLI config:create-db-ini --userna
 assert_success "core:install"                $CLI core:install
 assert_success "core:status --is-installed"           $CLI core:status --is-installed
 
+# without an installed instance every later test fails for the same reason
+if [[ $SECTION_SKIP -eq 0 && $FAIL -gt 0 ]]; then
+    echo ""
+    echo -e "  ${RED}Setup failed${NC}: the other sections need the installed instance; stopping."
+    summary || true
+    exit 1
+fi
+
 # ── core ─────────────────────────────────────────────────────────────────────
 
 section "Core"
 assert_output_is "core:version shows version" "4.1.1"  $CLI core:version
 assert_output_contains "core:status is 'installed'" "installed"   $CLI core:status
 assert_fail "core:upgrade to nonexistent version fails" $CLI core:upgrade 9.9.9
-run              "clear core backups of earlier runs"                   bash -c "rm -rf ~/.omeka-s-cli/backups/core"
+# an interrupted run can leave the backup directory read-only (see below): restore write access first
+run              "clear core backups of earlier runs"                   bash -c "chmod -R u+rwX ~/.omeka-s-cli/backups/core 2>/dev/null; rm -rf ~/.omeka-s-cli/backups/core"
 run              "make .htaccess read-only (the reported failure)"   chmod 0444 /var/www/omeka-s/.htaccess
 assert_success   "core:update to 4.2.1 replaces a read-only .htaccess"  $CLI core:update 4.2.1 --backup
 assert_output_is "core:version after update" "4.2.1"                  $CLI core:version
