@@ -39,7 +39,7 @@ class UpdateCommand extends AbstractCommand
                 }
                 $this->info('done');
             } finally {
-                $this->io()->eol();
+                $this->endLine();
             }
         }
 
@@ -75,6 +75,9 @@ class UpdateCommand extends AbstractCommand
         } else {
             $stageDir = null;
         }
+        foreach (CoreSwap::findLeftovers($destPath, $stageDir) as $leftover) {
+            $this->reportLeftover("A staging directory of an earlier core:update was left at '{$leftover}'. Check its old/ files (they can be the only copy of a previous core), then remove it.");
+        }
 
         // Download the specified version
         if ($versionNumber === "dev") {
@@ -90,11 +93,12 @@ class UpdateCommand extends AbstractCommand
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {
-            $this->io()->eol();
+            $this->endLine();
         }
 
         // everything after the download is under one try, so the download is always removed
         $swap = null;
+        $updated = false;
         try {
             try {
                 $this->info("Verify core files ... ");
@@ -104,7 +108,7 @@ class UpdateCommand extends AbstractCommand
                 }
                 $this->info("done");
             } finally {
-                $this->io()->eol();
+                $this->endLine();
             }
 
             // the new files are staged first and swapped in with renames: a failure leaves the previous
@@ -116,15 +120,16 @@ class UpdateCommand extends AbstractCommand
                 $swap->stage($srcPath, $stageDir);
                 $this->info("done in {$swap->stagePath()}");
             } finally {
-                $this->io()->eol();
+                $this->endLine();
             }
 
             try {
                 $this->info("Replace core files ... ");
                 $swap->swap();
+                $updated = true;
                 $this->info("done");
             } finally {
-                $this->io()->eol();
+                $this->endLine();
             }
 
             // the core is replaced from here on: a failure below is a warning, and CoreSwap then keeps the
@@ -135,7 +140,7 @@ class UpdateCommand extends AbstractCommand
                     $this->warn("The release replaced your customised .htaccess; the previous one is saved as '{$savedHtaccess}'. Merge your changes back if needed.", true);
                 }
             } catch (RuntimeException $e) {
-                $this->warn($e->getMessage(), true);
+                $this->reportLeftover($e->getMessage());
             }
 
             if ($backup) {
@@ -144,13 +149,15 @@ class UpdateCommand extends AbstractCommand
                     $swap->keepBackup($backupDir);
                     $this->info("Previous core kept in '{$backupDir}'.", true);
                 } catch (RuntimeException $e) {
-                    $this->warn($e->getMessage(), true);
+                    $this->reportLeftover($e->getMessage());
                 }
             }
         } finally {
             $warning = $swap?->cleanup();
             if ($warning !== null) {
-                $this->warn($warning, true);
+                $this->reportLeftover($updated
+                    ? "Omeka S core updated to {$versionNumber}, but a staging directory was left behind. {$warning}"
+                    : $warning);
             }
             // a failure here must not hide the error that is propagating (it may say where the previous files are)
             try {
@@ -158,11 +165,25 @@ class UpdateCommand extends AbstractCommand
                 Path::removeFolder($tmpDownloadPath);
                 $this->info("done", true);
             } catch (Throwable $e) {
-                $this->io()->eol();
+                $this->endLine();
                 $this->warn("Could not remove the download '{$tmpDownloadPath}': {$e->getMessage()}", true);
             }
         }
 
         $this->ok("Omeka S core updated to version {$versionNumber}.", true);
+    }
+
+    /**
+     * Report a staging directory that was, or may be, left in or next to the web root. A warning
+     * normally; under --quiet an error message, which --quiet does not hide, so a script still learns
+     * about it. The exit code is not changed: the update itself succeeded.
+     */
+    private function reportLeftover(string $message): void
+    {
+        if ($this->isVerbose(self::VERBOSITY_OUTCOMES)) {
+            $this->warn($message, true);
+        } else {
+            $this->io()->error($message, true);
+        }
     }
 }
