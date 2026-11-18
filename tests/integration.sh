@@ -485,6 +485,18 @@ assert_fail    "theme:search --offline fails" $CLI theme:search freedom --offlin
 assert_success "theme:download freedom --offline: already on disk, warns and exits 0" \
     bash -c "out=\$($CLI theme:download freedom --offline 2>&1) && echo \"\$out\" | grep -q 'already exists'"
 assert_fail    "theme:download --offline of a theme not on disk exits non-zero" $CLI theme:download nonexistent-theme-xyz --offline
+
+# theme:search against the repositories
+assert_success "theme:search freedom finds it" \
+    bash -c "set -o pipefail; $CLI theme:search freedom --json | jq -e 'any(.[]; (.id | ascii_downcase) == \"freedom\")'"
+assert_success "theme:search without a query lists the themes" \
+    bash -c "set -o pipefail; $CLI theme:search --json | jq -e 'length > 1'"
+assert_success "theme:search with no match is an empty list" \
+    bash -c "set -o pipefail; $CLI theme:search nonexistent-theme-xyz --json | jq -e 'length == 0'"
+assert_output_contains "theme:search with no match says so" "No themes found"  $CLI theme:search nonexistent-theme-xyz
+assert_success "theme:search --include-incompatible lists at least as many themes" \
+    bash -c "set -o pipefail; all=\$($CLI theme:search --include-incompatible --json | jq length) && compatible=\$($CLI theme:search --json | jq length) && test \"\$all\" -ge \"\$compatible\""
+
 assert_success "delete freedom theme"    $CLI theme:delete freedom
 assert_success "download and install freedom theme again"    $CLI theme:download freedom
 assert_fail    "install unknown theme fails"   $CLI theme:download nonexistent-theme-xyz --install
@@ -493,19 +505,20 @@ assert_fail    "theme:delete on an unknown theme fails"                      $CL
 assert_success "theme:delete --ignore-not-found skips an unknown theme"      $CLI theme:delete ghosttheme --ignore-not-found
 assert_output_is "the themes are untouched by the skip" "2"   bash -c "$CLI theme:list --json | jq '. | length'"
 
-# theme:update
+# theme:update; 1.0.6 is outdated on Omeka S 4.1 (latest compatible 1.0.7) and 4.2 (1.2.0), so the
+# section passes with and without the Core section's update to 4.2
 run              "clear theme backups of earlier runs"           bash -c "rm -rf ~/.omeka-s-cli/backups/themes/freedom"
-assert_success   "install an older freedom"                      $CLI theme:download freedom:1.0.7 --force
+assert_success   "install an older freedom"                      $CLI theme:download freedom:1.0.6 --force
 # the bundled default theme can be outdated too (core:update leaves themes/ alone), so only freedom is checked
 assert_output_contains "theme:update --all --dry-run lists freedom" "would be updated: .*freedom"  $CLI theme:update --all --dry-run
-assert_output_is "--dry-run changed nothing" "1.0.7"             bash -c "$CLI theme:status freedom --json | jq -r '.[0].version'"
+assert_output_is "--dry-run changed nothing" "1.0.6"             bash -c "$CLI theme:status freedom --json | jq -r '.[0].version'"
 assert_success   "theme:update freedom --backup"                 $CLI theme:update freedom --backup
 assert_output_is "freedom is up to date" "false"                 bash -c "$CLI theme:status freedom --json | jq -r '.[0].updateAvailable'"
 assert_success   "the backup holds the old copy"                 bash -c "ls -d ~/.omeka-s-cli/backups/themes/freedom/*/config"
 assert_success   "theme:update --all updates the other outdated themes"  $CLI theme:update --all
 assert_output_contains "theme:update --all with nothing to do" "No themes to update."  $CLI theme:update --all
 # an outdated theme that this Omeka S version rejects (e.g. after a core:update) is updated too
-assert_success   "install an older freedom again"                $CLI theme:download freedom:1.0.7 --force
+assert_success   "install an older freedom again"                $CLI theme:download freedom:1.0.6 --force
 run              "make freedom require a future Omeka S"         bash -c "sed -i '/^omeka_version_constraint/d; /^\[info\]/a omeka_version_constraint = \"^99.0\"' /var/www/omeka-s/themes/freedom/config/theme.ini"
 assert_output_is "freedom is invalid for this Omeka S" "invalid_omeka_version"  bash -c "$CLI theme:status freedom --json | jq -r '.[0].state'"
 assert_output_contains "theme:update --all --dry-run lists the invalid theme" "would be updated: .*freedom"  $CLI theme:update --all --dry-run
@@ -698,6 +711,23 @@ assert_success "add vocabulary schema.org from local config (source url)" $CLI v
 assert_success "delete vocabulary schema.org" $CLI vocabulary:delete schema
 assert_success "add vocabulary from local config with a RELATIVE source" $CLI vocabulary:import --config /app/omeka-s-cli/examples/vocabulary/example-local.json
 assert_success "delete the relative-source vocabulary" $CLI vocabulary:delete ex
+
+# vocabulary:create-import-config writes the config that vocabulary:import --config reads
+VOCAB_CFG=/tmp/osc-vocab-config
+run "remove a vocabulary left by an earlier run" $CLI vocabulary:delete ex --ignore-not-found
+run "make a directory with a local vocabulary" bash -c "rm -rf $VOCAB_CFG && mkdir -p $VOCAB_CFG && cp /app/omeka-s-cli/examples/vocabulary/example.ttl $VOCAB_CFG/"
+assert_success "vocabulary:create-import-config prints the config" \
+    bash -c "set -o pipefail; $CLI vocabulary:create-import-config --source example.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example --format turtle | jq -e '.source == \"example.ttl\" and .namespaceUri == \"http://example.org/ns#\" and .prefix == \"ex\" and .label == \"Example\" and .format == \"turtle\"'"
+assert_success "vocabulary:create-import-config --output writes the file" \
+    $CLI vocabulary:create-import-config --source example.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example --format turtle --output $VOCAB_CFG/ex.json
+assert_success "the written config has the same fields" jq -e '.source == "example.ttl" and .prefix == "ex" and .format == "turtle"' $VOCAB_CFG/ex.json
+assert_success "vocabulary:import --config imports the created config" $CLI vocabulary:import --config $VOCAB_CFG/ex.json
+assert_success "delete the vocabulary of the created config" $CLI vocabulary:delete ex
+assert_fail "vocabulary:create-import-config without --prefix fails" \
+    $CLI vocabulary:create-import-config --source example.ttl --namespace-uri 'http://example.org/ns#' --label Example
+assert_fail "vocabulary:create-import-config with an unknown --format fails" \
+    $CLI vocabulary:create-import-config --source example.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example --format bogus
+run "remove the config directory" rm -rf $VOCAB_CFG
 assert_success "add vocabulary person-name-vocabulary from remote config" $CLI vocabulary:import --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Vocabularies/refs/heads/main/person-name-vocabulary.json
 
 run "delete vocabulary person-name-vocabulary" $CLI vocabulary:delete pvn
@@ -796,6 +826,10 @@ assert_fail 'delete nonexistent resource template fails'        $CLI resource-te
 assert_success 'resource-template:delete --ignore-not-found skips a missing template'  $CLI resource-template:delete "nonexistent resource template" --ignore-not-found
 assert_fail    "import nonexistent file fails"                  $CLI resource-template:import /tmp/nonexistent.json
 
+# the Modules section installs these; make sure they are there when this section runs on its own
+run "make sure Common is installed" $CLI module:download common --install
+run "make sure Log is installed"    $CLI module:download log --install
+
 run "ensure dependencies for template with dependencies are not installed" $CLI module:disable log
 run "ensure dependencies for template with dependencies are not installed" $CLI module:disable common
 
@@ -816,6 +850,20 @@ assert_success "install dependency: numericdatatypes" $CLI module:download numer
 assert_success "install dependency: valuesuggest" $CLI module:download valuesuggest --install --force
 assert_success "install dependency: NdeTermennetwerk"    $CLI module:download NdeTermennetwerk --install --force
 assert_success "re-import resource template with dependencies"    $CLI resource-template:import /app/omeka-s-cli/examples/resource-template/template-with-dependencies.json --update
+
+# resource-template:export, by label and by id, and the export imports again
+RT_EXPORT=/tmp/osc-rt-export
+run "clear the export directory"                                    bash -c "rm -rf $RT_EXPORT && mkdir -p $RT_EXPORT"
+assert_success "resource-template:export by label prints the template" \
+    bash -c "set -o pipefail; $CLI resource-template:export Letters | jq -e '.\"o:label\" == \"Letters\"'"
+RT_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then RT_ID=$($CLI resource-template:list --json 2>/dev/null | jq '.[] | select(.label == "Letters") | .id'); fi
+assert_success "resource-template:export by id writes a file"       $CLI resource-template:export "$RT_ID" $RT_EXPORT/letters.json
+assert_success "the file holds the template and its properties" \
+    jq -e '."o:label" == "Letters" and (."o:resource_template_property" | length) > 0' $RT_EXPORT/letters.json
+assert_success "the exported template imports again"                $CLI resource-template:import $RT_EXPORT/letters.json --update
+assert_fail    "resource-template:export of an unknown template fails"  $CLI resource-template:export "nonexistent resource template"
+run "remove the export directory"                                   rm -rf $RT_EXPORT
 
 # todo: add test for resource-template with customvocab dependency
 
@@ -859,6 +907,17 @@ assert_fail            "item:export --output-dir into an unwritable directory fa
 assert_success "item:search finds the item"                      bash -c "$CLI item:search 'Mona' --json | jq -e 'any(.[]; .title == \"Mona Lisa\")'"
 assert_output_contains "item:list --class with an unknown class" "Unknown resource class"   $CLI item:list --class dctype:Foo
 assert_success "item-set:list lists the item set"                bash -c "$CLI item-set:list --json | jq -e 'any(.[]; .title == \"Paintings\")'"
+assert_success "item-set:search finds the item set"              bash -c "set -o pipefail; $CLI item-set:search Paintings --json | jq -e 'any(.[]; .title == \"Paintings\")'"
+assert_success "item-set:search with no match is an empty list"  bash -c "set -o pipefail; $CLI item-set:search nonexistent-xyz --json | jq -e 'length == 0'"
+SET_ID=""
+if [[ $SECTION_SKIP -eq 0 ]]; then SET_ID=$($CLI item-set:list -p dcterms:identifier=it-set-paintings --json 2>/dev/null | jq '.[0].id'); fi
+assert_success "item-set:export prints the item set"             bash -c "set -o pipefail; $CLI item-set:export $SET_ID | jq -e '.\"o:title\" == \"Paintings\"'"
+run    "clear the item set export directory"                     rm -rf /tmp/osc-item-sets-export
+assert_success "item-set:export --output-dir writes one file per item set" \
+    bash -c "$CLI item-set:export -p dcterms:identifier=it-set-paintings --output-dir /tmp/osc-item-sets-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-item-sets-export | wc -l) -eq 1 && ls /tmp/osc-item-sets-export/*-paintings.jsonld"
+assert_output_contains "re-importing the exported item set skips it" "already exists"   bash -c "$CLI item-set:import /tmp/osc-item-sets-export/*.jsonld"
+assert_fail    "item-set:export with --output and --output-dir fails" $CLI item-set:export $SET_ID --output /tmp/osc-item-sets-export/x.jsonld --output-dir /tmp/osc-item-sets-export
+run    "remove the item set export directory"                    rm -rf /tmp/osc-item-sets-export
 assert_success "media:ingesters lists upload"                    bash -c "$CLI media:ingesters --json | jq -e 'any(.[]; .name == \"upload\")'"
 assert_success "media:add adds an html media"                    bash -c "$CLI media:add \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --ingester html --source '<p>Note</p>' --json | jq -e '.ingester == \"html\"'"
 assert_fail    "media:add to a missing item fails"               $CLI media:add 999999 --ingester html --source '<p>x</p>'
@@ -919,6 +978,29 @@ CFG=/tmp/osc-cfg
 run "clean config export dir"                                      rm -rf "$CFG"
 
 assert_success       "config:set seeds a global test key"          $CLI config:set osc_integration_key before
+
+# config:list, config:modules and config:themes; set up a module and a site using the default theme,
+# so this also works when the section runs on its own
+run "make sure Common is installed"                                 $CLI module:download common --install
+run "add a site, so a theme is active"                              $CLI site:add "Config Site" --slug osc-config --ignore-existing
+assert_output_is "config:list with a name shows only that setting" '{"osc_integration_key":"before"}' \
+    bash -c "set -o pipefail; $CLI config:list osc_integration_key | jq -c ."
+assert_output_is "config:list ignores case" '["osc_integration_key"]' \
+    bash -c "set -o pipefail; $CLI config:list OSC_INTEGRATION | jq -c keys"
+assert_success "config:list without a name lists all settings" \
+    bash -c "set -o pipefail; $CLI config:list | jq -e 'has(\"administrator_email\")'"
+assert_success "config:modules --json has an id, version and state per module" \
+    bash -c "set -o pipefail; $CLI config:modules --json | jq -e 'length > 0 and all(.[]; has(\"id\") and has(\"version\") and has(\"state\"))'"
+assert_success "config:modules --installed --json lists only installed modules" \
+    bash -c "set -o pipefail; $CLI config:modules --installed --json | jq -e 'any(.[]; .id == \"Common\") and all(.[]; .state == \"active\" or .state == \"not_active\")'"
+assert_success "config:modules --installed --env matches the JSON" \
+    bash -c "set -o pipefail; env=\$($CLI config:modules --installed --env) && json=\$($CLI config:modules --installed --json | jq -r 'map(\"\(.id):\(.version)\") | join(\" \")') && test -n \"\$env\" && test \"\$env\" = \"\$json\""
+assert_success "config:themes --json lists the default theme" \
+    bash -c "set -o pipefail; $CLI config:themes --json | jq -e 'any(.[]; .id == \"default\")'"
+assert_success "config:themes --active --json lists only active themes" \
+    bash -c "set -o pipefail; $CLI config:themes --active --json | jq -e 'any(.[]; .id == \"default\") and all(.[]; .active == true)'"
+assert_output_contains "config:themes --active --env lists the default theme" "default:"  $CLI config:themes --active --env
+run "remove the site"                                               $CLI site:delete osc-config --ignore-not-found
 assert_success       "config:export writes files"                  $CLI config:export "$CFG"
 assert_success       "config:export wrote core.setting.jsonc"      test -f "$CFG/core.setting.jsonc"
 assert_output_contains "exported core file contains the test key"  "osc_integration_key"  cat "$CFG/core.setting.jsonc"
