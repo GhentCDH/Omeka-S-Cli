@@ -43,7 +43,7 @@ class ThemesCommand extends AbstractCommand
         switch ($format) {
             case 'env':
                 $output = implode(' ', array_map(function ($item) { return "{$item['id']}:{$item['version']}"; }, $output));
-                $this->io()->writer()->write($output,true);
+                $this->echo($output, true);
                 break;
             default:
                 $this->outputFormatted($output, $format);
