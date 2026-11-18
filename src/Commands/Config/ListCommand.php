@@ -9,7 +9,7 @@ class ListCommand extends AbstractCommand
     public function __construct()
     {
         parent::__construct('config:list', 'List all global settings');
-        $this->argument("[search]", "Search for a specific setting by name or value");
+        $this->argument("[search]", "Only show the settings whose name contains this text (ignoring case)");
 
     }
 
