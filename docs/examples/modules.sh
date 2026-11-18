@@ -156,6 +156,15 @@ omeka-s-cli module:uninstall --not-active --dry-run
 omeka-s-cli module:delete --not-installed --dry-run
 # --8<-- [end:bulk-cleanup]
 
+# a module still registered in the database whose folder is gone
+omeka-s-cli module:download csseditor --install --quiet
+rm -rf modules/CSSEditor
+# --8<-- [start:delete-unregister]
+omeka-s-cli module:status CSSEditor
+omeka-s-cli module:delete CSSEditor --force
+# --8<-- [end:delete-unregister]
+! omeka-s-cli module:status CSSEditor --quiet || exit 1
+
 # --8<-- [start:ignore-not-found]
 omeka-s-cli module:delete Sharing --force --ignore-not-found
 # --8<-- [end:ignore-not-found]

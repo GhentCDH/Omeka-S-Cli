@@ -13,7 +13,12 @@ class DeleteCommand extends AbstractModuleCommand
     {
         parent::__construct('module:delete', 'Delete module');
         $this->argumentModuleId(true);
-        $this->option('-f --force', 'Force module uninstall', 'boolval', false);
+        $this->option(
+            '-f --force',
+            'Uninstall an installed module, or remove the database registration of a module Omeka S cannot uninstall',
+            'boolval',
+            false
+        );
         $this->option('--not-installed', 'Delete all uninstalled modules', 'boolval', false);
         $this->optionDryRun();
         $this->optionIgnoreNotFound('module');
@@ -39,20 +44,38 @@ class DeleteCommand extends AbstractModuleCommand
             $module = $this->requireModule($moduleId, $ignoreNotFound);
 
 
+            $state = $module->getState();
             $installed = in_array(
-                $module->getState(),
+                $state,
                 [ModuleManager::STATE_ACTIVE, ModuleManager::STATE_NOT_ACTIVE],
                 true
             );
+            // registered in the database, but Omeka S can not uninstall it (files gone, needs an
+            // upgrade, invalid for this Omeka S version, ...)
+            $stranded = !$installed && $moduleApi->isRegistered($module);
+            $hasFiles = $state !== ModuleManager::STATE_NOT_FOUND;
 
             if ($installed && !$force) {
                 throw new Exception("The module is currently installed. Use the --force flag to uninstall the module.");
             }
 
+            if ($stranded && !$force) {
+                throw new Exception(
+                    "Module '{$moduleId}' is registered in the database but Omeka S cannot uninstall it (state: {$state}). "
+                    . "Use the --force flag to remove its registration; its own tables and settings are left in place."
+                );
+            }
+
             if ($this->isDryRun()) {
-                $planned = $installed
-                    ? "Module '{$moduleId}' would be uninstalled and deleted."
-                    : "Module '{$moduleId}' would be deleted.";
+                if ($installed) {
+                    $planned = "Module '{$moduleId}' would be uninstalled and deleted.";
+                } elseif ($stranded) {
+                    $planned = $hasFiles
+                        ? "Module '{$moduleId}' would be removed from the database and deleted."
+                        : "Module '{$moduleId}' would be removed from the database.";
+                } else {
+                    $planned = "Module '{$moduleId}' would be deleted.";
+                }
                 $this->reportDryRun($planned);
                 return;
             }
@@ -63,8 +86,20 @@ class DeleteCommand extends AbstractModuleCommand
                 $this->ok("Module '{$moduleId}' uninstalled.", true);
             }
 
-            $moduleApi->delete($module);
-            $this->ok("Module '{$moduleId}' deleted.", true);
+            if ($stranded) {
+                $moduleApi->unregister($module);
+                $this->warn(
+                    "Module '{$moduleId}' was removed from the database without running its uninstaller; "
+                    . "its tables and settings are left in place.",
+                    true
+                );
+                $this->ok("Module '{$moduleId}' removed from the database.", true);
+            }
+
+            if ($hasFiles) {
+                $moduleApi->delete($module);
+                $this->ok("Module '{$moduleId}' deleted.", true);
+            }
         }
 
         if ($notInstalled) {

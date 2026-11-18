@@ -317,6 +317,31 @@ in the `needs_upgrade` state cannot be uninstalled: `module:uninstall --all` ski
 --8<-- "docs/examples/modules.sh:bulk-cleanup"
 ```
 
+### Modules Omeka S cannot uninstall
+
+Omeka S only uninstalls a module whose files are present and up to date. After a core upgrade a
+module can get stuck: no release supports the new Omeka S version (`invalid_omeka_version`), it still
+`needs_upgrade`, or its folder was removed by hand (`not_found`). `module:delete` refuses such a
+module; with `--force` it removes the module's row from the database and deletes its folder, if
+there is one:
+
+```bash
+--8<-- "docs/examples/modules.sh:delete-unregister"
+```
+
+```text
++-----------+-----------+-----------+---------+------------------+---------------+-----------------+---------+
+| Id        | Name      | State     | Version | InstalledVersion | LatestVersion | UpdateAvailable | Author  |
++-----------+-----------+-----------+---------+------------------+---------------+-----------------+---------+
+| CSSEditor | CSSEditor | not_found | unknown | 1.3.1            | 1.3.1         | unknown         | unknown |
++-----------+-----------+-----------+---------+------------------+---------------+-----------------+---------+
+Module 'CSSEditor' was removed from the database without running its uninstaller; its tables and settings are left in place.
+Module 'CSSEditor' removed from the database.
+```
+
+The module's uninstaller does not run, so its tables and settings stay in the database. Installing
+the module again can fail on those leftovers. Take a database dump first.
+
 ### Missing modules
 
 `module:uninstall`, `module:disable` and `module:delete` fail when the module does not exist. With
