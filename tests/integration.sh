@@ -460,6 +460,27 @@ assert_success "module:disable --ignore-not-found skips an unknown module"    $C
 assert_fail    "--ignore-not-found does not replace --force on module:delete" $CLI module:delete common --ignore-not-found
 assert_output_is "the modules are untouched by the skips" "2"   bash -c "$CLI module:list --active --json | jq '. | length'"
 
+# modules Omeka S can not uninstall: module:delete --force removes their database registration
+# (CSSEditor has no tables of its own, so reinstalling it afterwards is safe)
+
+run            "remove a CSSEditor left by an earlier run"   $CLI module:delete csseditor --force --ignore-not-found
+assert_success "module:download csseditor --install"   $CLI module:download csseditor --install
+run            "remove the CSSEditor folder by hand"   rm -rf /var/www/omeka-s/modules/CSSEditor
+assert_output_contains "module:status csseditor is 'not_found'" "not_found"   $CLI module:status csseditor
+assert_fail    "module:delete refuses a module whose folder is gone"   $CLI module:delete csseditor
+assert_output_contains "module:delete --force --dry-run reports the removal" "would be removed from the database"   $CLI module:delete csseditor --force --dry-run
+assert_success "module:delete --force removes the registration"   $CLI module:delete csseditor --force
+assert_fail    "the module is gone"   $CLI module:status csseditor
+
+assert_success "module:download csseditor --install (again)"   $CLI module:download csseditor --install
+run            "make CSSEditor require another Omeka S version"   sed -i 's/^omeka_version_constraint.*/omeka_version_constraint = "^99.0.0"/' /var/www/omeka-s/modules/CSSEditor/config/module.ini
+assert_output_contains "module:status csseditor is 'invalid_omeka_version'" "invalid_omeka_version"   $CLI module:status csseditor
+assert_fail    "module:delete refuses a registered module Omeka S can not uninstall"   $CLI module:delete csseditor
+assert_success "the folder is kept"   test -d /var/www/omeka-s/modules/CSSEditor
+assert_success "module:delete --force removes registration and folder"   $CLI module:delete csseditor --force
+assert_success "the folder is gone"   test ! -d /var/www/omeka-s/modules/CSSEditor
+assert_fail    "the registration is gone"   $CLI module:status csseditor
+
 # ── themes ──────────────────────────────────────────────────────────────────
 
 section "Themes"
