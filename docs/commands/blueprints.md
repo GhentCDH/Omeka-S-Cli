@@ -16,8 +16,9 @@ resource template, an editor, a site and a few settings.
 ## Validate a blueprint
 
 `blueprint:validate` checks a blueprint against the
-[blueprint schema](https://omeka-s-contrib.github.io/omeka-s-blueprints/), after resolving its
-`$import` references. It changes nothing, and it does not need an Omeka S instance.
+[blueprint schema](https://omeka-s-contrib.github.io/omeka-s-blueprints/): the blueprint and every file
+it pulls in with `$import`, each as written. An error names the file it is in. It changes nothing, and
+it does not need an Omeka S instance.
 
 ```bash
 --8<-- "docs/examples/blueprints.sh:validate"
@@ -40,9 +41,9 @@ The command lists every problem and exits non-zero, so a script can stop before 
 ```
 
 ```text
-  - /modules/0: The data (object) must match the type: string
-  - /modules/0: Additional object properties are not allowed: stat
-  - /modules/0: The required properties ($import) are missing
+  - invalid.blueprint.jsonc: /modules/0: The data (object) must match the type: string
+  - invalid.blueprint.jsonc: /modules/0: Additional object properties are not allowed: stat
+  - invalid.blueprint.jsonc: /modules/0: The required properties ($import) are missing
   - site 'Archive': theme 'freedom' is not declared in themes.
 Blueprint validation failed with 4 error(s).
 ```
@@ -82,7 +83,7 @@ The files a blueprint references with a relative path must stay inside the bluep
 A blueprint that imports `../shared/modules.jsonc` is rejected:
 
 ```text
-Reference '../shared/modules.jsonc' in '.../library/library.blueprint.jsonc' resolves outside the blueprint root .../library; use --root to widen it.
+$import: Source '../shared/modules.jsonc' in '.../library/library.blueprint.jsonc' resolves outside the blueprint root .../library; use --root to widen it.
 ```
 
 `--root` widens that directory:

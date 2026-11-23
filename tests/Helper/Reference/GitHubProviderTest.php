@@ -75,4 +75,26 @@ class GitHubProviderTest extends TestCase
             $this->provider->toRawUrl('gh:owner/repo:dir/site.jsonc')
         );
     }
+
+    /** @return array<string,array{0:string}> */
+    public static function escapingReferences(): array
+    {
+        return [
+            'gh:trusted/..@attacker:evil/main/evil.php' => ['gh:trusted/..@attacker:evil/main/evil.php'],
+            'gh:o/r@v1:../../other/repo/main/x.php' => ['gh:o/r@v1:../../other/repo/main/x.php'],
+            'gh:o/r@v1:a/%2e%2e/%2E%2E/b.php' => ['gh:o/r@v1:a/%2e%2e/%2E%2E/b.php'],
+            'gh:o/r@-x:a.php' => ['gh:o/r@-x:a.php'],
+            'gh:o/r@v1:a//b.php' => ['gh:o/r@v1:a//b.php'],
+            'gh:o/r@v1:a/%2Fb.php' => ['gh:o/r@v1:a/%2Fb.php'],
+            'https://github.com/o/../blob/main/a.php' => ['https://github.com/o/../blob/main/a.php'],
+            'https://github.com/o/r/blob/main/../../x/y/z.php' => ['https://github.com/o/r/blob/main/../../x/y/z.php'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('escapingReferences')]
+    public function testRejectsAReferenceThatLeavesTheRepository(string $reference): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->provider->toRawUrl($reference);
+    }
 }

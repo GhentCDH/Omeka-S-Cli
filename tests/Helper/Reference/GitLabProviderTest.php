@@ -73,4 +73,24 @@ class GitLabProviderTest extends TestCase
             $this->provider->toRawUrl('gl:group/project:a.jsonc')
         );
     }
+
+    /** @return array<string,array{0:string}> */
+    public static function escapingReferences(): array
+    {
+        return [
+            'gl:trusted/../attacker/repo:f.php' => ['gl:trusted/../attacker/repo:f.php'],
+            'gl:g/r@v1:../x.php' => ['gl:g/r@v1:../x.php'],
+            'gl:g/./r:f.php' => ['gl:g/./r:f.php'],
+            'gl:g/r@--x:f.php' => ['gl:g/r@--x:f.php'],
+            'https://gitlab.com/g/../h/-/blob/main/a.php' => ['https://gitlab.com/g/../h/-/blob/main/a.php'],
+            'https://gitlab.com/g/r/-/blob/main/../../x.php' => ['https://gitlab.com/g/r/-/blob/main/../../x.php'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('escapingReferences')]
+    public function testRejectsAReferenceThatLeavesTheRepository(string $reference): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->provider->toRawUrl($reference);
+    }
 }

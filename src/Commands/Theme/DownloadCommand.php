@@ -3,6 +3,7 @@ namespace OSC\Commands\Theme;
 
 use Exception;
 use OSC\Addon\AddonIni;
+use OSC\Addon\AddonReference;
 use OSC\Addon\AddonType;
 use OSC\Addon\InstalledAddons;
 use OSC\Downloader\AddonResolver;
@@ -10,6 +11,7 @@ use OSC\Exceptions\AddonExistsException;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\Offline;
 use OSC\Helper\Path;
+use OSC\Helper\ResourceUriParser;
 
 class DownloadCommand extends AbstractThemeCommand
 {
@@ -33,8 +35,12 @@ class DownloadCommand extends AbstractThemeCommand
         );
     }
 
-    public function execute(?string $theme, ?bool $force, ?bool $backup, ?string $dir = null): void
+    /**
+     * @param string|AddonReference|null $theme A command argument, or a reference built from a blueprint entry
+     */
+    public function execute(string|AddonReference|null $theme, ?bool $force, ?bool $backup, ?string $dir = null): void
     {
+        $reference = $theme instanceof AddonReference ? $theme : ResourceUriParser::parse((string) $theme);
         $modulesPath = Path::createPath([$this->getOmekaPath(), "themes"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Themes directory is not writable. Please check permissions.");
@@ -47,14 +53,14 @@ class DownloadCommand extends AbstractThemeCommand
             // --dir is an exact folder name; a repository name matches case-insensitively, as the repository does
             $existing = ($dir !== null && $dir !== '')
                 ? ($installed->exists(AddonType::Theme, $dir) ? $dir : null)
-                : $installed->find(AddonType::Theme, AddonResolver::addonId((string) $theme) ?? '');
+                : $installed->find(AddonType::Theme, $reference->addonId() ?? '');
             if ($existing) {
                 throw new AddonExistsException(AddonType::Theme, $existing, $installed->path(AddonType::Theme, $existing));
             }
         }
 
         $resolved = (new AddonResolver($this->getThemeRepositoryManager(), AddonType::Theme))
-            ->resolve($theme, fn() => $this->getOmekaVersion(), (bool) $force);
+            ->resolve($reference, fn() => $this->getOmekaVersion(), (bool) $force);
         foreach ($resolved->warnings as $warning) {
             $this->warn($warning, true);
         }

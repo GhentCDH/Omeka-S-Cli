@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Resource;
 
+use OSC\Blueprint\SourceForm;
 use OSC\Helper\Config\MediaConfig;
 
 /**
@@ -49,7 +50,7 @@ final class SimpleContentMapper
             if (!is_array($simple) || !isset($simple['url']) || !is_string($simple['url'])) {
                 continue;
             }
-            $isLink = preg_match('#^https?://#i', trim($simple['url'])) === 1;
+            $isLink = SourceForm::of($simple['url']) === SourceForm::Url;
             $media[] = MediaConfig::fromArray(array_filter([
                 'ingester' => $isLink ? 'url' : 'upload',
                 'source' => $simple['url'],

@@ -34,10 +34,16 @@ class GitLabProvider implements RepoProvider
     {
         $blob = $this->stripFragment($reference);
         if (preg_match(self::BLOB_PATTERN, $blob) === 1) {
+            [$namespace, $rest] = explode('/-/blob/', (string) parse_url($blob, PHP_URL_PATH), 2);
+            RepoSegments::assertInside('namespace', ltrim($namespace, '/'), $reference);
+            RepoSegments::assertInside('ref and path', $rest, $reference);
             return preg_replace('#/-/blob/#', '/-/raw/', $blob, 1);
         }
         if (preg_match(self::SHORT_PATTERN, $reference, $m) === 1) {
+            RepoSegments::assertInside('namespace', $m[1], $reference);
             $ref = ($m[2] ?? '') !== '' ? $m[2] : 'HEAD';
+            RepoSegments::assertRef($ref, $reference);
+            RepoSegments::assertInside('path', $m[3], $reference);
             return sprintf('%s/%s/-/raw/%s/%s', self::RAW_HOST, $m[1], $ref, $m[3]);
         }
         throw new InvalidArgumentException("Not a GitLab file reference: '{$reference}'.");

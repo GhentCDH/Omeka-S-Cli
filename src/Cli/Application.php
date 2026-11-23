@@ -5,6 +5,7 @@ use Ahc\Cli\Input\Command;
 use OSC\Commands\AbstractCommand;
 use OSC\Manager\AbstractManager;
 use Throwable;
+use OSC\Helper\UrlCredentials;
 
 class Application extends \Ahc\Cli\Application
 {
@@ -77,12 +78,12 @@ class Application extends \Ahc\Cli\Application
         if ($e instanceof \OSC\Exceptions\WarningException) {
             // output warnings if not quiet
             if (!$this->quiet) {
-                $this->io()->warn($e->getMessage(), true);
+                $this->io()->warn(UrlCredentials::redact($e->getMessage()), true);
             }
             $exitCode = 0;
         } else {
             // output errors
-            $this->io()->error($e->getMessage(), true);
+            $this->io()->error(UrlCredentials::redact($e->getMessage()), true);
         }
         // output debug trace?
         if ($this->debug) {

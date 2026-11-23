@@ -4,8 +4,8 @@ namespace OSC\Commands\Module;
 use InvalidArgumentException;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Offline;
+use OSC\Addon\AddonReference;
 use OSC\Helper\ResourceUriParser;
-use OSC\Helper\Types\ResourceUriType;
 use Throwable;
 
 class UpdateCommand extends AbstractModuleCommand
@@ -37,12 +37,12 @@ class UpdateCommand extends AbstractModuleCommand
 
             // parse module id to check format
             $moduleUri = ResourceUriParser::parse($moduleId);
-            if ($moduleUri->getType() !== ResourceUriType::IdVersion) {
+            if ($moduleUri->kind !== AddonReference::BY_NAME) {
                 throw new InvalidArgumentException("The module-id argument must be in the format 'module-id' or 'module-id:version'.");
             }
 
             // check if module exists (result is not used)
-            $module = $this->requireModule($moduleUri->getId());
+            $module = $this->requireModule((string) $moduleUri->name);
 
             if ($this->isDryRun()) {
                 $planned = $upgrade

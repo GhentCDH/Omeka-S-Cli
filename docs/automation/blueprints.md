@@ -27,10 +27,14 @@ A few things the specification leaves to the tool:
 - A module given only by name gets the state `activate` (install and enable). `install` installs it
   without enabling it; `download` only puts the files in `modules/`.
 - Without a `source`, a module or theme is looked up by name, as `module:download <name>` and
-  `theme:download <name>` do. A `source` can be anything [`module:download`](../commands/modules.md)
-  accepts: a zip release URL, a local zip (relative to the blueprint), a git URL,
-  `https://github.com/owner/repo` or `gh:owner/repo`.
-  `version` picks the repository release or the git tag.
+  `theme:download <name>` do. Its `source` is a release ZIP or a git repository:
+    - a git repository is `gh:owner/repo`, `git@host:path.git`, an `http(s)://` URL that ends in `.git`,
+      or `https://github.com/owner/repo`, each with an optional `#<branch, tag or commit>`;
+    - a ZIP is any other `http(s)://` URL, a local ZIP (relative to the file that declares it), or a ZIP
+      in a repository (`gh:owner/repo@v1.0:dist/Module.zip`).
+
+  `version` picks the repository release, or the git ref when the source has no `#ref`; a ZIP pins the
+  release itself. The name and the version are their own keys: `CleanUrl:3.4` is not a source.
 - A module or theme that is already in `modules/` or `themes/` is used as it is, unless `version`
   differs from the one on disk or you deploy with `--update`.
 - A user without `password` cannot log in until a password is set (for example with *Forgot
@@ -271,8 +275,8 @@ not go unnoticed.
 
 ### Reference forms
 
-The blueprint given on the command line, every `$import`, and the paths in `files`, `vocabularies`,
-`resourceTemplates` (`source`) and in `modules` and `themes` (a local zip `source`) accept:
+The blueprint given on the command line, every `$import`, the `source` of `files`, `vocabularies`,
+`resourceTemplates`, `modules` and `themes`, and a media `url` accept:
 
 | Form | Example |
 | --- | --- |
@@ -287,15 +291,34 @@ GitHub and GitLab file URLs are turned into raw download URLs; GitLab URLs are r
 `/-/blob/` segment, so self-hosted GitLab works too. In the short forms, `@<branch, tag or commit>` is
 optional (default: `HEAD`); `gl:` always means gitlab.com. A blueprint fetched from a URL resolves its
 relative references against that URL, so a blueprint in a repository can import its neighbours. Only
-public files can be fetched.
+public files can be fetched. Only modules and themes take a git repository; other fields need a single
+file. A URL with a user name and password in it (`https://user:password@…`) works, but the CLI prints
+it as `https://***@…`; a token in the query string is printed as it is.
+
+### Relative paths
+
+A relative path resolves against the file that declares it: the blueprint, or the file that imports
+it. Write it with `./`; a path without it works too, unless it starts like a URL scheme (`notes:` in
+`./notes:1.json`). Relative paths are URL references, as in a web page:
+
+- `%`, `#` and `?` must be percent-encoded (`notes%231.pdf`); an unencoded `#` or `?` in a path to a
+  local file is an error;
+- `My%20File.pdf` names the file `My File.pdf`; write spaces encoded: the specification release the
+  CLI validates against (v0.1.0) rejects a raw space in `files`, `vocabularies` and media `url`;
+- `\` separates folders, like `/`.
+
+A value that starts with whitespace, an absolute path (`/etc/…`, `C:\…`) and a URL scheme other than
+`http(s)://`, `gh:`, `gl:` or `git@host:` (such as `file:`, `php://` or `ftp://`) is rejected.
 
 ### Local references stay inside the root
 
-A blueprint must not be able to read any file on the server it is deployed on. Inside a blueprint,
-absolute paths, `file:` URLs and URLs other than `http(s)` (such as `php://` or `ftp://`) are
-rejected; `gh:` and `gl:` references are allowed. A relative path must stay inside the blueprint root:
-the directory of the blueprint given on the command line. The library blueprint above imports
-`../shared/modules.jsonc`, outside its own directory, so it needs `--root`:
+A blueprint must not be able to read any file on the server it is deployed on. A relative path must
+stay inside the blueprint root: the directory of the blueprint given on the command line (or, for a
+blueprint loaded from a URL, its folder URL). `..` may go back up to the root, not beyond, also when it
+is written `%2e%2e` or with `\`. A file imported by an absolute URL or by `gh:`/`gl:` has its own
+folder as root; a file imported by a relative path keeps the root of the file that imports it. The
+library blueprint above imports `../shared/modules.jsonc`, outside its own directory, so it needs
+`--root`:
 
 ```bash
 --8<-- "docs/examples/blueprints.sh:validate-root"

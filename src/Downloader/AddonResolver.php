@@ -4,12 +4,12 @@ namespace OSC\Downloader;
 use Closure;
 use Exception;
 use InvalidArgumentException;
+use OSC\Addon\AddonReference;
 use OSC\Addon\AddonType;
 use OSC\Exceptions\NotFoundException;
 use OSC\Exceptions\OfflineException;
 use OSC\Helper\Offline;
 use OSC\Helper\ResourceUriParser;
-use OSC\Helper\Types\ResourceUriType;
 use OSC\Addon\AddonVersion;
 use OSC\Manager\AbstractManager;
 
@@ -20,8 +20,10 @@ use OSC\Manager\AbstractManager;
  * - a ZIP release (URL or file);
  * - a git repository (git URL, https://github.com/owner/repo or gh:owner/repo), at an optional ref.
  *
- * Shared by module:download, theme:download and blueprint:bundle. It needs no Omeka S install: the
- * Omeka S version is asked for only when a repository lookup needs it.
+ * The reference is an AddonReference: built from a blueprint entry's own fields, or parsed from a
+ * command argument by ResourceUriParser. Shared by module:download, theme:download and
+ * blueprint:bundle. It needs no Omeka S install: the Omeka S version is asked for only when a
+ * repository lookup needs it.
  */
 class AddonResolver
 {
@@ -34,81 +36,27 @@ class AddonResolver
     }
 
     /**
-     * The add-on reference for a blueprint entry: its source, or its name (resolved through the
-     * repositories) when it has none. The version selects the repository release or the tag of a git
-     * source; a ZIP source already pins the release, so it wins.
+     * @param string|AddonReference $reference    A command argument (see ResourceUriParser) or a reference
+     *                                            built from a blueprint entry
+     * @param Closure(): string     $omekaVersion The target Omeka S version; called only for a repository lookup
+     * @param bool                  $force        Accept a pinned repository version that is incompatible
+     * @throws InvalidArgumentException When a command argument has no known form
+     * @throws NotFoundException        When the repositories have no such add-on or version
+     * @throws Exception                When a pinned repository version is incompatible (without $force)
      */
-    public static function uriFor(string $name, ?string $source, ?string $version): string
+    public function resolve(string|AddonReference $reference, Closure $omekaVersion, bool $force = false): ResolvedAddon
     {
-        if ($source === null || $source === '') {
-            return $version ? "{$name}:{$version}" : $name;
-        }
-        if ($version && !str_contains($source, '#') && self::isGitSource($source)) {
-            return "{$source}#{$version}";
-        }
-        return $source;
-    }
-
-    /**
-     * Whether a reference (as uriFor() builds it) is a git repository: a git URL,
-     * https://github.com/owner/repo or gh:owner/repo.
-     *
-     * @throws InvalidArgumentException When the reference has no known form
-     */
-    public static function isGit(string $uri): bool
-    {
-        $type = ResourceUriParser::parse($uri)->getType();
-        return $type === ResourceUriType::GitRepo || $type === ResourceUriType::GitHubRepo;
-    }
-
-    /**
-     * The add-on id of a repository reference (id or id:version), or null for a ZIP or git source
-     * (or a reference of no known form).
-     */
-    public static function addonId(string $uri): ?string
-    {
-        try {
-            $parsed = ResourceUriParser::parse($uri);
-        } catch (InvalidArgumentException) {
-            return null;
-        }
-        return $parsed->getType() === ResourceUriType::IdVersion ? $parsed->getId() : null;
-    }
-
-    /** isGit() for a source as written: one of no known form is not git (the resolver reports it). */
-    private static function isGitSource(string $source): bool
-    {
-        try {
-            return self::isGit($source);
-        } catch (InvalidArgumentException) {
-            return false;
-        }
-    }
-
-    /**
-     * @param string            $uri          id[:version], a ZIP URL/file, a git URL[#ref], https://github.com/owner/repo[#ref] or gh:owner/repo[#ref]
-     * @param Closure(): string $omekaVersion The target Omeka S version; called only for a repository lookup
-     * @param bool              $force        Accept a pinned repository version that is incompatible
-     * @throws NotFoundException When the repositories have no such add-on or version
-     * @throws Exception         When a pinned repository version is incompatible (without $force)
-     */
-    public function resolve(string $uri, Closure $omekaVersion, bool $force = false): ResolvedAddon
-    {
-        $parsed = ResourceUriParser::parse($uri);
-        return match ($parsed->getType()) {
-            ResourceUriType::GitRepo => new ResolvedAddon(
-                new GitDownloader($parsed->getId(), $parsed->getVersion()),
+        $reference = is_string($reference) ? ResourceUriParser::parse($reference) : $reference;
+        return match ($reference->kind) {
+            AddonReference::GIT => new ResolvedAddon(
+                new GitDownloader((string) $reference->location, $reference->version),
                 ResolvedAddon::GIT
             ),
-            ResourceUriType::GitHubRepo => new ResolvedAddon(
-                new GitDownloader('https://github.com/' . $parsed->getId() . '.git', $parsed->getVersion()),
-                ResolvedAddon::GIT
-            ),
-            ResourceUriType::ZipUrl, ResourceUriType::ZipFile => new ResolvedAddon(
-                new ZipDownloader($parsed->getId()),
+            AddonReference::ZIP_URL, AddonReference::ZIP_FILE => new ResolvedAddon(
+                new ZipDownloader((string) $reference->location),
                 ResolvedAddon::ZIP
             ),
-            ResourceUriType::IdVersion => $this->fromRepository($parsed->getId(), $parsed->getVersion(), $omekaVersion, $force),
+            AddonReference::BY_NAME => $this->fromRepository((string) $reference->name, $reference->version, $omekaVersion, $force),
         };
     }
 

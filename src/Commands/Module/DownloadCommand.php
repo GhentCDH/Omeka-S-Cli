@@ -3,6 +3,7 @@ namespace OSC\Commands\Module;
 
 use Exception;
 use OSC\Addon\AddonIni;
+use OSC\Addon\AddonReference;
 use OSC\Addon\AddonType;
 use OSC\Addon\InstalledAddons;
 use OSC\Downloader\AddonResolver;
@@ -11,6 +12,7 @@ use OSC\Exceptions\NotFoundException;
 use OSC\Addon\ModuleNamespace;
 use OSC\Helper\Offline;
 use OSC\Helper\Path;
+use OSC\Helper\ResourceUriParser;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -34,8 +36,12 @@ class DownloadCommand extends AbstractModuleCommand
         );
     }
 
-    public function execute(?string $module, ?bool $force = false, ?bool $backup = false, ?bool $install = false, ?bool $upgrade = false): void
+    /**
+     * @param string|AddonReference|null $module A command argument, or a reference built from a blueprint entry
+     */
+    public function execute(string|AddonReference|null $module, ?bool $force = false, ?bool $backup = false, ?bool $install = false, ?bool $upgrade = false): void
     {
+        $reference = $module instanceof AddonReference ? $module : ResourceUriParser::parse((string) $module);
         $modulesPath = Path::createPath([$this->getOmekaPath(), "modules"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Modules directory is not writable. Please check permissions.");
@@ -45,14 +51,14 @@ class DownloadCommand extends AbstractModuleCommand
         // offline, a repository name cannot be looked up; a module already on disk needs no lookup and
         // gets the same "already exists" warning as online
         if (!$force && Offline::isEnabled()) {
-            $existing = $installed->find(AddonType::Module, AddonResolver::addonId((string) $module) ?? '');
+            $existing = $installed->find(AddonType::Module, $reference->addonId() ?? '');
             if ($existing) {
                 throw new AddonExistsException(AddonType::Module, $existing, $installed->path(AddonType::Module, $existing));
             }
         }
 
         $resolved = (new AddonResolver($this->getModuleRepositoryManager(), AddonType::Module))
-            ->resolve($module, fn() => $this->getOmekaVersion(), (bool) $force);
+            ->resolve($reference, fn() => $this->getOmekaVersion(), (bool) $force);
         foreach ($resolved->warnings as $warning) {
             $this->warn($warning, true);
         }

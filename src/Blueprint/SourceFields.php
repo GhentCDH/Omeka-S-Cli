@@ -71,7 +71,7 @@ final class SourceFields
             return $media['ingester'] === 'upload';
         }
         $value = $media[$field] ?? null;
-        return is_string($value) && preg_match('#^https?://#i', trim($value)) !== 1;
+        return is_string($value) && SourceForm::of($value) !== SourceForm::Url;
     }
 
     /** @return array<string,array<string,string>> dotted object path => [field => kind] */

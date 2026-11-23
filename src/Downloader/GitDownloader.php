@@ -2,12 +2,17 @@
 
 namespace OSC\Downloader;
 
+use OSC\Addon\GitRef;
 use OSC\Helper\Path;
 
 class GitDownloader implements DownloaderInterface {
 
+    /** @throws \InvalidArgumentException When $tag is not a valid git ref (it is never passed to git as an option) */
     public function __construct(private string $uri, private ?string $tag = null)
     {
+        if ($tag !== null && $tag !== '') {
+            GitRef::assertValid($tag);
+        }
     }
 
     public function getDownloadUrl(): string
@@ -26,13 +31,14 @@ class GitDownloader implements DownloaderInterface {
 
         try {
             // Clone the repository
-            $cloneCommand = sprintf('git clone %s %s 2> /dev/null', escapeshellarg($this->uri), escapeshellarg($tmpGitDestinationPath));
+            $cloneCommand = sprintf('git clone --quiet -- %s %s 2> /dev/null', escapeshellarg($this->uri), escapeshellarg($tmpGitDestinationPath));
             exec($cloneCommand, $output, $exitCode);
             $exitCode && throw new \ErrorException("Failed to clone repository");
 
-            // Checkout the specified tag
+            // Checkout the specified tag: the ref never starts with '-' (GitRef), and '--' keeps it from
+            // being read as a path. Not --end-of-options: `git checkout` only honours it from git 2.43.
             if ($this->tag) {
-                $checkoutCommand = sprintf('cd %s && git checkout %s 2> /dev/null', escapeshellarg($tmpGitDestinationPath), escapeshellarg($this->tag));
+                $checkoutCommand = sprintf('git -C %s checkout --quiet %s -- 2> /dev/null', escapeshellarg($tmpGitDestinationPath), escapeshellarg($this->tag));
                 exec($checkoutCommand, $output, $exitCode);
                 $exitCode && throw new \ErrorException("Failed to checkout tag/version");
             }

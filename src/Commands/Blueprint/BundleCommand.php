@@ -74,12 +74,14 @@ class BundleCommand extends AbstractBlueprintCommand
      */
     private function assertSelfContained(string $file): void
     {
-        $loader = new BlueprintLoader(null, null, true);
+        $validator = $this->validator(true);
+        $loader = new BlueprintLoader(null, null, true, $validator);
         $bundled = $loader->load($file);
         $problems = array_merge(
+            $loader->takeErrors(),
             $loader->takeViolations(),
             SelfContainedCheck::violations($bundled, true),
-            $this->validator(true)->validateBlueprint($bundled->toArray()),
+            $validator->validateResolved($bundled->toArray()),
         );
         if ($problems) {
             throw new Exception('The bundle is not self-contained (please report this): ' . implode('; ', $problems));

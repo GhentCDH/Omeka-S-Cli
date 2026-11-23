@@ -15,6 +15,7 @@ use OSC\Omeka\OmekaDotOrgApi;
 use OSC\Omeka\OmekaInstance;
 use OSC\Omeka\OmekaInstanceFactory;
 use Throwable;
+use OSC\Helper\UrlCredentials;
 
 abstract class AbstractCommand extends Command
 {
@@ -210,14 +211,14 @@ abstract class AbstractCommand extends Command
     public function debug(string $message, bool $eol = false): void
     {
         if ($this->isVerbose(self::VERBOSITY_DEBUG)) {
-            $this->io()->info($message, $eol);
+            $this->io()->info(UrlCredentials::redact($message), $eol);
         }
     }
 
     public function warn(string $message, bool $eol = false): void
     {
         if ($this->isVerbose(self::VERBOSITY_OUTCOMES)) {
-            $this->io()->warn($message, $eol);
+            $this->io()->warn(UrlCredentials::redact($message), $eol);
         }
     }
 
@@ -232,7 +233,7 @@ abstract class AbstractCommand extends Command
     public function info(string $message, bool $eol = false): void
     {
         if ($this->isVerbose(self::VERBOSITY_DETAIL)) {
-            $this->io()->info($message, $eol);
+            $this->io()->info(UrlCredentials::redact($message), $eol);
         }
     }
 
@@ -260,7 +261,7 @@ abstract class AbstractCommand extends Command
     public function note(string $message, bool $eol = false): void
     {
         if ($this->isVerbose(self::VERBOSITY_OUTCOMES)) {
-            $this->io()->write($message, $eol);
+            $this->io()->write(UrlCredentials::redact($message), $eol);
         }
     }
 
@@ -321,14 +322,14 @@ abstract class AbstractCommand extends Command
     public function ok(string $message, bool $eol = false): void
     {
         if ($this->isVerbose(self::VERBOSITY_OUTCOMES)) {
-            $this->io()->ok($message, $eol);
+            $this->io()->ok(UrlCredentials::redact($message), $eol);
         }
     }
 
     public function error(string $message, bool $eol = false): void
     {
         if ($this->isVerbose(self::VERBOSITY_OUTCOMES)) {
-            $this->io()->error($message, $eol);
+            $this->io()->error(UrlCredentials::redact($message), $eol);
         }
     }
 
