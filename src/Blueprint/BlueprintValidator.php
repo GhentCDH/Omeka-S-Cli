@@ -26,19 +26,20 @@ use Throwable;
  * Structural validation uses opis/json-schema. If that library is somehow unavailable the structural
  * pass is skipped (with no error) and only the referential checks run, so the tool still works.
  */
-class BlueprintValidator
+class BlueprintValidator implements DocumentValidator
 {
     /**
-     * The schema's identity: the `$id` it declares, under which it is registered so its `$ref`s
-     * resolve. This is the floating v0 schema: the latest v0.x.y release, without breaking changes.
+     * The id the schema is registered under, so its `$ref`s and the `#/$defs/...` lookups resolve: the
+     * floating v0 id, whatever exact release SCHEMA_SOURCE pins (that file declares its own versioned
+     * `$id`; the registration id wins).
      */
     public const SCHEMA_ID = 'https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json';
 
     /**
-     * Where the schema is downloaded from. Pinned to a commit of the shared repository until the v0
-     * schema is published at SCHEMA_ID; at that point this becomes SCHEMA_ID.
+     * Where the schema is downloaded from: an exact release, never the floating major, so a new spec
+     * release cannot change what a shipped CLI accepts. Bump it on purpose, in a CLI release.
      */
-    public const SCHEMA_SOURCE = 'https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0/blueprint-schema.json';
+    public const SCHEMA_SOURCE = 'https://omeka-s-contrib.github.io/omeka-s-blueprints/schema/v0.1.0/blueprint-schema.json';
 
     /** Resolved schema content (from the source or its cache); false until resolved, null when unavailable */
     private string|false|null $schemaContent = false;
@@ -82,20 +83,50 @@ class BlueprintValidator
     }
 
     /**
-     * Validate a full blueprint.
+     * Validate a blueprint given as written, without imports to follow (the schema and the checks it
+     * cannot express). A loaded blueprint is validated in two steps instead: each document as written
+     * while loading (BlueprintLoader with this validator), then validateResolved() on the result,
+     * because a loaded blueprint's sources are already resolved (absolute paths the schema rejects).
      *
-     * @param array $blueprint The import-resolved blueprint
      * @return string[] Human-readable error messages; empty when valid. Advisories that do not make
      *                  the blueprint invalid are kept for takeWarnings().
      */
     public function validateBlueprint(array $blueprint): array
     {
+        return array_merge($this->validateDocument($blueprint, null), $this->validateResolved($blueprint));
+    }
+
+    /** Validate one document as written against the schema (see DocumentValidator). */
+    public function validateDocument(mixed $data, ?string $type): array
+    {
+        if ($type === null) {
+            if (is_array($data) && isset($data['sites']) && is_array($data['sites'])) {
+                // the shared schema's sites list has no $import entry yet: a stand-in keeps the indexes of
+                // the other entries; the imported file is validated on its own
+                $data['sites'] = array_map(fn($site) => self::isImport($site) ? ['title' => '$import'] : $site, $data['sites']);
+            }
+            return $this->validateAgainst($data, self::SCHEMA_ID);
+        }
+        return $this->validatePartial($data, $type);
+    }
+
+    /** Whether a list entry is only an `$import` reference. */
+    private static function isImport(mixed $entry): bool
+    {
+        return is_array($entry) && array_keys($entry) === ['$import'] && is_string($entry['$import']);
+    }
+
+    /**
+     * The checks a schema cannot express, on the loaded (import-resolved) blueprint: an item that
+     * refers to an undeclared item set, a site permission for an undeclared user, the CLI's extension
+     * entries. Not the schema: the loader validated every document as written.
+     *
+     * @return string[] Error messages; advisories are kept for takeWarnings()
+     */
+    public function validateResolved(array $blueprint): array
+    {
         $this->warnings = [];
-        return array_merge(
-            $this->validateAgainst($blueprint, self::SCHEMA_ID),
-            $this->referentialErrors($blueprint),
-            $this->extensionErrors($blueprint)
-        );
+        return array_merge($this->referentialErrors($blueprint), $this->extensionErrors($blueprint));
     }
 
     /**
@@ -145,6 +176,9 @@ class BlueprintValidator
         }
         $errors = [];
         foreach ($data as $i => $entry) {
+            if (self::isImport($entry)) {
+                continue; // followed by the loader, which validates the imported file on its own
+            }
             foreach ($this->validateAgainst($entry, self::SCHEMA_ID . '#/$defs/' . $itemDef) as $error) {
                 // "/: msg" (the entry itself) becomes "/1: msg"; "/title: msg" becomes "/1/title: msg"
                 $errors[] = '/' . $i . (str_starts_with($error, '/:') ? substr($error, 1) : $error);

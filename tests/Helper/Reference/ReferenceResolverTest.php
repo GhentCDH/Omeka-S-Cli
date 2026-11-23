@@ -33,11 +33,21 @@ class ReferenceResolverTest extends TestCase
     public function testRecognizesRepoReferences(): void
     {
         $this->assertTrue($this->resolver->isRepoReference('gh:owner/repo@main:site.jsonc'));
-        $this->assertTrue($this->resolver->isRepoReference(' gl:group/repo:site.jsonc'));
+        $this->assertTrue($this->resolver->isRepoReference('gl:group/repo:site.jsonc'));
+        // no trimming: leading whitespace hides the prefix (the spec rejects it)
+        $this->assertFalse($this->resolver->isRepoReference(' gl:group/repo:site.jsonc'));
         $this->assertTrue($this->resolver->isRepoReference('https://github.com/owner/repo/blob/main/site.jsonc'));
         $this->assertFalse($this->resolver->isRepoReference('php://filter/resource=/etc/hostname'));
         $this->assertFalse($this->resolver->isRepoReference('https://example.org/site.jsonc'));
         $this->assertFalse($this->resolver->isRepoReference('site.jsonc'));
+    }
+
+    public function testRecognizesARepoReferenceThatCannotBeResolved(): void
+    {
+        // recognizing the form must not throw; resolving it does
+        $this->assertTrue($this->resolver->isRepoReference('gh:trusted/..@attacker:evil.php'));
+        $this->expectException(\InvalidArgumentException::class);
+        $this->resolver->resolve('gh:trusted/..@attacker:evil.php');
     }
 
     public function testConvertsShortSchemeToRaw(): void

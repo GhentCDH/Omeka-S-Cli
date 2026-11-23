@@ -33,10 +33,15 @@ class GitHubProvider implements RepoProvider
     {
         $blob = $this->stripFragment($reference);
         if (preg_match(self::BLOB_PATTERN, $blob, $m) === 1) {
+            RepoSegments::assertInside('repository', "{$m[1]}/{$m[2]}", $reference);
+            RepoSegments::assertInside('ref and path', $m[3], $reference);
             return sprintf('%s/%s/%s/%s', self::RAW_HOST, $m[1], $m[2], $m[3]);
         }
         if (preg_match(self::SHORT_PATTERN, $reference, $m) === 1) {
+            RepoSegments::assertInside('repository', "{$m[1]}/{$m[2]}", $reference);
             $ref = ($m[3] ?? '') !== '' ? $m[3] : 'HEAD';
+            RepoSegments::assertRef($ref, $reference);
+            RepoSegments::assertInside('path', $m[4], $reference);
             return sprintf('%s/%s/%s/%s/%s', self::RAW_HOST, $m[1], $m[2], $ref, $m[4]);
         }
         throw new InvalidArgumentException("Not a GitHub file reference: '{$reference}'.");

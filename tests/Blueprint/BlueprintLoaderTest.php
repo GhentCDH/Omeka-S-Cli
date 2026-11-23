@@ -4,6 +4,8 @@ namespace Tests\Blueprint;
 use Exception;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintLoader;
+use OSC\Blueprint\DocumentValidator;
+use OSC\Blueprint\SourceException;
 use OSC\Blueprint\SourceFields;
 use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\Reference\RepoProvider;
@@ -129,7 +131,7 @@ class BlueprintLoaderTest extends TestCase
 
     public function testRoutesSourceAndImportsThroughTheInjectedResolver(): void
     {
-        // a fake provider maps test:<name> to a file in the temp dir, proving both the top-level
+        // a fake provider maps gh:fake/repo:<name> to a file in the temp dir, proving both the top-level
         // source and a nested $import are resolved through the injected ReferenceResolver
         $provider = new class ($this->dir) implements RepoProvider {
             public function __construct(private string $dir)
@@ -137,18 +139,18 @@ class BlueprintLoaderTest extends TestCase
             }
             public function supports(string $reference): bool
             {
-                return str_starts_with($reference, 'test:');
+                return str_starts_with($reference, 'gh:fake/repo:');
             }
             public function toRawUrl(string $reference): string
             {
-                return $this->dir . '/' . substr($reference, 5);
+                return $this->dir . '/' . substr($reference, strlen('gh:fake/repo:'));
             }
         };
         $this->write('more.jsonc', '["B"]');
-        $this->write('base.jsonc', '{ "modules": ["A", { "$import": "test:more.jsonc" }] }');
+        $this->write('base.jsonc', '{ "modules": ["A", { "$import": "gh:fake/repo:more.jsonc" }] }');
 
         $loader = new BlueprintLoader(new ReferenceResolver([$provider]));
-        $blueprint = $loader->load('test:base.jsonc');
+        $blueprint = $loader->load('gh:fake/repo:base.jsonc');
 
         $names = array_map(fn($m) => is_string($m) ? $m : $m['name'], $blueprint->modules());
         sort($names);
@@ -471,7 +473,7 @@ class BlueprintLoaderTest extends TestCase
         $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => 'file:///etc/passwd']]]));
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessageMatches('/file: URL/');
+        $this->expectExceptionMessageMatches('/URI scheme/');
         (new BlueprintLoader())->load($base);
     }
 
@@ -483,7 +485,7 @@ class BlueprintLoaderTest extends TestCase
 
         $this->expectException(Exception::class);
         $this->expectExceptionMessage(
-            "Reference 'php://filter/resource=/etc/hostname' in '{$base}' uses an unsupported URL scheme; use an http(s) URL or a relative path."
+            "files 'files/x.txt' source: Source 'php://filter/resource=/etc/hostname' in '{$base}' starts with a URI scheme"
         );
         (new BlueprintLoader())->load($base);
     }
@@ -501,7 +503,7 @@ class BlueprintLoaderTest extends TestCase
                 (new BlueprintLoader())->load($base);
                 $this->fail('case ' . $i . ' must be rejected');
             } catch (Exception $e) {
-                $this->assertStringContainsString('uses an unsupported URL scheme', $e->getMessage(), "case {$i}");
+                $this->assertStringContainsString('starts with a URI scheme', $e->getMessage(), "case {$i}");
             }
         }
     }
@@ -513,7 +515,7 @@ class BlueprintLoaderTest extends TestCase
         ]));
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('uses an unsupported URL scheme');
+        $this->expectExceptionMessage('starts with a URI scheme');
         (new BlueprintLoader(null, null, true))->load($base);
     }
 
@@ -861,5 +863,202 @@ class BlueprintLoaderTest extends TestCase
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('outside the blueprint root');
         (new BlueprintLoader(null, null, true))->load($base);
+    }
+
+    /** A loader whose gh:fake/repo:<path> references are files under the temp dir (an import by gh:). */
+    private function loaderWithFakeRepository(): BlueprintLoader
+    {
+        $provider = new class ($this->dir) implements RepoProvider {
+            public function __construct(private string $dir)
+            {
+            }
+            public function supports(string $reference): bool
+            {
+                return str_starts_with($reference, 'gh:fake/repo:');
+            }
+            public function toRawUrl(string $reference): string
+            {
+                return $this->dir . '/' . substr($reference, strlen('gh:fake/repo:'));
+            }
+        };
+        return new BlueprintLoader(new ReferenceResolver([$provider]));
+    }
+
+    private function files(string $source): string
+    {
+        return $this->write('base.jsonc', json_encode(['files' => [['source' => $source, 'destination' => 'config/a.php']]]));
+    }
+
+    public function testAFileImportedByRepositoryReferenceIsItsOwnRoot(): void
+    {
+        // inside the blueprint's folder, but outside the folder of the file imported by gh:
+        $this->writeIn('lists/modules.json', json_encode([['name' => 'M', 'source' => '../zips/M.zip']]));
+        $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => 'gh:fake/repo:lists/modules.json']]]));
+
+        $this->expectException(SourceException::class);
+        $this->expectExceptionMessage('outside the blueprint root');
+        $this->loaderWithFakeRepository()->load($base);
+    }
+
+    public function testAFileImportedByRelativePathKeepsTheBlueprintRoot(): void
+    {
+        $this->writeIn('lists/modules.json', json_encode([['name' => 'M', 'source' => '../zips/M.zip']]));
+        $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => './lists/modules.json']]]));
+
+        $modules = (new BlueprintLoader())->load($base)->modules();
+        $this->assertSame($this->dir . '/zips/M.zip', $modules[0]['source']);
+    }
+
+    public function testAnEmptySourceIsLeftToTheSchema(): void
+    {
+        // blueprint:export writes "source": "" for a vocabulary it cannot locate; the schema decides
+        // (v0.1.0 accepts it), and nothing is fetched
+        $files = (new BlueprintLoader())->load($this->files(''))->files();
+        $this->assertSame('', $files[0]['source']);
+    }
+
+    public function testAnEmptyImportIsRejected(): void
+    {
+        $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => '']]]));
+        $this->expectException(SourceException::class);
+        $this->expectExceptionMessage('is empty');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testASourceIsNotTrimmed(): void
+    {
+        $this->expectException(SourceException::class);
+        $this->expectExceptionMessage('starts with whitespace');
+        (new BlueprintLoader())->load($this->files(' ./config/a.php'));
+    }
+
+    public function testAPercentEncodedPathIsDecoded(): void
+    {
+        $files = (new BlueprintLoader())->load($this->files('./My%20File.php'))->files();
+        $this->assertSame($this->dir . '/My File.php', $files[0]['source']);
+    }
+
+    public function testAnUnencodedHashInALocalPathIsRejected(): void
+    {
+        $this->expectException(SourceException::class);
+        $this->expectExceptionMessage('%23');
+        (new BlueprintLoader())->load($this->files('./notes#1.php'));
+    }
+
+    public function testARepositoryIsRejectedWhereAFileIsNeeded(): void
+    {
+        $this->expectException(SourceException::class);
+        $this->expectExceptionMessage('git repository');
+        (new BlueprintLoader())->load($this->files('gh:owner/repo'));
+    }
+
+    public function testAnAddonSourceThatLooksLikeIdVersionIsRejected(): void
+    {
+        // 'CleanUrl:3.4' is not a source: name and version are their own fields
+        $base = $this->write('base.jsonc', json_encode(['modules' => [['name' => 'CleanUrl', 'source' => 'CleanUrl:3.4']]]));
+        $this->expectException(SourceException::class);
+        $this->expectExceptionMessage('URI scheme');
+        (new BlueprintLoader())->load($base);
+    }
+
+    public function testAddonSourcesByForm(): void
+    {
+        $base = $this->write('base.jsonc', json_encode(['modules' => [
+            ['name' => 'A', 'source' => 'gh:o/a#v2'],
+            ['name' => 'B', 'source' => 'https://github.com/o/b'],
+            ['name' => 'C', 'source' => 'git@gitlab.com:g/c.git'],
+            ['name' => 'D', 'source' => 'https://example.org/zips/D.zip'],
+            ['name' => 'E', 'source' => 'gh:o/e@v1:dist/E.zip'],
+            ['name' => 'F', 'source' => './zips/F.zip'],
+        ]]));
+        $sources = array_column((new BlueprintLoader())->load($base)->modules(), 'source', 'name');
+        $this->assertSame([
+            'A' => 'gh:o/a#v2',
+            'B' => 'https://github.com/o/b',
+            'C' => 'git@gitlab.com:g/c.git',
+            'D' => 'https://example.org/zips/D.zip',
+            'E' => 'https://raw.githubusercontent.com/o/e/v1/dist/E.zip',
+            'F' => $this->dir . '/zips/F.zip',
+        ], $sources);
+    }
+
+    /** A validator that records what it was given and reports $errors for the documents of type $failType. */
+    private function recordingValidator(array &$calls, string|false|null $failType = false, array $errors = ['/0: bad']): DocumentValidator
+    {
+        return new class ($calls, $failType, $errors) implements DocumentValidator {
+            public function __construct(private array &$calls, private string|false|null $failType, private array $errors)
+            {
+            }
+            public function validateDocument(mixed $data, ?string $type): array
+            {
+                $this->calls[] = [$type, $data];
+                return $type === $this->failType ? $this->errors : [];
+            }
+        };
+    }
+
+    public function testValidatesEachDocumentAsWritten(): void
+    {
+        $this->writeIn('lists/modules.json', json_encode([['name' => 'M', 'source' => './zips/M.zip']]));
+        $this->writeIn('lists/settings.json', json_encode(['a' => 1]));
+        $blueprint = ['modules' => [['$import' => './lists/modules.json']], 'settings' => [['$import' => './lists/settings.json']]];
+        $base = $this->write('base.jsonc', json_encode($blueprint));
+
+        $calls = [];
+        (new BlueprintLoader(null, null, false, $this->recordingValidator($calls)))->load($base);
+
+        $this->assertSame([
+            [null, $blueprint],
+            ['modules', [['name' => 'M', 'source' => './zips/M.zip']]],
+            ['settings', ['a' => 1]],
+        ], $calls);
+    }
+
+    public function testASingleImportedEntryIsValidatedAsAList(): void
+    {
+        $this->writeIn('lists/module.json', json_encode(['name' => 'M']));
+        $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => './lists/module.json']]]));
+
+        $calls = [];
+        (new BlueprintLoader(null, null, false, $this->recordingValidator($calls)))->load($base);
+
+        $this->assertSame(['modules', [['name' => 'M']]], $calls[1]);
+    }
+
+    public function testAnInvalidImportIsReportedWithItsLabelAndNotFollowed(): void
+    {
+        // the invalid list's own import points at a file that does not exist: following it would throw
+        $this->writeIn('lists/modules.json', json_encode([['nme' => 'M'], ['$import' => './missing.json']]));
+        $base = $this->write('base.jsonc', json_encode(['modules' => ['A', ['$import' => './lists/modules.json']]]));
+
+        $calls = [];
+        $loader = new BlueprintLoader(null, null, false, $this->recordingValidator($calls, 'modules'));
+        $blueprint = $loader->load($base);
+
+        $this->assertSame(['lists/modules.json: /0: bad'], $loader->takeErrors());
+        $this->assertSame(['A'], $blueprint->modules());
+        $this->assertSame([], $loader->takeErrors(), 'errors are cleared on read');
+    }
+
+    public function testAnInvalidBlueprintIsNotResolved(): void
+    {
+        $base = $this->write('base.jsonc', json_encode(['files' => [['source' => './a.php', 'destination' => 'a.php']], 'modules' => [['$import' => './missing.json']]]));
+
+        $calls = [];
+        $loader = new BlueprintLoader(null, null, false, $this->recordingValidator($calls, null, ['/files/0: bad']));
+        $blueprint = $loader->load($base);
+
+        $this->assertSame(['base.jsonc: /files/0: bad'], $loader->takeErrors());
+        $this->assertSame('./a.php', $blueprint->files()[0]['source']);
+    }
+
+    public function testAPartialIsValidatedAsWritten(): void
+    {
+        $partial = $this->write('modules.json', json_encode([['name' => 'M', 'source' => './zips/M.zip']]));
+
+        $calls = [];
+        (new BlueprintLoader(null, null, false, $this->recordingValidator($calls)))->loadPartial($partial, 'modules');
+
+        $this->assertSame([['modules', [['name' => 'M', 'source' => './zips/M.zip']]]], $calls);
     }
 }

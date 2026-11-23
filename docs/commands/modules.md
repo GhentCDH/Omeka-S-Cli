@@ -130,6 +130,13 @@ the web or on disk, and a git repository:
 | `<git-url>[#<ref>]` | `https://github.com/omeka-s-modules/CSSEditor.git#v1.3.1`, `git@github.com:owner/repo.git` |
 | `gh:<owner>/<repo>[#<ref>]` | `gh:omeka-s-modules/CSSEditor#v1.3.1` |
 | `https://github.com/<owner>/<repo>[#<ref>]` | `https://github.com/omeka-s-modules/CSSEditor#v1.3.1`, the repository URL as GitHub shows it |
+| `gh:<owner>/<repo>[@<ref>]:<path>` | `gh:owner/repo@v1.0:dist/Module.zip`, a release zip kept in a repository (also `gl:`) |
+
+These are the forms a blueprint's module `source` takes, plus `<id>[:<version>]` and a zip path
+relative to the current directory. A git repository is an `http(s)` URL that ends in `.git`, `git@host:`,
+`gh:` or the GitHub repository URL; any other `http(s)` URL is downloaded as a release zip, so a page
+URL such as `https://gitlab.com/group/repo` fails as *not a ZIP archive*: add `.git` for a repository.
+A ref may contain `/` (`#feature/x`) but not start with `-`.
 
 A release zip from the web:
 

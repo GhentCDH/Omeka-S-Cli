@@ -93,7 +93,12 @@ class ReferenceResolver
     /** Whether a provider recognizes $reference as a repo reference (gh:, gl:, a blob URL, ...). */
     public function isRepoReference(string $reference): bool
     {
-        return $this->toRawUrl(trim($reference)) !== null;
+        foreach ($this->providers as $provider) {
+            if ($provider->supports($reference)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Convert a repo-aware reference to a raw URL, or null if no provider recognizes it. */

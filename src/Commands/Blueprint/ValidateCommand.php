@@ -43,8 +43,9 @@ class ValidateCommand extends AbstractBlueprintCommand
         ?bool $selfContained = false,
     ): void {
         $selfContained = (bool) $selfContained;
-        $loader = new BlueprintLoader(null, $root, $selfContained);
         $validator = $this->validator($selfContained);
+        // each document is validated as written while it loads (see takeErrors())
+        $loader = new BlueprintLoader(null, $root, $selfContained, $validator);
 
         if ($refresh) {
             $this->info('Refreshing the blueprint schema from the shared repository...', true);
@@ -52,14 +53,21 @@ class ValidateCommand extends AbstractBlueprintCommand
         }
 
         if ($as !== null) {
-            $data = $loader->loadPartial($source, $as);
-            $errors = array_merge($loader->takeViolations(), $validator->validatePartial($data, $as));
+            $loader->loadPartial($source, $as);
+            $errors = array_merge($loader->takeViolations(), $loader->takeErrors());
         } else {
             $data = $loader->load($source);
-            $violations = $selfContained
-                ? array_merge($loader->takeViolations(), SelfContainedCheck::violations($data, true))
-                : [];
-            $errors = array_merge($violations, $validator->validateBlueprint($data->toArray()));
+            $errors = $loader->takeErrors();
+            $violations = [];
+            if ($selfContained) {
+                $violations = $loader->takeViolations();
+                // an invalid document was not resolved: its sources say nothing about self-containment
+                if ($errors === []) {
+                    $violations = array_merge($violations, SelfContainedCheck::violations($data, true));
+                }
+            }
+            // the checks the schema cannot express (themes, permissions, item sets) need no resolved source
+            $errors = array_merge($violations, $errors, $validator->validateResolved($data->toArray()));
         }
 
         $warnings = array_merge($loader->takeWarnings(), $validator->takeWarnings());

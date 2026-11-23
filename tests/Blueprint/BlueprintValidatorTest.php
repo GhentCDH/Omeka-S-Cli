@@ -35,6 +35,28 @@ class BlueprintValidatorTest extends TestCase
         $this->assertFileExists((new BlueprintValidator())->schemaFile());
     }
 
+    public function testSchemaSourceIsAnExactRelease(): void
+    {
+        // a floating tag (v0) would let a new spec release change what a shipped CLI accepts
+        $this->assertMatchesRegularExpression('#/schema/v\d+\.\d+\.\d+/blueprint-schema\.json$#', BlueprintValidator::SCHEMA_SOURCE);
+    }
+
+    public function testValidatesAgainstASchemaThatDeclaresAnExactReleaseId(): void
+    {
+        // an exact release declares its own $id (…/schema/v0.1.0/…), not the floating one
+        $schema = json_decode(file_get_contents((new BlueprintValidator())->schemaFile()), true);
+        $schema['$id'] = 'https://example.org/schema/v9.9.9/blueprint-schema.json';
+        $file = tempnam(sys_get_temp_dir(), 'osc-schema-');
+        file_put_contents($file, json_encode($schema));
+        try {
+            $validator = new BlueprintValidator($file);
+            $this->assertSame([], $validator->validatePartial(['Common'], 'modules'));
+            $this->assertNotSame([], $validator->validatePartial([['nme' => 'Common']], 'modules'));
+        } finally {
+            unlink($file);
+        }
+    }
+
     public function testAcceptsAValidBlueprint(): void
     {
         $blueprint = [
@@ -435,5 +457,35 @@ class BlueprintValidatorTest extends TestCase
     public function testTheBundledSchemaPathIsTheFallbackFile(): void
     {
         $this->assertSame(BlueprintValidator::bundledSchemaPath(), (new BlueprintValidator())->schemaFile());
+    }
+
+    public function testValidatesADocumentAsWritten(): void
+    {
+        $validator = $this->validator();
+        $this->assertSame([], $validator->validateDocument(['modules' => [['name' => 'M', 'source' => './zips/M.zip']]], null));
+        $this->assertSame([], $validator->validateDocument([['name' => 'M', 'source' => './zips/M.zip']], 'modules'));
+        $this->assertNotSame([], $validator->validateDocument(['modulez' => []], null));
+        $this->assertNotSame([], $validator->validateDocument([['nme' => 'M']], 'modules'));
+    }
+
+    public function testValidateResolvedOnlyRunsTheChecksTheSchemaCannotExpress(): void
+    {
+        $validator = $this->validator();
+        // not a schema check: an unknown key passes here (the loader validated each document already)
+        $this->assertSame([], $validator->validateResolved(['modulez' => []]));
+        $errors = $validator->validateResolved([
+            'sites' => [['title' => 'S', 'slug' => 's', 'permissions' => [['user' => 'nobody@example.org', 'role' => 'viewer']]]],
+        ]);
+        $this->assertNotSame([], $errors);
+    }
+
+    public function testSitesTakeAnImportAlthoughTheSchemaListsNone(): void
+    {
+        // the shared schema's sites list has no $import entry (yet); the CLI documents and follows it, and
+        // validates the imported file on its own
+        $validator = $this->validator();
+        $this->assertSame([], $validator->validateDocument(['sites' => [['$import' => './sites.json'], ['title' => 'S']]], null));
+        $this->assertSame([], $validator->validateDocument([['$import' => './more-sites.json'], ['title' => 'S']], 'sites'));
+        $this->assertNotSame([], $validator->validateDocument(['sites' => [['$import' => './s.json', 'title' => 'S']]], null));
     }
 }

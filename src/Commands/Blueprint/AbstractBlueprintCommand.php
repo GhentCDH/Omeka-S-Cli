@@ -45,7 +45,10 @@ abstract class AbstractBlueprintCommand extends AbstractCommand
         if (!$quiet) {
             $this->note("Loading blueprint from '{$source}' ...", true);
         }
-        $loader = new BlueprintLoader(null, $root, $selfContained);
+        // each document is validated as written while it loads: once resolved, its relative sources are
+        // absolute paths, which the schema rejects
+        $validator = $this->validator($selfContained);
+        $loader = new BlueprintLoader(null, $root, $selfContained, $validator);
         $blueprint = $loader->load($source);
         $loaderWarnings = $loader->takeWarnings();
         if (!$quiet) {
@@ -53,6 +56,14 @@ abstract class AbstractBlueprintCommand extends AbstractCommand
                 $this->warn("  {$warning}", true);
             }
         }
+        // the checks the schema cannot express (themes, permissions, item sets) need no resolved source
+        $errors = array_merge($loader->takeErrors(), $validator->validateResolved($blueprint->toArray()));
+        if (!$quiet) {
+            foreach ($validator->takeWarnings() as $warning) {
+                $this->warn("  {$warning}", true);
+            }
+        }
+        $this->refuseInvalid($action, $errors);
 
         if ($selfContained) {
             $violations = array_merge(
@@ -68,13 +79,15 @@ abstract class AbstractBlueprintCommand extends AbstractCommand
             }
         }
 
-        $validator = $this->validator($selfContained);
-        $errors = $validator->validateBlueprint($blueprint->toArray());
-        if (!$quiet) {
-            foreach ($validator->takeWarnings() as $warning) {
-                $this->warn("  {$warning}", true);
-            }
-        }
+        return $blueprint;
+    }
+
+    /**
+     * @param string[] $errors
+     * @throws Exception When there are errors (after printing them)
+     */
+    private function refuseInvalid(string $action, array $errors): void
+    {
         if ($errors) {
             $this->error('Blueprint is invalid:', true);
             foreach ($errors as $error) {
@@ -82,8 +95,6 @@ abstract class AbstractBlueprintCommand extends AbstractCommand
             }
             throw new Exception("Refusing to {$action} an invalid blueprint. Run 'blueprint:validate' for details.");
         }
-
-        return $blueprint;
     }
 
     /**

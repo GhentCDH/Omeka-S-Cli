@@ -5,6 +5,7 @@ use Closure;
 use Exception;
 use LogicException;
 use OSC\Addon\AddonType;
+use OSC\Addon\AddonReference;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\GitDownloader;
 use OSC\Downloader\ResolvedAddon;
@@ -13,7 +14,6 @@ use OSC\Exceptions\NotFoundException;
 use OSC\Exceptions\OfflineException;
 use OSC\Helper\Offline;
 use OSC\Helper\ResourceUriParser;
-use OSC\Helper\Types\ResourceUri;
 use OSC\Addon\AddonVersion;
 use OSC\Manager\AbstractManager;
 use OSC\Manager\Result;
@@ -31,7 +31,6 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(GitDownloader::class)]
 #[UsesClass(ResourceUriParser::class)]
-#[UsesClass(ResourceUri::class)]
 #[UsesClass(AddonVersion::class)]
 #[UsesClass(AddonType::class)]
 #[UsesClass(ModuleDetails::class)]
@@ -55,15 +54,6 @@ class AddonResolverTest extends TestCase
         if ($this->savedOffline !== false) {
             putenv(Offline::ENV . '=' . $this->savedOffline);
         }
-    }
-
-    public function testAddonIdIsTheIdOfARepositoryReferenceOnly(): void
-    {
-        $this->assertSame('common', AddonResolver::addonId('common'));
-        $this->assertSame('Common', AddonResolver::addonId('Common:3.4.82'));
-        $this->assertNull(AddonResolver::addonId('https://example.org/Mapping-2.1.0.zip'));
-        $this->assertNull(AddonResolver::addonId('./Mapping-2.1.0.zip'));
-        $this->assertNull(AddonResolver::addonId('gh:omeka-s-modules/Mapping#v2.1.0'));
     }
 
     public function testOfflineARepositoryReferenceIsRefused(): void
@@ -109,20 +99,6 @@ class AddonResolverTest extends TestCase
     private function noLookup(): Closure
     {
         return fn() => throw new LogicException('no repository lookup expected');
-    }
-
-    public function testIsGit(): void
-    {
-        $this->assertTrue(AddonResolver::isGit('gh:omeka-s-modules/CustomVocab'));
-        $this->assertTrue(AddonResolver::isGit('gh:omeka-s-modules/CustomVocab#v2.1.0'));
-        $this->assertTrue(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab.git#v2.1.0'));
-        $this->assertTrue(AddonResolver::isGit('git@github.com:omeka-s-modules/CustomVocab.git'));
-        $this->assertTrue(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab'));
-        $this->assertTrue(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab#v2.1.0'));
-        $this->assertFalse(AddonResolver::isGit('https://github.com/omeka-s-modules/CustomVocab/archive/refs/tags/v2.1.0.zip'));
-        $this->assertFalse(AddonResolver::isGit('https://example.org/CustomVocab-2.1.0.zip'));
-        $this->assertFalse(AddonResolver::isGit('./modules/CustomVocab-2.1.0.zip'));
-        $this->assertFalse(AddonResolver::isGit('CustomVocab:2.1.0'));
     }
 
     public function testAZipSourceNeedsNoRepository(): void
@@ -197,16 +173,14 @@ class AddonResolverTest extends TestCase
         $this->resolver($this->common())->resolve('Common:9.9.9', fn() => '4.1.1');
     }
 
-    public function testUriForABlueprintEntry(): void
+    public function testResolvesAReferenceBuiltFromABlueprintEntry(): void
     {
-        $this->assertSame('Common', AddonResolver::uriFor('Common', null, null));
-        $this->assertSame('Log:3.4.30', AddonResolver::uriFor('Log', null, '3.4.30'));
-        $this->assertSame('https://example.org/M-2.1.0.zip', AddonResolver::uriFor('M', 'https://example.org/M-2.1.0.zip', '2.0.0'));
-        $this->assertSame('gh:owner/a#1.2.0', AddonResolver::uriFor('A', 'gh:owner/a', '1.2.0'));
-        $this->assertSame('https://example.org/owner/b.git#1.2.0', AddonResolver::uriFor('B', 'https://example.org/owner/b.git', '1.2.0'));
-        $this->assertSame('gh:owner/c#main', AddonResolver::uriFor('C', 'gh:owner/c#main', '1.2.0'));
-        $this->assertSame('https://github.com/owner/d#1.2.0', AddonResolver::uriFor('D', 'https://github.com/owner/d', '1.2.0'));
-        $this->assertSame('https://github.com/owner/e#main', AddonResolver::uriFor('E', 'https://github.com/owner/e#main', '1.2.0'));
-        $this->assertSame('https://example.org/dl?id=5', AddonResolver::uriFor('F', 'https://example.org/dl?id=5', '1.2.0'));
+        $git = $this->resolver(null)->resolve(AddonReference::fromBlueprint('A', 'gh:owner/a', '1.2.0'), $this->noLookup());
+        $this->assertSame(ResolvedAddon::GIT, $git->form);
+        $this->assertSame('https://github.com/owner/a.git', $git->downloader->getDownloadUrl());
+        $this->assertSame('1.2.0', $git->downloader->getRef());
+
+        $named = $this->resolver($this->common())->resolve(AddonReference::fromBlueprint('Common', null, '1.0.0'), fn() => '4.1.1');
+        $this->assertSame('1.0.0', $named->version);
     }
 }

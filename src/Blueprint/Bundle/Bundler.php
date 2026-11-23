@@ -12,6 +12,7 @@ use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintValidator;
 use OSC\Blueprint\SelfContainedCheck;
 use OSC\Blueprint\SourceFields;
+use OSC\Addon\AddonReference;
 use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
@@ -158,7 +159,7 @@ class Bundler
                 $name = (string) ($entry['name'] ?? '');
                 $version = isset($entry['version']) && $entry['version'] !== '' ? (string) $entry['version'] : null;
                 try {
-                    $isGit = AddonResolver::isGit(AddonResolver::uriFor($name, (string) $entry['source'], $version));
+                    $isGit = AddonReference::fromBlueprint($name, (string) $entry['source'], $version)->isGit();
                 } catch (InvalidArgumentException $e) {
                     throw new Exception("{$key}[{$i}] '{$name}': {$e->getMessage()}", 0, $e);
                 }
@@ -205,7 +206,7 @@ class Bundler
         $this->progress($label);
         try {
             $resolver = $kind === SourceFields::MODULE ? $this->modules : $this->themes;
-            $resolved = $resolver->resolve(AddonResolver::uriFor($name, $source, $version), fn() => $omeka, $allowIncompatible);
+            $resolved = $resolver->resolve(AddonReference::fromBlueprint($name, $source, $version), fn() => $omeka, $allowIncompatible);
             foreach ($resolved->notes as $note) {
                 $this->progress("  {$note}");
             }

@@ -2,42 +2,30 @@
 
 namespace OSC\Helper;
 
-use OSC\Helper\Types\ResourceUri;
-use OSC\Helper\Types\ResourceUriType;
+use InvalidArgumentException;
+use OSC\Addon\AddonReference;
+use OSC\Blueprint\SourceForm;
 
-class ResourceUriParser {
-    public static function parse($string): ResourceUri
+/**
+ * Parses the add-on argument of module:download / theme:download (and their update commands): the
+ * source grammar of a blueprint (AddonReference::fromSource()), plus what only a command line has:
+ * `id[:version]`, a repository lookup by name, and a relative path to a ZIP (resolved against the
+ * working directory, so it must end in `.zip`).
+ */
+class ResourceUriParser
+{
+    /** @throws InvalidArgumentException When the argument has no known form */
+    public static function parse(string $argument): AddonReference
     {
-        // zip release url
-        if (preg_match('/^https?:\/\/.+\.zip$/', $string, $matches)) {
-            return new ResourceUri(ResourceUriType::ZipUrl, $matches[0], null);
+        if (preg_match('/\A([A-Za-z0-9_-]+)(?::([A-Za-z0-9_.-]+))?\z/', $argument, $m) === 1) {
+            return AddonReference::byName($m[1], $m[2] ?? null);
         }
-
-        // local zip release file
-        if (preg_match('/^(?![a-zA-Z][a-zA-Z0-9+.-]+:).+\.zip$/i', $string)) {
-            return new ResourceUri(ResourceUriType::ZipFile, $string, null);
+        if (!str_starts_with($argument, '/') && SourceForm::of($argument) === SourceForm::RelativePath) {
+            if (preg_match('/\.zip\z/i', $argument) === 1) {
+                return AddonReference::zipFile($argument);
+            }
+            throw new InvalidArgumentException("Could not determine argument type: '{$argument}'");
         }
-
-        // git repo url
-        if (preg_match('/^((https:\/\/|git@).+\.git)(#([a-zA-Z0-9_.-]+))?$/', $string, $matches)) {
-            return new ResourceUri(ResourceUriType::GitRepo, $matches[1], $matches[4] ?? null);
-        }
-
-        // https://github.com/user/repo[/][#branch], the URL copied from GitHub: same as gh:user/repo
-        if (preg_match('/^https:\/\/github\.com\/([a-zA-Z0-9_.-]+\/(?![a-zA-Z0-9_.-]*\.git(?:[\/#]|$))[a-zA-Z0-9_.-]+)\/?(#([a-zA-Z0-9_.-]+))?$/', $string, $matches)) {
-            return new ResourceUri(ResourceUriType::GitHubRepo, $matches[1], $matches[3] ?? null);
-        }
-
-        // id:version
-        if (preg_match('/^([a-zA-Z0-9_-]+)(:([a-zA-Z0-9_.-]+))?$/', $string, $matches)) {
-            return new ResourceUri(ResourceUriType::IdVersion, $matches[1], $matches[3] ?? null);
-        }
-
-        // gh:user/repo or gh:user/repo#branch
-        if (preg_match('/^gh:(([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+))(#([a-zA-Z0-9_.-]+))?$/', $string, $matches)) {
-            return new ResourceUri(ResourceUriType::GitHubRepo, $matches[1], $matches[5] ?? null);
-        }
-
-        throw new \InvalidArgumentException("Could not determine argument type: '$string'");
+        return AddonReference::fromSource($argument);
     }
 }

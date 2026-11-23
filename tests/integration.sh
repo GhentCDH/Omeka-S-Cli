@@ -1300,7 +1300,7 @@ JSON
 fi
 assert_output_contains "blueprint:validate --self-contained flags repository sources" "has no source" \
     $CLI blueprint:validate "$BUNDLE_SRC/site.blueprint.json" --self-contained
-assert_output_contains "blueprint:validate rejects a php:// source" "uses an unsupported URL scheme" \
+assert_output_contains "blueprint:validate rejects a php:// source" "starts with a URI scheme" \
     $CLI blueprint:validate "$BUNDLE_SRC/php.blueprint.json"
 assert_output_contains "blueprint:validate --self-contained flags a git source" "is not a relative path inside the blueprint" \
     $CLI blueprint:validate "$BUNDLE_SRC/git.blueprint.json" --self-contained
@@ -1336,7 +1336,7 @@ assert_output_is "the site uses the bundled theme" "freedom" \
     bash -c "$CLI site:list --json | jq -r '.[] | select(.slug==\"bp-bundle-site\") | .theme'"
 
 # the same bundle served over HTTP: relative sources resolve against the blueprint URL, and a
-# reference leaving that URL is flagged
+# reference leaving that URL is rejected (a remote blueprint's folder is its root)
 BUNDLE_SERVER=""
 if [[ $SECTION_SKIP -eq 0 ]]; then
     mkdir -p "$BUNDLE/sub"
@@ -1348,8 +1348,10 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
 fi
 assert_success "blueprint:validate --self-contained accepts a bundle over HTTP" \
     $CLI blueprint:validate http://127.0.0.1:8765/blueprint.json --self-contained
-assert_output_contains "a reference leaving the bundle URL is flagged" "outside the blueprint location" \
+assert_output_contains "a reference leaving the bundle URL is rejected" "outside the blueprint root" \
     $CLI blueprint:validate http://127.0.0.1:8765/sub/escape.blueprint.json --self-contained
+assert_output_contains "a reference leaving the bundle URL is rejected without --self-contained too" "outside the blueprint root" \
+    $CLI blueprint:validate http://127.0.0.1:8765/sub/escape.blueprint.json
 assert_success "blueprint:deploy --self-contained deploys a bundle over HTTP" \
     $CLI blueprint:deploy http://127.0.0.1:8765/blueprint.json --skip core --force --self-contained
 if [[ -n "$BUNDLE_SERVER" ]]; then kill "$BUNDLE_SERVER" 2>/dev/null || true; rm -rf "$BUNDLE/sub"; fi

@@ -268,7 +268,7 @@ class BlueprintApplierTest extends TestCase
         ]]);
 
         $this->assertContains("would download module 'Mapping' ({$zip})", $notes);
-        $this->assertContains("would download module 'X' (gh:owner/repo)", $notes);
+        $this->assertContains("would download module 'X' (https://github.com/owner/repo.git)", $notes);
     }
 
     public function testVersionSelectsTheTagOfAGitSourceUnlessItHasARef(): void
@@ -279,9 +279,15 @@ class BlueprintApplierTest extends TestCase
             ['name' => 'C', 'source' => 'gh:owner/c#main', 'version' => '1.2.0'],
         ]]);
 
-        $this->assertContains("would download module 'A' (gh:owner/a#1.2.0)", $notes);
+        $this->assertContains("would download module 'A' (https://github.com/owner/a.git#1.2.0)", $notes);
         $this->assertContains("would download module 'B' (https://example.org/owner/b.git#1.2.0)", $notes);
-        $this->assertContains("would download module 'C' (gh:owner/c#main)", $notes);
+        $this->assertContains("would download module 'C' (https://github.com/owner/c.git#main)", $notes);
+    }
+
+    public function testDryRunHidesCredentials(): void
+    {
+        $notes = $this->dryRunAddons(['modules' => [['name' => 'M', 'source' => 'https://u:secret@example.org/M.zip']]]);
+        $this->assertContains("would download module 'M' (https://***@example.org/M.zip)", $notes);
     }
 
     public function testAddonOnDiskWithoutSourceIsUsedAsIsUnlessUpdating(): void
