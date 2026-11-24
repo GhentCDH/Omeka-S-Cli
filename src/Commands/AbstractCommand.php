@@ -106,6 +106,16 @@ abstract class AbstractCommand extends Command
         return $this;
     }
 
+    /**
+     * --root: the directory the files a config file (or blueprint) names must stay inside.
+     *
+     * @param string|null $description The help text, for commands whose file is not a config file
+     */
+    public function optionRoot(?string $description = null): static {
+        $this->option('--root', $description ?? "Directory the files a config file names must stay inside (default: the config file's directory)");
+        return $this;
+    }
+
     public function optionCSV(): static {
         $this->option('-c --csv', 'Output csv', 'boolval', false)->on([$this, 'beQuiet']);
         return $this;

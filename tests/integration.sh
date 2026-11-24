@@ -739,8 +739,12 @@ run "remove a vocabulary left by an earlier run" $CLI vocabulary:delete ex --ign
 run "make a directory with a local vocabulary" bash -c "rm -rf $VOCAB_CFG && mkdir -p $VOCAB_CFG && cp /app/omeka-s-cli/examples/vocabulary/example.ttl $VOCAB_CFG/"
 assert_success "vocabulary:create-import-config prints the config" \
     bash -c "set -o pipefail; $CLI vocabulary:create-import-config --source example.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example --format turtle | jq -e '.source == \"example.ttl\" and .namespaceUri == \"http://example.org/ns#\" and .prefix == \"ex\" and .label == \"Example\" and .format == \"turtle\"'"
+# printed, the config is clean JSON also for a source outside the working directory (no warning on stdout)
+assert_success "vocabulary:create-import-config prints clean JSON for a source elsewhere" \
+    bash -c "set -o pipefail; cd /tmp && $CLI vocabulary:create-import-config --source /usr/share/x.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example | jq -e '.source == \"../usr/share/x.ttl\"'"
+# a typed --source is relative to the working directory; the config gets it relative to itself
 assert_success "vocabulary:create-import-config --output writes the file" \
-    $CLI vocabulary:create-import-config --source example.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example --format turtle --output $VOCAB_CFG/ex.json
+    $CLI vocabulary:create-import-config --source $VOCAB_CFG/example.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example --format turtle --output $VOCAB_CFG/ex.json
 assert_success "the written config has the same fields" jq -e '.source == "example.ttl" and .prefix == "ex" and .format == "turtle"' $VOCAB_CFG/ex.json
 assert_success "vocabulary:import --config imports the created config" $CLI vocabulary:import --config $VOCAB_CFG/ex.json
 assert_success "delete the vocabulary of the created config" $CLI vocabulary:delete ex
@@ -749,6 +753,22 @@ assert_fail "vocabulary:create-import-config without --prefix fails" \
 assert_fail "vocabulary:create-import-config with an unknown --format fails" \
     $CLI vocabulary:create-import-config --source example.ttl --namespace-uri 'http://example.org/ns#' --prefix ex --label Example --format bogus
 run "remove the config directory" rm -rf $VOCAB_CFG
+
+# a config file's source follows the file rules: relative to the config, inside its folder unless --root
+VOCAB_ROOT=/tmp/osc-vocab-root
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf $VOCAB_ROOT && mkdir -p $VOCAB_ROOT/cfg $VOCAB_ROOT/rdf
+    cp /app/omeka-s-cli/examples/vocabulary/example.ttl $VOCAB_ROOT/rdf/
+    echo '{"source": "../rdf/example.ttl", "label": "Example", "namespaceUri": "http://example.org/ns#", "prefix": "ex", "format": "turtle"}' > $VOCAB_ROOT/cfg/up.json
+    echo "{\"source\": \"$VOCAB_ROOT/rdf/example.ttl\", \"label\": \"Example\", \"namespaceUri\": \"http://example.org/ns#\", \"prefix\": \"ex\", \"format\": \"turtle\"}" > $VOCAB_ROOT/cfg/abs.json
+fi
+assert_output_contains "vocabulary:import --config refuses an absolute source" "absolute path" \
+    $CLI vocabulary:import --config $VOCAB_ROOT/cfg/abs.json
+assert_output_contains "vocabulary:import --config refuses a source outside its folder" "outside the root" \
+    $CLI vocabulary:import --config $VOCAB_ROOT/cfg/up.json
+assert_success "vocabulary:import --config --root widens it" $CLI vocabulary:import --config $VOCAB_ROOT/cfg/up.json --root $VOCAB_ROOT
+run "delete the vocabulary of the widened config" $CLI vocabulary:delete ex
+run "remove the root config directory" rm -rf $VOCAB_ROOT
 assert_success "add vocabulary person-name-vocabulary from remote config" $CLI vocabulary:import --config https://raw.githubusercontent.com/GhentCDH/Omeka-S-Vocabularies/refs/heads/main/person-name-vocabulary.json
 
 run "delete vocabulary person-name-vocabulary" $CLI vocabulary:delete pvn
@@ -974,6 +994,20 @@ assert_success "the title-only item has its title, item set and media"    bash -
 assert_output_contains "a config without a source takes no other properties" "put other properties ('description') in a JSON-LD source" \
     bash -c "echo '{\"title\": \"X\", \"description\": \"Y\"}' > /tmp/osc-title-bad.json && $CLI item:import --config /tmp/osc-title-bad.json"
 run    "remove the title-only configs"                           rm -f /tmp/osc-title-only.json /tmp/osc-title-bad.json
+
+# a config file's sources follow the file rules: relative to the config, inside its folder unless --root
+ITEM_ROOT=/tmp/osc-item-root
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    rm -rf $ITEM_ROOT && mkdir -p $ITEM_ROOT/cfg $ITEM_ROOT/data
+    cp $ITEMS/item-no-id.jsonld $ITEM_ROOT/data/item.jsonld
+    echo "{\"source\": \"$ITEM_ROOT/data/item.jsonld\"}" > $ITEM_ROOT/cfg/abs.json
+    echo '{"source": "../data/item.jsonld"}' > $ITEM_ROOT/cfg/up.json
+fi
+assert_output_contains "item:import --config refuses an absolute source"        "absolute path"    $CLI item:import --config $ITEM_ROOT/cfg/abs.json
+assert_output_contains "item:import --config refuses a source outside its folder" "outside the root" $CLI item:import --config $ITEM_ROOT/cfg/up.json
+assert_success "item:import --config --root widens it" \
+    bash -c "set -o pipefail; $CLI item:import --config $ITEM_ROOT/cfg/up.json --root $ITEM_ROOT --json | jq -e '.status == \"created\" or .status == \"exists\"'"
+run    "remove the root config tree"                             rm -rf $ITEM_ROOT
 # --site: the item goes to that site only, not to every site that takes new items
 run    "add a site for --site"                                    $CLI site:add "Items Site A" --slug osc-items-a --ignore-existing
 run    "add a second site that takes new items"                   $CLI site:add "Items Site B" --slug osc-items-b --ignore-existing
@@ -1074,7 +1108,7 @@ BP=/app/omeka-s-cli/examples/blueprint/site.blueprint.jsonc
 # the example's resource template lives in ../resource-template, outside the blueprint's directory
 BP_ROOT=(--root /app/omeka-s-cli/examples)
 
-assert_output_contains "blueprint:validate rejects a reference outside the blueprint root" "outside the blueprint root" \
+assert_output_contains "blueprint:validate rejects a reference outside the root" "outside the root" \
     $CLI blueprint:validate "$BP"
 assert_success "blueprint:validate accepts the example blueprint with --root" $CLI blueprint:validate "$BP" "${BP_ROOT[@]}"
 assert_success "blueprint:validate accepts a standalone module partial"    $CLI blueprint:validate /app/omeka-s-cli/examples/blueprint/modules.extra.jsonc --as modules
@@ -1132,6 +1166,8 @@ fi
 run            "remove a remote content bundle left by an earlier run"    rm -rf /tmp/bp-content-remote
 assert_success "blueprint:bundle bundles a remote blueprint's relative media" $CLI blueprint:bundle http://127.0.0.1:8766/content.blueprint.jsonc /tmp/bp-content-remote
 assert_success "the remote bundle holds the media files"                    bash -c "test \$(ls /tmp/bp-content-remote/media | wc -l) -eq 3 && jq -e '.items[0].media[0].url | startswith(\"./media/\")' /tmp/bp-content-remote/blueprint.json"
+assert_output_contains "--root with a remote blueprint is refused" "root only applies to a local file" \
+    $CLI blueprint:validate http://127.0.0.1:8766/content.blueprint.jsonc --root /tmp
 if [[ -n "$CONTENT_SERVER" ]]; then kill "$CONTENT_SERVER" 2>/dev/null || true; fi
 run            "remove the remote content bundle"                          rm -rf /tmp/bp-content-remote
 
@@ -1155,7 +1191,7 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
 fi
 assert_output_contains "blueprint:validate rejects an absolute source path" "absolute path" \
     $CLI blueprint:validate /tmp/bp-files/absolute.blueprint.json
-assert_output_contains "blueprint:validate rejects an \$import leaving the root" "outside the blueprint root" \
+assert_output_contains "blueprint:validate rejects an \$import leaving the root" "outside the root" \
     $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json
 assert_success "blueprint:validate accepts it with a wider --root"         $CLI blueprint:validate /tmp/bp-files/site/escape.blueprint.json --root /tmp/bp-files
 
@@ -1348,9 +1384,9 @@ if [[ $SECTION_SKIP -eq 0 ]]; then
 fi
 assert_success "blueprint:validate --self-contained accepts a bundle over HTTP" \
     $CLI blueprint:validate http://127.0.0.1:8765/blueprint.json --self-contained
-assert_output_contains "a reference leaving the bundle URL is rejected" "outside the blueprint root" \
+assert_output_contains "a reference leaving the bundle URL is rejected" "outside the root" \
     $CLI blueprint:validate http://127.0.0.1:8765/sub/escape.blueprint.json --self-contained
-assert_output_contains "a reference leaving the bundle URL is rejected without --self-contained too" "outside the blueprint root" \
+assert_output_contains "a reference leaving the bundle URL is rejected without --self-contained too" "outside the root" \
     $CLI blueprint:validate http://127.0.0.1:8765/sub/escape.blueprint.json
 assert_success "blueprint:deploy --self-contained deploys a bundle over HTTP" \
     $CLI blueprint:deploy http://127.0.0.1:8765/blueprint.json --skip core --force --self-contained

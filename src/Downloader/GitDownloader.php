@@ -2,22 +2,33 @@
 
 namespace OSC\Downloader;
 
+use OSC\Source\GitRepository;
 use OSC\Addon\GitRef;
 use OSC\Helper\Path;
 
 class GitDownloader implements DownloaderInterface {
 
-    /** @throws \InvalidArgumentException When $tag is not a valid git ref (it is never passed to git as an option) */
-    public function __construct(private string $uri, private ?string $tag = null)
+    private string $uri;
+    private ?string $tag;
+
+    /** @throws \InvalidArgumentException When the ref is not a valid git ref (it is never passed to git as an option) */
+    public function __construct(private GitRepository $repository)
     {
-        if ($tag !== null && $tag !== '') {
-            GitRef::assertValid($tag);
+        $this->uri = $repository->cloneUrl();
+        $this->tag = $repository->ref();
+        if ($this->tag !== null) {
+            GitRef::assertValid($this->tag);
         }
     }
 
     public function getDownloadUrl(): string
     {
         return $this->uri;
+    }
+
+    public function display(): string
+    {
+        return $this->repository->display();
     }
 
     /** The tag, branch or commit to check out, or null for the default branch. */

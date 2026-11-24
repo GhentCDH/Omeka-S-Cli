@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Resource;
 
+use OSC\Source\HttpUrl;
 use Closure;
 use InvalidArgumentException;
 use LogicException;
@@ -34,7 +35,8 @@ class ResourceImporter
         ?Closure $fetchJson = null,
         private ?Closure $checkMedia = null,
     ) {
-        $this->fetchJson = $fetchJson ?? ResourceFetcher::fetchJson(...);
+        // a context is a URL: a path (absolute or not) in a JSON-LD file is never read from disk
+        $this->fetchJson = $fetchJson ?? fn(string $url): mixed => ResourceFetcher::fetchJson(HttpUrl::fromUrl($url));
     }
 
     /**

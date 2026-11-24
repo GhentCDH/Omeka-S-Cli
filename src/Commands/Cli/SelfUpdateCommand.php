@@ -2,6 +2,7 @@
 
 namespace OSC\Commands\Cli;
 
+use OSC\Source\HttpUrl;
 use Exception;
 use OSC\Commands\AbstractCommand;
 use OSC\Helper\Path;
@@ -76,7 +77,7 @@ class SelfUpdateCommand extends AbstractCommand
         $tmpFile = Path::createTempFile('omeka-s-cli-update.');
         try {
             // streamed to disk; the exception carries the cURL/HTTP reason
-            ResourceFetcher::download(self::DOWNLOAD_URL, $tmpFile);
+            ResourceFetcher::download(HttpUrl::fromUrl(self::DOWNLOAD_URL), $tmpFile);
         } catch (Exception $e) {
             @unlink($tmpFile);
             $this->endLine();

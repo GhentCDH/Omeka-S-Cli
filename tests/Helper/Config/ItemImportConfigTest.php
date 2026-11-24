@@ -70,6 +70,17 @@ class ItemImportConfigTest extends TestCase
         $this->assertSame('/abs/m.png', $config->media()[0]->source());
     }
 
+    public function testWithSourcesLeavesLinkMedia(): void
+    {
+        $config = ItemImportConfig::fromArray(['source' => 'a.jsonld', 'media' => [
+            ['ingester' => 'upload', 'source' => 'a.jpg'],
+            ['ingester' => 'url', 'source' => 'https://x/y.jpg'],
+            ['ingester' => 'youtube', 'source' => 'https://youtu.be/ID'],
+        ]])->withSources(fn(string $s) => "/r/{$s}");
+        $this->assertSame('/r/a.jsonld', $config->source());
+        $this->assertSame(['/r/a.jpg', 'https://x/y.jpg', 'https://youtu.be/ID'], array_map(fn($m) => $m->source(), $config->media()));
+    }
+
     public function testSitesAreValidatedAndRoundTripped(): void
     {
         $config = ItemImportConfig::fromArray(['source' => 'a.jsonld', 'sites' => ['collections', 'Archive']]);

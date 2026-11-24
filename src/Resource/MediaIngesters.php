@@ -1,12 +1,12 @@
 <?php
 namespace OSC\Resource;
 
+use OSC\Source\Location;
 use Laminas\ServiceManager\ServiceManager;
 use Omeka\Stdlib\ErrorStore;
 use OSC\Helper\Config\MediaConfig;
 use OSC\Helper\ErrorStoreFormatter;
 use OSC\Helper\Path;
-use OSC\Helper\ResourceFetcher;
 use RuntimeException;
 
 /**
@@ -57,7 +57,7 @@ final class MediaIngesters
         $problems = [];
         foreach (array_values($media) as $i => $config) {
             $number = $i + 1;
-            if (!$config->isFile() || ResourceFetcher::isUrl($config->source())) {
+            if (!$config->isFile() || Location::fromResolved((string) $config->source())->isRemote()) {
                 continue;
             }
             $source = $config->source();

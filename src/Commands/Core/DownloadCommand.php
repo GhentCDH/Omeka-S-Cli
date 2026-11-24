@@ -1,6 +1,9 @@
 <?php
 namespace OSC\Commands\Core;
 
+use OSC\Source\HttpUrl;
+use OSC\Source\GitRepository;
+use OSC\Source\CliSourceResolver;
 use Exception;
 use OSC\Commands\Module\AbstractModuleCommand;
 use OSC\Commands\Module\FormattersTrait;
@@ -64,9 +67,10 @@ class DownloadCommand extends AbstractModuleCommand
 
         if ($source !== null && $source !== '') {
             // a release ZIP given by the caller (a local file or a URL): nothing to look up
-            $url = $source;
-            $downloader = new ZipDownloader($source);
-            $label = $versionNumber ? "version {$versionNumber}" : basename($source);
+            $zip = CliSourceResolver::file($source, $this->getCwd());
+            $url = $zip->value();
+            $downloader = new ZipDownloader($zip);
+            $label = $versionNumber ? "version {$versionNumber}" : basename($zip->value());
         } else {
             // Get the latest version if no version number is provided
             if (!$versionNumber) {
@@ -84,10 +88,10 @@ class DownloadCommand extends AbstractModuleCommand
 
             if ($versionNumber === "dev") {
                 $url = "https://github.com/omeka/omeka-s.git";
-                $downloader = new GitDownloader($url);
+                $downloader = new GitDownloader(GitRepository::parse($url));
             } else {
                 $url = OmekaDotOrgApi::coreReleaseUrl($versionNumber);
-                $downloader = new ZipDownloader($url);
+                $downloader = new ZipDownloader(HttpUrl::fromUrl($url));
             }
             $label = "version {$versionNumber}";
         }

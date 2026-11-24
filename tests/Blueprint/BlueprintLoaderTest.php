@@ -5,16 +5,15 @@ use Exception;
 use OSC\Blueprint\Blueprint;
 use OSC\Blueprint\BlueprintLoader;
 use OSC\Blueprint\DocumentValidator;
-use OSC\Blueprint\SourceException;
+use OSC\Source\SourceException;
 use OSC\Blueprint\SourceFields;
-use OSC\Helper\Reference\ReferenceResolver;
-use OSC\Helper\Reference\RepoProvider;
+use OSC\Helper\ResourceFetcher;
+use OSC\Source\Location;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlueprintLoader::class)]
-#[UsesClass(ReferenceResolver::class)]
 #[UsesClass(Blueprint::class)]
 #[UsesClass(SourceFields::class)]
 class BlueprintLoaderTest extends TestCase
@@ -129,28 +128,14 @@ class BlueprintLoaderTest extends TestCase
         (new BlueprintLoader())->load($file);
     }
 
-    public function testRoutesSourceAndImportsThroughTheInjectedResolver(): void
+    public function testRoutesSourceAndImportsThroughTheInjectedFetch(): void
     {
-        // a fake provider maps gh:fake/repo:<name> to a file in the temp dir, proving both the top-level
-        // source and a nested $import are resolved through the injected ReferenceResolver
-        $provider = new class ($this->dir) implements RepoProvider {
-            public function __construct(private string $dir)
-            {
-            }
-            public function supports(string $reference): bool
-            {
-                return str_starts_with($reference, 'gh:fake/repo:');
-            }
-            public function toRawUrl(string $reference): string
-            {
-                return $this->dir . '/' . substr($reference, strlen('gh:fake/repo:'));
-            }
-        };
+        // gh:fake/repo:<name> is fetched from its raw URL, which the fake fetch maps to a file in the temp
+        // dir: both the top-level source and a nested $import go through GitFile and the injected fetch
         $this->write('more.jsonc', '["B"]');
         $this->write('base.jsonc', '{ "modules": ["A", { "$import": "gh:fake/repo:more.jsonc" }] }');
 
-        $loader = new BlueprintLoader(new ReferenceResolver([$provider]));
-        $blueprint = $loader->load('gh:fake/repo:base.jsonc');
+        $blueprint = $this->loaderWithFakeRepository()->load('gh:fake/repo:base.jsonc');
 
         $names = array_map(fn($m) => is_string($m) ? $m : $m['name'], $blueprint->modules());
         sort($names);
@@ -535,7 +520,7 @@ class BlueprintLoaderTest extends TestCase
         $base = $this->writeIn('site/base.jsonc', '{ "modules": [ { "$import": "../shared/modules.jsonc" } ] }');
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessageMatches('/outside the blueprint root/');
+        $this->expectExceptionMessageMatches('/outside the root/');
         (new BlueprintLoader())->load($base);
     }
 
@@ -565,7 +550,7 @@ class BlueprintLoaderTest extends TestCase
         ]));
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessageMatches('/outside the blueprint root/');
+        $this->expectExceptionMessageMatches('/outside the root/');
         (new BlueprintLoader())->load($base);
     }
 
@@ -635,20 +620,22 @@ class BlueprintLoaderTest extends TestCase
         $this->assertSame($this->dir . '/themes/freedom.zip', $blueprint->themes()[0]['source']);
     }
 
-    public function testNonPathAddonSourcesAreLeftAsIs(): void
+    public function testNonPathAddonSourcesAreKeptAsTheirCanonicalForm(): void
     {
+        // a git repository becomes its clone URL (#ref kept); a URL is kept
         $sources = [
-            'gh:Daniel-KM/Omeka-S-module-Common#3.4.71',
-            'https://github.com/Daniel-KM/Omeka-S-module-Log.git',
-            'https://github.com/Daniel-KM/Omeka-S-module-Log#3.4.30',
-            'git@github.com:Daniel-KM/Omeka-S-module-Log.git',
-            'https://example.org/AdvancedSearch-3.4.22.zip',
+            'gh:Daniel-KM/Omeka-S-module-Common#3.4.71' => 'https://github.com/Daniel-KM/Omeka-S-module-Common.git#3.4.71',
+            'https://github.com/Daniel-KM/Omeka-S-module-Log.git' => 'https://github.com/Daniel-KM/Omeka-S-module-Log.git',
+            'https://github.com/Daniel-KM/Omeka-S-module-Log#3.4.30' => 'https://github.com/Daniel-KM/Omeka-S-module-Log.git#3.4.30',
+            'git@github.com:Daniel-KM/Omeka-S-module-Log.git' => 'git@github.com:Daniel-KM/Omeka-S-module-Log.git',
+            'https://example.org/AdvancedSearch-3.4.22.zip' => 'https://example.org/AdvancedSearch-3.4.22.zip',
         ];
+        $written = array_keys($sources);
         $base = $this->write('base.jsonc', json_encode([
-            'modules' => array_map(fn($s, $i) => ['name' => "M{$i}", 'source' => $s], $sources, array_keys($sources)),
+            'modules' => array_map(fn($s, $i) => ['name' => "M{$i}", 'source' => $s], $written, array_keys($written)),
         ]));
 
-        $this->assertSame($sources, array_column((new BlueprintLoader())->load($base)->modules(), 'source'));
+        $this->assertSame(array_values($sources), array_column((new BlueprintLoader())->load($base)->modules(), 'source'));
     }
 
     public function testAbsoluteAddonSourceIsRejected(): void
@@ -861,27 +848,17 @@ class BlueprintLoaderTest extends TestCase
         $base = $this->writeIn('site/base.json', '{ "files": [ { "source": "../outside.txt", "destination": "files/x" } ] }');
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('outside the blueprint root');
+        $this->expectExceptionMessage('outside the root');
         (new BlueprintLoader(null, null, true))->load($base);
     }
 
     /** A loader whose gh:fake/repo:<path> references are files under the temp dir (an import by gh:). */
     private function loaderWithFakeRepository(): BlueprintLoader
     {
-        $provider = new class ($this->dir) implements RepoProvider {
-            public function __construct(private string $dir)
-            {
-            }
-            public function supports(string $reference): bool
-            {
-                return str_starts_with($reference, 'gh:fake/repo:');
-            }
-            public function toRawUrl(string $reference): string
-            {
-                return $this->dir . '/' . substr($reference, strlen('gh:fake/repo:'));
-            }
-        };
-        return new BlueprintLoader(new ReferenceResolver([$provider]));
+        $raw = 'https://raw.githubusercontent.com/fake/repo/HEAD/';
+        return new BlueprintLoader(fn(Location $location): string => str_starts_with($location->value(), $raw)
+            ? (string) file_get_contents($this->dir . '/' . substr($location->value(), strlen($raw)))
+            : ResourceFetcher::fetch($location));
     }
 
     private function files(string $source): string
@@ -896,7 +873,7 @@ class BlueprintLoaderTest extends TestCase
         $base = $this->write('base.jsonc', json_encode(['modules' => [['$import' => 'gh:fake/repo:lists/modules.json']]]));
 
         $this->expectException(SourceException::class);
-        $this->expectExceptionMessage('outside the blueprint root');
+        $this->expectExceptionMessage('outside the root');
         $this->loaderWithFakeRepository()->load($base);
     }
 
@@ -973,8 +950,8 @@ class BlueprintLoaderTest extends TestCase
         ]]));
         $sources = array_column((new BlueprintLoader())->load($base)->modules(), 'source', 'name');
         $this->assertSame([
-            'A' => 'gh:o/a#v2',
-            'B' => 'https://github.com/o/b',
+            'A' => 'https://github.com/o/a.git#v2',
+            'B' => 'https://github.com/o/b.git',
             'C' => 'git@gitlab.com:g/c.git',
             'D' => 'https://example.org/zips/D.zip',
             'E' => 'https://raw.githubusercontent.com/o/e/v1/dist/E.zip',

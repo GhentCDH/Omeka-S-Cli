@@ -1,0 +1,8 @@
+{
+    "source": "../portrait.jsonld",
+    "title": "Portrait of a woman",
+    "sites": ["collections"],
+    "media": [
+        { "ingester": "upload", "source": "../mona-lisa.png", "title": "Front", "altText": "A woman, half-length" }
+    ]
+}

@@ -3,10 +3,19 @@ namespace Tests\Helper\Config;
 
 use InvalidArgumentException;
 use OSC\Helper\Config\VocabularyConfig;
+use OSC\Helper\UrlCredentials;
+use OSC\Source\HttpUrl;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(VocabularyConfig::class)]
+#[UsesClass(Location::class)]
+#[UsesClass(LocalPath::class)]
+#[UsesClass(HttpUrl::class)]
+#[UsesClass(UrlCredentials::class)]
 class VocabularyConfigTest extends TestCase
 {
     /** @return array<string,string> A minimal set of the required identifying fields */
@@ -15,12 +24,43 @@ class VocabularyConfigTest extends TestCase
         return ['label' => 'Example', 'namespaceUri' => 'http://example.org/ns#', 'prefix' => 'ex'];
     }
 
-    public function testAnUnsupportedSchemeIsRefused(): void
+    public function testAnUnsupportedSchemeIsRefusedAtImport(): void
     {
         // it must not fall back to the file strategy, which the importer would open with file_get_contents()
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Unsupported source 'ftp://example.org/ns.ttl'");
-        VocabularyConfig::fromArray(['source' => 'ftp://example.org/ns.ttl'] + $this->identity());
+        $this->expectExceptionMessage("'ftp://example.org/ns.ttl' is not a resolved source");
+        VocabularyConfig::fromArray(['source' => 'ftp://example.org/ns.ttl'] + $this->identity())->toImporterOptions();
+    }
+
+    public function testStrategyFromResolvedSource(): void
+    {
+        $this->assertSame('url', VocabularyConfig::fromArray(['source' => 'https://example.org/ns.rdf'] + $this->identity())->toImporterOptions()['strategy']);
+        $this->assertSame('file', VocabularyConfig::fromArray(['source' => '/abs/x.ttl'] + $this->identity())->toImporterOptions()['strategy']);
+        // the key no longer decides: a deprecated 'file' key holding a URL is fetched as a URL
+        $this->assertSame('url', VocabularyConfig::fromArray(['file' => 'https://example.org/ns.rdf'] + $this->identity())->toImporterOptions()['strategy']);
+    }
+
+    public function testUnresolvedSourceIsRefusedAtImport(): void
+    {
+        $config = VocabularyConfig::fromArray(['source' => './x.ttl'] + $this->identity());
+        $this->assertSame('./x.ttl', $config->source());
+        $this->expectException(InvalidArgumentException::class);
+        $config->toImporterOptions();
+    }
+
+    public function testSourceKey(): void
+    {
+        $this->assertSame('source', VocabularyConfig::fromArray(['source' => 'a.ttl'] + $this->identity())->sourceKey());
+        $this->assertSame('file', VocabularyConfig::fromArray(['file' => 'a.ttl'] + $this->identity())->sourceKey());
+        $this->assertSame('url', VocabularyConfig::fromArray(['url' => 'https://example.org/a.ttl'] + $this->identity())->sourceKey());
+    }
+
+    public function testWithSourceKeepsTheDeprecatedKey(): void
+    {
+        $config = VocabularyConfig::fromArray(['file' => '../rdf/a.ttl'] + $this->identity())->withSource('/w/rdf/a.ttl');
+        $this->assertSame('/w/rdf/a.ttl', $config->source());
+        $this->assertSame('file', $config->sourceKey());
+        $this->assertSame('file', $config->deprecatedSourceKey());
     }
 
     public function testSourceUrlMapsToUrlStrategy(): void

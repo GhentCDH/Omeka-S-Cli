@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Blueprint\Bundle;
 
+use OSC\Source\Location;
 use Closure;
 use Exception;
 use InvalidArgumentException;
@@ -72,7 +73,8 @@ class Bundler
         ?Closure $download = null,
         private ?Closure $progress = null,
     ) {
-        $this->download = $download ?? ResourceFetcher::download(...);
+        $this->download = $download
+            ?? fn(string $source, string $target, array $headers = []): ?string => ResourceFetcher::download(Location::fromResolved($source), $target, $headers);
     }
 
     /**
@@ -159,7 +161,7 @@ class Bundler
                 $name = (string) ($entry['name'] ?? '');
                 $version = isset($entry['version']) && $entry['version'] !== '' ? (string) $entry['version'] : null;
                 try {
-                    $isGit = AddonReference::fromBlueprint($name, (string) $entry['source'], $version)->isGit();
+                    $isGit = AddonReference::fromLoaded($name, (string) $entry['source'], $version)->isGit();
                 } catch (InvalidArgumentException $e) {
                     throw new Exception("{$key}[{$i}] '{$name}': {$e->getMessage()}", 0, $e);
                 }
@@ -206,7 +208,7 @@ class Bundler
         $this->progress($label);
         try {
             $resolver = $kind === SourceFields::MODULE ? $this->modules : $this->themes;
-            $resolved = $resolver->resolve(AddonReference::fromBlueprint($name, $source, $version), fn() => $omeka, $allowIncompatible);
+            $resolved = $resolver->resolve(AddonReference::fromLoaded($name, $source, $version), fn() => $omeka, $allowIncompatible);
             foreach ($resolved->notes as $note) {
                 $this->progress("  {$note}");
             }
@@ -513,7 +515,7 @@ class Bundler
     /** The safe file name of a source path or URL, with $extension appended when it has none. */
     private function basename(string $source, ?string $extension = null): string
     {
-        $path = ResourceFetcher::isUrl($source) ? (string) parse_url($source, PHP_URL_PATH) : $source;
+        $path = Location::fromResolved($source)->isRemote() ? (string) parse_url($source, PHP_URL_PATH) : $source;
         $name = $this->safeName(basename($path));
         if ($extension !== null && pathinfo($name, PATHINFO_EXTENSION) === '') {
             $name .= ".{$extension}";

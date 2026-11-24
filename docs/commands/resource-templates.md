@@ -39,7 +39,8 @@ The other `resource-template:*` commands work without it. See [Modules](modules.
 
 ## Import a resource template
 
-`resource-template:import` creates a resource template from an exported JSON file (a path or a URL):
+`resource-template:import` creates a resource template from an exported JSON file (a path, a URL or a
+`gh:`/`gl:` file, see [Refer to files](../usage.md#refer-to-files)):
 
 ```bash
 --8<-- "docs/examples/resource-templates.sh:import"

@@ -267,6 +267,56 @@ class Path {
         return $cwd . DIRECTORY_SEPARATOR . $path;
     }
 
+    /**
+     * Collapse `.` and `..` segments and repeated slashes lexically (no disk access, so it works for
+     * paths that do not exist yet). Keeps a leading `/`; a relative path keeps its leading `..`.
+     */
+    public static function normalize(string $path): string
+    {
+        $isAbsolute = str_starts_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                if ($segments !== [] && end($segments) !== '..') {
+                    array_pop($segments);
+                } elseif (!$isAbsolute) {
+                    $segments[] = '..';
+                }
+                continue;
+            }
+            $segments[] = $segment;
+        }
+        return ($isAbsolute ? '/' : '') . implode('/', $segments);
+    }
+
+    /**
+     * Whether $path is $folder or lies below it, compared lexically (no disk access): resolve
+     * symlinks first (realpath()) when they matter.
+     */
+    public static function isInside(string $path, string $folder): bool
+    {
+        $folder = rtrim($folder, '/');
+        return $path === $folder || str_starts_with($path, $folder . '/');
+    }
+
+    /**
+     * $target written relative to $folder (`../` where needed), both absolute and normalized first.
+     * Names are kept as they are; writing it as a URL reference is up to the caller.
+     */
+    public static function relative(string $target, string $folder): string
+    {
+        $from = array_values(array_filter(explode('/', self::normalize($folder)), fn($s) => $s !== ''));
+        $to = array_values(array_filter(explode('/', self::normalize($target)), fn($s) => $s !== ''));
+        $common = 0;
+        while ($common < count($from) && $common < count($to) && $from[$common] === $to[$common]) {
+            $common++;
+        }
+        return str_repeat('../', count($from) - $common) . implode('/', array_slice($to, $common));
+    }
+
     public static function createPath(array $parts): string
     {
         return implode(DIRECTORY_SEPARATOR,  $parts);

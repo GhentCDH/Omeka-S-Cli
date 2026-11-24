@@ -123,3 +123,15 @@ test ! -d modules/Mapping
 ! omeka-s-cli module:download mapping --offline 2> /dev/null || exit 1
 ! omeka-s-cli module:search mapping --offline 2> /dev/null || exit 1
 ! omeka-s-cli module:list --outdated --offline 2> /dev/null || exit 1
+
+# --8<-- [start:git-file]
+omeka-s-cli config:import gh:GhentCDH/Omeka-S-Cli@v0.20.0:docs/examples/files/settings/core.setting.jsonc --dry-run
+# --8<-- [end:git-file]
+
+# a configuration file in a git repository: its relative source is fetched from the same repository
+omeka-s-cli vocabulary:delete ex --ignore-not-found --quiet
+# --8<-- [start:git-config]
+omeka-s-cli vocabulary:import --config gh:GhentCDH/Omeka-S-Cli@v0.20.0:examples/vocabulary/example-local.json
+# --8<-- [end:git-config]
+omeka-s-cli vocabulary:list --json | jq -e 'any(.[]; .prefix == "ex")' > /dev/null
+omeka-s-cli vocabulary:delete ex --quiet

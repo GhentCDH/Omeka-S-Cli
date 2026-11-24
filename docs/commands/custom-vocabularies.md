@@ -18,7 +18,8 @@ See [modules](modules.md) for more about installing modules.
 
 ## Import a vocabulary
 
-`custom-vocabulary:import` reads a JSON file (or a URL) in the format of the module's own export.
+`custom-vocabulary:import` reads a JSON file (a path, a URL or a `gh:`/`gl:` file, see
+[Refer to files](../usage.md#refer-to-files)) in the format of the module's own export.
 A vocabulary of plain terms lists them in `o:terms`:
 
 ```json

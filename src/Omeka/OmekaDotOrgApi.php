@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Omeka;
 
+use OSC\Source\HttpUrl;
 use Closure;
 use OSC\Helper\ResourceFetcher;
 use UnexpectedValueException;
@@ -17,7 +18,7 @@ class OmekaDotOrgApi
     /** @param Closure(string): string|null $fetch Fetches a URL (default ResourceFetcher::fetch) */
     public function __construct(?Closure $fetch = null)
     {
-        $this->fetch = $fetch ?? fn(string $url): string => ResourceFetcher::fetch($url);
+        $this->fetch = $fetch ?? fn(string $url): string => ResourceFetcher::fetch(HttpUrl::fromUrl($url));
     }
 
     public static function getInstance(): static

@@ -186,6 +186,49 @@ User not found: nobody@example.org. Nothing to do.
 The other way round, `user:add` and `site:add` accept `--ignore-existing`, see [Users](commands/users.md)
 and [Sites](commands/sites.md).
 
+## Refer to files
+
+Every command that reads a file (an RDF file, a JSON-LD resource, a configuration file, a blueprint, a
+media file to upload) takes it in the same forms:
+
+| Form | Example |
+|---|---|
+| A local path | `./settings/core.setting.jsonc`, `/srv/import/letter.jsonld` |
+| An http(s) URL | `https://example.org/vocabularies/archive.ttl` |
+| A file in a GitHub repository | `gh:owner/repo@v1.0:path/to/file.json`, or its `https://github.com/…/blob/…` URL |
+| A file in a GitLab repository | `gl:group/project@v1.0:path/to/file.json`, or its `…/-/blob/…` URL (any GitLab host) |
+
+Without `@ref`, a `gh:`/`gl:` file is read from the default branch. It is downloaded from its raw URL,
+and its path cannot leave the repository:
+
+```bash
+--8<-- "docs/examples/usage.sh:git-file"
+```
+
+`module:download` and `theme:download` also take a module or theme name and a git repository, see
+[Modules](commands/modules.md#download-from-a-zip-file-or-a-git-repository).
+
+### Paths in a configuration file
+
+A path you type on the command line is used as it is: relative to the current directory, or absolute. A
+path written *in a file* (a configuration file for `item:import --config`, `media:add --json-file` or
+`vocabulary:import --config`, or a [blueprint](automation/blueprints.md)) follows stricter rules, so a
+file you got from someone else cannot reach your other files:
+
+- it is relative to the file it is written in; an absolute path is an error;
+- it must stay inside that file's folder. `--root <dir>` widens this to a folder higher up; a file read
+  from a URL or `gh:`/`gl:` cannot be widened;
+- it is written as in a URL: `My File.pdf` or `My%20File.pdf`, and `#` and `?` as `%23` and `%3F`.
+
+A configuration file read from a URL or a git repository finds its files next to it:
+
+```bash
+--8<-- "docs/examples/usage.sh:git-config"
+```
+
+Error messages name a path as you wrote it, followed by where it led:
+`'gh:owner/repo@v1.0:data/a.json' (https://raw.githubusercontent.com/owner/repo/v1.0/data/a.json)`.
+
 ## Preview changes
 
 Commands that change modules (`module:install`, `module:uninstall`, `module:enable`, `module:disable`,

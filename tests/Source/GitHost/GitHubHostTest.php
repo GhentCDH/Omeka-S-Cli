@@ -1,54 +1,59 @@
 <?php
-namespace Tests\Helper\Reference;
+namespace Tests\Source\GitHost;
 
-use OSC\Helper\Reference\GitHubProvider;
+use OSC\Source\GitHost\GitHubHost;
+use OSC\Source\GitHost\GitPathSegments;
+use OSC\Addon\GitRef;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(GitHubProvider::class)]
-class GitHubProviderTest extends TestCase
+#[CoversClass(GitHubHost::class)]
+#[UsesClass(GitPathSegments::class)]
+#[UsesClass(GitRef::class)]
+class GitHubHostTest extends TestCase
 {
-    private GitHubProvider $provider;
+    private GitHubHost $host;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->provider = new GitHubProvider();
+        $this->host = new GitHubHost();
     }
 
     public function testSupportsBlobUrl(): void
     {
-        $this->assertTrue($this->provider->supports('https://github.com/owner/repo/blob/main/dir/site.jsonc'));
+        $this->assertNotNull($this->host->rawUrl('https://github.com/owner/repo/blob/main/dir/site.jsonc'));
     }
 
     public function testSupportsShortSchemeWithRef(): void
     {
-        $this->assertTrue($this->provider->supports('gh:owner/repo@main:dir/site.jsonc'));
+        $this->assertNotNull($this->host->rawUrl('gh:owner/repo@main:dir/site.jsonc'));
     }
 
     public function testSupportsShortSchemeWithoutRef(): void
     {
-        $this->assertTrue($this->provider->supports('gh:owner/repo:dir/site.jsonc'));
+        $this->assertNotNull($this->host->rawUrl('gh:owner/repo:dir/site.jsonc'));
     }
 
     public function testDoesNotSupportRepoFormWithoutPath(): void
     {
         // this is the existing module-download form, not a file reference
-        $this->assertFalse($this->provider->supports('gh:owner/repo#main'));
-        $this->assertFalse($this->provider->supports('gh:owner/repo'));
+        $this->assertNull($this->host->rawUrl('gh:owner/repo#main'));
+        $this->assertNull($this->host->rawUrl('gh:owner/repo'));
     }
 
     public function testDoesNotSupportRawUrl(): void
     {
         // already raw; handled as a plain URL by the resolver
-        $this->assertFalse($this->provider->supports('https://raw.githubusercontent.com/owner/repo/main/a.jsonc'));
+        $this->assertNull($this->host->rawUrl('https://raw.githubusercontent.com/owner/repo/main/a.jsonc'));
     }
 
     public function testConvertsBlobUrlToRaw(): void
     {
         $this->assertSame(
             'https://raw.githubusercontent.com/owner/repo/main/dir/site.jsonc',
-            $this->provider->toRawUrl('https://github.com/owner/repo/blob/main/dir/site.jsonc')
+            $this->host->rawUrl('https://github.com/owner/repo/blob/main/dir/site.jsonc')
         );
     }
 
@@ -56,7 +61,7 @@ class GitHubProviderTest extends TestCase
     {
         $this->assertSame(
             'https://raw.githubusercontent.com/owner/repo/main/a.jsonc',
-            $this->provider->toRawUrl('https://github.com/owner/repo/blob/main/a.jsonc#L5')
+            $this->host->rawUrl('https://github.com/owner/repo/blob/main/a.jsonc#L5')
         );
     }
 
@@ -64,7 +69,7 @@ class GitHubProviderTest extends TestCase
     {
         $this->assertSame(
             'https://raw.githubusercontent.com/owner/repo/dev/dir/site.jsonc',
-            $this->provider->toRawUrl('gh:owner/repo@dev:dir/site.jsonc')
+            $this->host->rawUrl('gh:owner/repo@dev:dir/site.jsonc')
         );
     }
 
@@ -72,7 +77,7 @@ class GitHubProviderTest extends TestCase
     {
         $this->assertSame(
             'https://raw.githubusercontent.com/owner/repo/HEAD/dir/site.jsonc',
-            $this->provider->toRawUrl('gh:owner/repo:dir/site.jsonc')
+            $this->host->rawUrl('gh:owner/repo:dir/site.jsonc')
         );
     }
 
@@ -95,6 +100,6 @@ class GitHubProviderTest extends TestCase
     public function testRejectsAReferenceThatLeavesTheRepository(string $reference): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->provider->toRawUrl($reference);
+        $this->host->rawUrl($reference);
     }
 }

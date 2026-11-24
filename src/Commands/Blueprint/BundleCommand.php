@@ -18,7 +18,7 @@ class BundleCommand extends AbstractBlueprintCommand
         parent::__construct('blueprint:bundle', 'Download everything a blueprint needs into a self-contained bundle');
         $this->argument('<source>', 'Path or URL to the blueprint (jsonc allowed)');
         $this->argument('<output>', 'Directory to write the bundle to (absent or empty, unless --force)');
-        $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
+        $this->optionRoot('Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
         $this->option('-f --force', 'Replace an existing output directory', 'boolval', false);
         $this->option(
             '--allow-incompatible',

@@ -64,7 +64,9 @@ and exits with code 0. To apply changes, see [Update a vocabulary](#update-a-voc
 
 The options of an import can live in a JSON file, so the import is easy to repeat or to keep in version
 control. `vocabulary:create-import-config` takes the same options as `vocabulary:import` and writes them
-as a configuration file (without `--output`, it prints the JSON):
+as a configuration file (without `--output`, it prints the JSON). A local `--source` is written relative
+to the configuration file, or to the current directory when the JSON is printed, so save printed JSON
+in the current directory:
 
 ```bash
 --8<-- "docs/examples/vocabularies.sh:create-config"
@@ -83,7 +85,20 @@ with `--config`:
 --8<-- "docs/examples/vocabularies.sh:import-config"
 ```
 
-`--config` also accepts a URL; a relative `source` then resolves against that URL.
+`--config` also accepts a URL or a `gh:`/`gl:` file; a relative `source` then resolves against it. The
+`source` must stay inside the configuration file's folder, and an absolute path is refused (see
+[Paths in a configuration file](../usage.md#paths-in-a-configuration-file)). For an RDF file higher up,
+widen the folder with `--root`:
+
+??? example "`~/vocabularies/configs/archive.json`"
+
+    ```json
+    --8<-- "docs/examples/files/vocabularies/archive-root.json"
+    ```
+
+```bash
+--8<-- "docs/examples/vocabularies.sh:import-config-root"
+```
 
 ## Update a vocabulary
 

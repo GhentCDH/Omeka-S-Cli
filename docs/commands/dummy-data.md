@@ -40,7 +40,8 @@ for more than 100 the command reports its progress every 100.
 
 ## Use a config file
 
-Pass a config file (a path or a URL) with `--config` (`-c`) to choose the properties and values:
+Pass a config file (a path, a URL or a `gh:`/`gl:` file, see [Refer to files](../usage.md#refer-to-files)) with `--config` (`-c`) to
+choose the properties and values:
 
 ```json
 --8<-- "docs/examples/files/dummy/items.json"

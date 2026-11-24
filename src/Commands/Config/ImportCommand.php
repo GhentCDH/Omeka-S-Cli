@@ -2,6 +2,9 @@
 
 namespace OSC\Commands\Config;
 
+use OSC\Source\CliSourceResolver;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
 use InvalidArgumentException;
 use OSC\Commands\AbstractCommand;
 use OSC\Settings\SettingsImport;
@@ -103,9 +106,9 @@ class ImportCommand extends AbstractCommand
             $connection->beginTransaction();
         }
         try {
-            foreach ($sources as $path) {
-                $file = $serializer->read($path);
-                $report = $import->import(basename($path), $file);
+            foreach ($sources as $location) {
+                $file = $serializer->read($location);
+                $report = $import->import(basename($location->value()), $file);
                 foreach ($report->entries() as $entry) {
                     match ($entry->severity) {
                         Severity::Debug => $this->debug($entry->message, true),
@@ -134,16 +137,17 @@ class ImportCommand extends AbstractCommand
     /**
      * Resolve the source into a list of file paths (or the single source for a file/URL).
      *
-     * @return string[]
+     * @return Location[]
      */
     private function collectSources(string $source): array
     {
-        if (is_dir($source)) {
-            $files = glob(rtrim($source, DIRECTORY_SEPARATOR) . '/*.{jsonc,json}', GLOB_BRACE) ?: [];
+        $location = CliSourceResolver::file($source, $this->getCwd());
+        if ($location instanceof LocalPath && is_dir($location->value())) {
+            $files = glob(rtrim($location->value(), DIRECTORY_SEPARATOR) . '/*.{jsonc,json}', GLOB_BRACE) ?: [];
             sort($files);
-            return $files;
+            return array_map(fn(string $file) => LocalPath::fromAbsolute($file), $files);
         }
 
-        return [$source];
+        return [$location];
     }
 }

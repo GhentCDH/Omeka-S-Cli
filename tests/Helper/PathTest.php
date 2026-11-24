@@ -4,6 +4,7 @@ namespace Tests\Helper;
 use LogicException;
 use OSC\Helper\Path;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -349,5 +350,42 @@ class PathTest extends TestCase
         Path::move("{$dir}/from", "{$this->tmp}/to");
 
         $this->assertSame('abc', file_get_contents("{$this->tmp}/to"));
+    }
+
+    /** @return array<string,array{0:string,1:string,2:bool}> path, folder → inside */
+    public static function insidePaths(): array
+    {
+        return [
+            'the folder itself'     => ['/a/b', '/a/b', true],
+            'a child'               => ['/a/b/c.json', '/a/b', true],
+            'a folder with a slash' => ['/a/b/c.json', '/a/b/', true],
+            'a sibling prefix'      => ['/a/bc/d.json', '/a/b', false],
+            'the parent'            => ['/a', '/a/b', false],
+            'everything under /'    => ['/a/b', '/', true],
+        ];
+    }
+
+    #[DataProvider('insidePaths')]
+    public function testIsInside(string $path, string $folder, bool $inside): void
+    {
+        $this->assertSame($inside, Path::isInside($path, $folder));
+    }
+
+    /** @return array<string,array{0:string,1:string,2:string}> target, folder → relative */
+    public static function relativePaths(): array
+    {
+        return [
+            'same folder'          => ['/w/cfg/x.ttl', '/w/cfg', 'x.ttl'],
+            'up, names unencoded'  => ['/w/rdf/a b#1.ttl', '/w/cfg', '../rdf/a b#1.ttl'],
+            'deeper'               => ['/w/cfg/sub/x.ttl', '/w/cfg', 'sub/x.ttl'],
+            'from the top'         => ['/w/x.ttl', '/', 'w/x.ttl'],
+            'unnormalized input'   => ['/w/./cfg/../rdf/x.ttl', '/w/cfg/', '../rdf/x.ttl'],
+        ];
+    }
+
+    #[DataProvider('relativePaths')]
+    public function testRelative(string $target, string $folder, string $relative): void
+    {
+        $this->assertSame($relative, Path::relative($target, $folder));
     }
 }

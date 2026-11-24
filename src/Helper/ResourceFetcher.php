@@ -1,68 +1,48 @@
 <?php
 namespace OSC\Helper;
 
-use Ahc\Cli\Exception\InvalidArgumentException;
 use Exception;
+use InvalidArgumentException;
+use OSC\Source\HttpUrl;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
 
 /**
- * Helper class to fetch content from files or URLs
- *
- * Usage examples:
+ * Fetches a Location: reads a local file, or downloads an http(s) URL. It only fetches: what a string
+ * is (a path, a URL, a gh: shortcut, ...) is decided by the parsers in OSC\Source, which hand it a
+ * LocalPath or an HttpUrl.
  *
  * ```php
- * // Fetch from file
- * $content = ResourceFetcher::fetch('/path/to/file.txt');
- *
- * // Fetch from URL
- * $content = ResourceFetcher::fetch('https://example.org/data.json');
- *
- * // Validate without fetching
- * ResourceFetcher::validate($source);
- *
- * // Check type
- * if (ResourceFetcher::isFile($source)) {
- *     // Handle as file
- * } else {
- *     // Handle as URL
- * }
- *
- * // Detect type
- * $type = ResourceFetcher::detectType($source); // Returns 'file' or 'url'
+ * $content = ResourceFetcher::fetch(CliSourceResolver::file($argument, $cwd));
+ * $data = ResourceFetcher::fetchJson(HttpUrl::fromUrl('https://example.org/data.json'));
  * ```
  */
 class ResourceFetcher
 {
-    public const FILE = "file";
-    public const URL = "url";
-
     /**
      * Fetch content from a file or URL
      *
-     * @param string   $source  Path to file or URL
-     * @param string[] $headers Request headers as "Name: value" strings, applied to URL sources only
+     * @param Location $location A local file or a URL; errors name it as the user wrote it
+     * @param string[] $headers  Request headers as "Name: value" strings, applied to a URL only
      * @return string The content
-     * @throws InvalidArgumentException If the source is invalid or inaccessible
+     * @throws InvalidArgumentException If the file is inaccessible
      * @throws Exception If fetching fails
      */
-    public static function fetch(string $source, array $headers = []): string
+    public static function fetch(Location $location, array $headers = []): string
     {
-        $type = self::detectType($source);
-
-        if ($type === self::FILE) {
-            return self::fetchFromFile($source);
-        } else {
-            return self::fetchFromUrl($source, $headers);
-        }
+        return $location instanceof HttpUrl
+            ? self::fetchFromUrl($location, $headers)
+            : self::fetchFromFile($location);
     }
 
     /** Fetch content from a file or URL and decode json */
-    public static function fetchJson(string $source): mixed
+    public static function fetchJson(Location $location): mixed
     {
-        $content = self::fetch($source);
+        $content = self::fetch($location);
         $data = json_decode($content, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception("Failed to decode JSON from source: {$source}. Error: " . json_last_error_msg());
+            throw new Exception("Failed to decode JSON from source: {$location->display()}. Error: " . json_last_error_msg());
         }
 
         return $data;
@@ -78,22 +58,24 @@ class ResourceFetcher
      * @throws InvalidArgumentException If a file source does not exist
      * @throws Exception If copying or downloading fails
      */
-    public static function download(string $source, string $target, array $headers = []): ?string
+    public static function download(Location $location, string $target, array $headers = []): ?string
     {
-        if (self::detectType($source) === self::FILE) {
-            if (!is_file($source)) {
-                throw new InvalidArgumentException("File not found: {$source}");
+        $locationValue = $location->value();
+        $locationDisplay = $location->display();
+        if (!$location instanceof HttpUrl) {
+            if (!is_file($locationValue)) {
+                throw new InvalidArgumentException("File not found: {$locationDisplay}");
             }
-            Path::copyFile($source, $target, "Failed to copy '{$source}' to '{$target}'");
+            Path::copyFile($locationValue, $target, "Failed to copy '{$locationValue}' to '{$target}'");
             return null;
         }
 
         if (!function_exists('curl_init')) {
-            return self::downloadWithStreamWrapper($source, $target, $headers);
+            return self::downloadWithStreamWrapper($location, $target, $headers);
         }
 
         $handle = Path::checked(fn() => fopen($target, 'wb'), "Failed to write '{$target}'");
-        $ch = curl_init($source);
+        $ch = curl_init($locationValue);
         curl_setopt_array($ch, [CURLOPT_FILE => $handle, CURLOPT_HTTPHEADER => $headers] + self::curlDownloadOptions());
         $ok = curl_exec($ch);
         $error = curl_error($ch);
@@ -103,58 +85,24 @@ class ResourceFetcher
 
         if ($ok === false) {
             @unlink($target);
-            throw new Exception("Failed to download '{$source}': {$error}");
+            throw new Exception("Failed to download {$locationDisplay}: {$error}");
         }
         return is_string($type) && $type !== '' ? strtolower(trim(explode(';', $type)[0])) : null;
     }
 
     /**
-     * Whether a source is an http(s) URL or a file path. Any other scheme (php://, phar://, data://,
-     * ftp://, gopher://, ...) is refused: PHP's stream wrappers and libcurl would open it, reading
-     * local files or reaching other services.
+     * The transports' own check (defence in depth; an HttpUrl is already one): only an http(s) URL.
+     * PHP's stream wrappers and libcurl would open any other scheme (php://, phar://, ftp://, gopher://,
+     * ...), reading local files or reaching other services.
      *
-     * @return string self::URL or self::FILE
-     * @throws InvalidArgumentException For a source with another scheme
-     */
-    public static function detectType(string $source): string
-    {
-        self::assertSupported($source);
-        return self::isUrl($source) ? self::URL : self::FILE;
-    }
-
-    /**
-     * Refuse a source that is neither an http(s) URL nor a file path (see detectType()).
-     *
-     * @throws InvalidArgumentException When $source has another scheme
-     */
-    public static function assertSupported(string $source): void
-    {
-        if (!self::isUrl($source) && self::hasScheme($source)) {
-            throw self::unsupported($source);
-        }
-    }
-
-    /**
-     * Whether a string starts with a URI scheme (two characters or more, so a Windows drive letter
-     * such as C: is not one).
-     */
-    public static function hasScheme(string $source): bool
-    {
-        return preg_match('#^[A-Za-z][A-Za-z0-9+.-]+:#', $source) === 1;
-    }
-
-    private static function unsupported(string $source): InvalidArgumentException
-    {
-        return new InvalidArgumentException("Unsupported source '{$source}': use an http(s) URL or a file path.");
-    }
-
-    /**
      * @throws InvalidArgumentException When $url is not a valid http(s) URL
      */
     private static function assertHttpUrl(string $url): void
     {
-        self::assertSupported($url);
-        if (!self::isUrl($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+        if (!HttpUrl::isHttpUrl($url)) {
+            throw new InvalidArgumentException("Unsupported source '{$url}': use an http(s) URL or a file path.");
+        }
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
             throw new InvalidArgumentException("Invalid URL: {$url}");
         }
     }
@@ -162,36 +110,32 @@ class ResourceFetcher
     /**
      * Fetch content from a file
      *
-     * @param string $filePath
-     * @return string
      * @throws InvalidArgumentException If file doesn't exist or is not readable
      * @throws Exception If reading fails
      */
-    protected static function fetchFromFile(string $filePath): string
+    protected static function fetchFromFile(LocalPath $file): string
     {
-        if (!file_exists($filePath)) {
-            throw new InvalidArgumentException("File not found: {$filePath}");
+        if (!file_exists($file->value())) {
+            throw new InvalidArgumentException("File not found: {$file->display()}");
         }
 
-        if (!is_readable($filePath)) {
-            throw new InvalidArgumentException("File is not readable: {$filePath}");
+        if (!is_readable($file->value())) {
+            throw new InvalidArgumentException("File is not readable: {$file->display()}");
         }
 
-        return Path::readFile($filePath);
+        return Path::readFile($file->value(), "Could not read {$file->display()}");
     }
 
     /**
      * Fetch content from a URL
      *
-     * @param string   $url
      * @param string[] $headers Request headers as "Name: value" strings
-     * @return string
      * @throws InvalidArgumentException If URL is invalid
      * @throws Exception If fetching fails
      */
-    protected static function fetchFromUrl(string $url, array $headers = []): string
+    protected static function fetchFromUrl(HttpUrl $url, array $headers = []): string
     {
-        self::assertHttpUrl($url);
+        self::assertHttpUrl($url->value());
 
         // cURL is the preferred transport: it reports the HTTP status code explicitly
         if (function_exists('curl_init')) {
@@ -208,14 +152,12 @@ class ResourceFetcher
     /**
      * Fetch content using cURL
      *
-     * @param string   $url
      * @param string[] $headers Request headers as "Name: value" strings
-     * @return string
      * @throws Exception If cURL request fails
      */
-    protected static function fetchWithCurl(string $url, array $headers = []): string
+    protected static function fetchWithCurl(HttpUrl $url, array $headers = []): string
     {
-        $ch = curl_init($url);
+        $ch = curl_init($url->value());
 
         curl_setopt_array($ch, [CURLOPT_HTTPHEADER => $headers] + self::curlFetchOptions());
 
@@ -226,11 +168,11 @@ class ResourceFetcher
         curl_close($ch);
 
         if ($content === false) {
-            throw new Exception("cURL error: {$error}");
+            throw new Exception("Failed to fetch {$url->display()}: {$error}");
         }
 
         if ($httpCode >= 400) {
-            throw new Exception("HTTP error {$httpCode} when fetching URL: {$url}");
+            throw new Exception("HTTP error {$httpCode} when fetching {$url->display()}");
         }
 
         return $content;
@@ -242,12 +184,10 @@ class ResourceFetcher
      * Fallback for hosts without ext-curl. The wrapper does not expose the HTTP status
      * code as a return value, so failures are reported without it.
      *
-     * @param string   $url
      * @param string[] $headers Request headers as "Name: value" strings
-     * @return string
      * @throws Exception If the request fails
      */
-    protected static function fetchWithStreamWrapper(string $url, array $headers = []): string
+    protected static function fetchWithStreamWrapper(HttpUrl $url, array $headers = []): string
     {
         $http = [
             'timeout' => 30,
@@ -259,10 +199,10 @@ class ResourceFetcher
         }
         $context = stream_context_create(['http' => $http]);
 
-        $content = @file_get_contents($url, false, $context);
+        $content = @file_get_contents($url->value(), false, $context);
 
         if ($content === false) {
-            throw new Exception("Failed to fetch URL: {$url}");
+            throw new Exception("Failed to fetch {$url->display()}");
         }
 
         return $content;
@@ -327,9 +267,9 @@ class ResourceFetcher
      * @return string|null The response Content-Type (lowercase, without parameters), if any
      * @throws Exception If the URL is invalid or the download fails; $target is then removed
      */
-    protected static function downloadWithStreamWrapper(string $url, string $target, array $headers = []): ?string
+    protected static function downloadWithStreamWrapper(HttpUrl $url, string $target, array $headers = []): ?string
     {
-        self::assertHttpUrl($url);
+        self::assertHttpUrl($url->value());
         if (!ini_get('allow_url_fopen')) {
             throw new Exception("Cannot fetch URL: cURL is not available and allow_url_fopen is disabled");
         }
@@ -341,12 +281,12 @@ class ResourceFetcher
         if ($headers) {
             $http['header'] = $headers;
         }
-        $in = @fopen($url, 'rb', false, stream_context_create(['http' => $http]));
+        $in = @fopen($url->value(), 'rb', false, stream_context_create(['http' => $http]));
         if ($in === false) {
             // "fopen(<url>): Failed to open stream: HTTP request failed! HTTP/1.1 404 Not Found\r\n" -> the reason
             $reason = trim(preg_replace('/^.*?Failed to open stream: /is', '', error_get_last()['message'] ?? ''));
             @unlink($target);
-            throw new Exception("Failed to download '{$url}'" . ($reason !== '' ? ": {$reason}" : ''));
+            throw new Exception("Failed to download {$url->display()}" . ($reason !== '' ? ": {$reason}" : ''));
         }
         try {
             $out = Path::checked(fn() => fopen($target, 'wb'), "Failed to write '{$target}'");
@@ -354,14 +294,14 @@ class ResourceFetcher
             fclose($out);
             if ($copied === false) {
                 @unlink($target);
-                throw new Exception("Failed to download '{$url}'");
+                throw new Exception("Failed to download {$url->display()}");
             }
             $final = self::finalHeaders(stream_get_meta_data($in)['wrapper_data'] ?? []);
             // the wrapper reports a connection closed early as the end of the body
             $truncation = self::truncation($copied, $final);
             if ($truncation !== null) {
                 @unlink($target);
-                throw new Exception("Failed to download '{$url}': {$truncation}");
+                throw new Exception("Failed to download {$url->display()}: {$truncation}");
             }
             $type = strtolower(trim(explode(';', $final['content-type'] ?? '')[0]));
             return $type !== '' ? $type : null;
@@ -393,58 +333,4 @@ class ResourceFetcher
         }
         return $headers;
     }
-
-    /**
-     * Check if source is a file
-     *
-     * @param string $source
-     * @return bool
-     */
-    public static function isFile(string $source): bool
-    {
-        return !self::isUrl($source) && !self::hasScheme($source);
-    }
-
-    /**
-     * Check if source is a URL
-     *
-     * @param string $source
-     * @return bool
-     */
-    public static function isUrl(string $source): bool
-    {
-        return preg_match('#^https?://#i', $source) === 1;
-    }
-
-    /**
-     * Validate that a source exists and is accessible without fetching content
-     *
-     * @param string $source
-     * @return bool
-     * @throws InvalidArgumentException If validation fails
-     */
-    public static function validate(string $source): bool
-    {
-        $type = self::detectType($source);
-
-        if ($type === self::FILE) {
-            if (!file_exists($source)) {
-                throw new InvalidArgumentException("File not found: {$source}");
-            }
-            if (!is_readable($source)) {
-                throw new InvalidArgumentException("File is not readable: {$source}");
-            }
-            return true;
-        }
-
-        if ($type === self::URL) {
-            if (!filter_var($source, FILTER_VALIDATE_URL)) {
-                throw new InvalidArgumentException("Invalid URL: {$source}");
-            }
-            return true;
-        }
-
-        return false;
-    }
 }
-

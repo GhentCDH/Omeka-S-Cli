@@ -83,7 +83,7 @@ The files a blueprint references with a relative path must stay inside the bluep
 A blueprint that imports `../shared/modules.jsonc` is rejected:
 
 ```text
-$import: Source '../shared/modules.jsonc' in '.../library/library.blueprint.jsonc' resolves outside the blueprint root .../library; use --root to widen it.
+$import: Source '../shared/modules.jsonc' in '.../library/library.blueprint.jsonc' resolves outside the root .../library; use --root to widen it.
 ```
 
 `--root` widens that directory:

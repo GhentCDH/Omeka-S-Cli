@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Repository\Module;
 
+use OSC\Source\HttpUrl;
 use OSC\Helper\ResourceFetcher;
 use OSC\Repository\AbstractRepository;
 
@@ -29,7 +30,7 @@ class OmekaDotOrg extends AbstractRepository
         $output = [];
 
         // Get the JSON data from the Omeka.org module list
-        $data = ResourceFetcher::fetchJson(self::API_ENDPOINT) ?? [];
+        $data = ResourceFetcher::fetchJson(HttpUrl::fromUrl(self::API_ENDPOINT)) ?? [];
 
         // validate json structure
         if (!is_array($data)) {

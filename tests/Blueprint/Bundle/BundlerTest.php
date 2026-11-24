@@ -20,9 +20,7 @@ use OSC\Downloader\AddonResolver;
 use OSC\Downloader\ResolvedAddon;
 use OSC\Downloader\ZipDownloader;
 use OSC\Helper\Path;
-use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\ResourceFetcher;
-use OSC\Helper\ResourceUriParser;
 use OSC\Manager\AbstractManager;
 use OSC\Exceptions\OfflineException;
 use OSC\Helper\Offline;
@@ -54,9 +52,8 @@ use ZipArchive;
 #[UsesClass(ResolvedAddon::class)]
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(Path::class)]
-#[UsesClass(ReferenceResolver::class)]
 #[UsesClass(ResourceFetcher::class)]
-#[UsesClass(ResourceUriParser::class)]
+#[UsesClass(\OSC\Source\CliSourceResolver::class)]
 #[UsesClass(\OSC\Addon\AddonReference::class)]
 #[UsesClass(AddonVersion::class)]
 #[UsesClass(AddonIni::class)]
@@ -438,8 +435,8 @@ class BundlerTest extends TestCase
     public function testAnUnparseableSourceNamesTheEntry(): void
     {
         $this->expectException(Exception::class);
-        // gl: without a path is neither a git repository nor a file (any http(s) URL is a ZIP, per the spec)
-        $this->expectExceptionMessage("modules[1] 'Foo': 'gl:group/foo' is neither a git repository nor a file in one.");
+        // a loaded blueprint holds resolved sources only: gl: without a path is none (nor a git repository)
+        $this->expectExceptionMessage("modules[1] 'Foo': 'gl:group/foo' is not a resolved source: an absolute path or an http(s) URL.");
         $this->bundler()->bundle(new Blueprint([
             'preferredVersions' => ['omeka' => '4.1.1'],
             'modules' => ['Common', ['name' => 'Foo', 'source' => 'gl:group/foo']],

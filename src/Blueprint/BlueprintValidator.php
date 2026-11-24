@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Blueprint;
 
+use OSC\Source\Location;
 use Exception;
 use InvalidArgumentException;
 use Opis\JsonSchema\Errors\ErrorFormatter;
@@ -227,7 +228,12 @@ class BlueprintValidator implements DocumentValidator
             return $this->schemaContent;
         }
 
-        $isUrl = ResourceFetcher::isUrl($this->schemaSource);
+        try {
+            $location = Location::fromResolved($this->schemaSource);
+        } catch (Throwable) {
+            return $this->schemaContent = null;
+        }
+        $isUrl = $location->isRemote();
         $cache = Cache::getCache();
         $cacheKey = $this->cacheKey();
 
@@ -239,7 +245,7 @@ class BlueprintValidator implements DocumentValidator
         }
 
         try {
-            $content = ResourceFetcher::fetch($this->schemaSource);
+            $content = ResourceFetcher::fetch($location);
             // reject non-JSON before caching or handing it to opis
             json_decode($content, false, 512, JSON_THROW_ON_ERROR);
             if ($isUrl) {

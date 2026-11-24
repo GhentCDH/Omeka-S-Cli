@@ -2,150 +2,96 @@
 namespace OSC\Addon;
 
 use InvalidArgumentException;
-use OSC\Blueprint\SourceForm;
-use OSC\Helper\Reference\ReferenceResolver;
-use OSC\Helper\UrlCredentials;
+use OSC\Source\GitRepository;
+use OSC\Source\NamedAddon;
+use OSC\Source\Location;
+use OSC\Source\SourceForm;
 
 /**
- * What to download for a module or theme, kept as separate fields instead of one string:
- * - BY_NAME: a repository lookup (omeka.org, Daniel-KM) by name, at an optional release;
- * - ZIP_URL / ZIP_FILE: a release archive;
- * - GIT: a git repository (its clone URL), at an optional ref.
+ * What to download for a module or theme, as one typed source:
+ * - NamedAddon: a repository lookup (omeka.org, Daniel-KM) by name, at an optional release;
+ * - Location: a release ZIP, on disk (LocalPath) or at a URL (HttpUrl);
+ * - GitRepository: a git repository to clone, at an optional ref.
  *
- * A blueprint gives the name, version and source as their own fields (fromBlueprint()); a command
- * argument is parsed by ResourceUriParser, which adds `id[:version]` to the source grammar here
- * (fromSource()), the spec's: an http(s) URL whose path ends in `.git`, `https://github.com/OWNER/REPO`,
- * `gh:owner/repo` and `git@host:path` are repositories (with an optional `#ref`); a `gh:`/`gl:` file
- * is its raw URL; any other http(s) URL, and an absolute local path, is a ZIP.
+ * A command argument is parsed by CliSourceResolver::addon(); a blueprint entry gives its name,
+ * version and source as separate fields (fromBlueprint(), or fromLoaded() once the loader resolved
+ * the source to a string). Nothing parses a glued "name:version" string out of a source.
  */
 final class AddonReference
 {
-    public const BY_NAME = 'name';
-    public const ZIP_URL = 'zipUrl';
-    public const ZIP_FILE = 'zipFile';
-    public const GIT = 'git';
-
-    /** An add-on name (its folder), as a repository lookup takes it. */
-    private const NAME = '#\A[A-Za-z0-9][A-Za-z0-9_-]*\z#';
-
-    /**
-     * @param string      $kind     One of the constants
-     * @param string|null $name     The add-on name, for BY_NAME
-     * @param string|null $location The ZIP URL or path, or the clone URL
-     * @param string|null $version  The release (BY_NAME) or the ref (GIT); null for a ZIP
-     */
-    private function __construct(
-        public readonly string $kind,
-        public readonly ?string $name,
-        public readonly ?string $location,
-        public readonly ?string $version,
-    ) {
+    private function __construct(public readonly NamedAddon|Location|GitRepository $source)
+    {
     }
 
     /** @throws InvalidArgumentException When $name is not an add-on name */
     public static function byName(string $name, ?string $version = null): self
     {
-        if (preg_match(self::NAME, $name) !== 1) {
-            throw new InvalidArgumentException("'{$name}' is not a module or theme name.");
-        }
-        return new self(self::BY_NAME, $name, null, $version !== '' ? $version : null);
+        return new self(new NamedAddon($name, $version));
     }
 
-    /** A ZIP on disk, as a command argument names it (a relative path is resolved by the downloader). */
-    public static function zipFile(string $path): self
+    public static function named(NamedAddon $addon): self
     {
-        return new self(self::ZIP_FILE, null, $path, null);
+        return new self($addon);
+    }
+
+    public static function zip(Location $zip): self
+    {
+        return new self($zip);
+    }
+
+    public static function git(GitRepository $repository): self
+    {
+        return new self($repository);
     }
 
     /**
-     * A blueprint entry: without a source, a repository lookup by name and version; with one, the
+     * A blueprint entry: without a source, a repository lookup by name and version; with one, that
      * source, where the version is the git ref unless the source pins one (`#ref`) or is a ZIP (which
      * pins the release).
      *
-     * @param string|null $source The source, already resolved by the loader (a relative path is then
-     *                            an absolute one)
-     * @throws InvalidArgumentException
+     * @throws InvalidArgumentException When $name is not an add-on name, or $version an invalid ref
      */
-    public static function fromBlueprint(string $name, ?string $source, ?string $version): self
+    public static function fromBlueprint(string $name, Location|GitRepository|null $source, ?string $version): self
     {
         if ($source === null) {
             return self::byName($name, $version);
         }
-        return self::fromSource($source, $version);
+        if ($source instanceof GitRepository) {
+            return self::git($source->ref() === null ? $source->withRef($version) : $source);
+        }
+        return self::zip($source);
     }
 
     /**
-     * A source in the spec's grammar (see the class comment).
+     * fromBlueprint() for an entry of a loaded blueprint, whose source the loader already resolved
+     * and stored as a string: an absolute path, an http(s) URL, or a git repository's clone URL with
+     * an optional #ref. Anything else (a relative path, a gh: shortcut, "name:version") is refused.
      *
-     * @param string|null $version The git ref to use when the source has no `#ref`
-     * @throws InvalidArgumentException When it is no add-on source
+     * @throws InvalidArgumentException
      */
-    public static function fromSource(string $source, ?string $version = null): self
+    public static function fromLoaded(string $name, ?string $source, ?string $version): self
     {
-        $shown = UrlCredentials::redact($source);
-        if (str_starts_with($source, '/')) {
-            return self::zipFile($source);
+        if ($source === null) {
+            return self::byName($name, $version);
         }
-        $form = SourceForm::of($source);
-        if ($form === null || $form === SourceForm::RelativePath) {
-            throw new InvalidArgumentException("'{$shown}' is not a module or theme source: use a release ZIP (URL or path) or a git repository.");
-        }
-        if (SourceForm::isRepository($source)) {
-            return self::repository($source, $version, $shown);
-        }
-        $references = ReferenceResolver::withDefaults();
-        if ($references->isRepoReference($source)) {
-            return new self(self::ZIP_URL, null, $references->resolve($source), null);
-        }
-        if ($form === SourceForm::Url) {
-            return new self(self::ZIP_URL, null, self::lowerScheme($source), null);
-        }
-        throw new InvalidArgumentException("'{$shown}' is neither a git repository nor a file in one.");
-    }
-
-    /** @throws InvalidArgumentException */
-    private static function repository(string $source, ?string $version, string $shown): self
-    {
-        [$repository, $ref] = array_pad(explode('#', $source, 2), 2, null);
-        $ref = $ref ?? ($version !== '' ? $version : null);
-        if ($ref !== null && !GitRef::isValid($ref)) {
-            throw new InvalidArgumentException("'{$shown}' has an invalid git ref '{$ref}'.");
-        }
-        if (preg_match('#\A(?:gh:|https://github\.com/)([^/]+)/([^/]+?)/?\z#i', $repository, $m) === 1 && !str_ends_with($repository, '.git')) {
-            foreach ([$m[1], $m[2]] as $segment) {
-                if ($segment === '.' || $segment === '..') {
-                    throw new InvalidArgumentException("'{$shown}' is not a GitHub repository.");
-                }
-            }
-            return new self(self::GIT, null, "https://github.com/{$m[1]}/{$m[2]}.git", $ref);
-        }
-        return new self(self::GIT, null, self::lowerScheme($repository), $ref);
-    }
-
-    private static function lowerScheme(string $url): string
-    {
-        return preg_replace_callback('#\Ahttps?(?=://)#i', fn(array $m) => strtolower($m[0]), $url);
+        $typed = SourceForm::isRepository($source) ? GitRepository::parse($source) : Location::fromResolved($source);
+        return self::fromBlueprint($name, $typed, $version);
     }
 
     public function isGit(): bool
     {
-        return $this->kind === self::GIT;
+        return $this->source instanceof GitRepository;
     }
 
     /** The add-on name of a repository lookup, or null (a ZIP or git source names it only once unpacked). */
     public function addonId(): ?string
     {
-        return $this->name;
+        return $this->source instanceof NamedAddon ? $this->source->name : null;
     }
 
-    /** For output: the name[:version], or the location[#ref], without credentials. */
+    /** For output, without credentials: name[:version], or the source as written and its real location. */
     public function display(): string
     {
-        $text = match ($this->kind) {
-            self::BY_NAME => $this->name . ($this->version !== null ? ":{$this->version}" : ''),
-            self::GIT => $this->location . ($this->version !== null ? "#{$this->version}" : ''),
-            default => (string) $this->location,
-        };
-        return UrlCredentials::redact($text);
+        return $this->source->display();
     }
 }

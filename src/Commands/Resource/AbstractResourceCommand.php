@@ -5,9 +5,6 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\ItemRepresentation;
 use Omeka\Api\Representation\ItemSetRepresentation;
 use OSC\Commands\AbstractCommand;
-use OSC\Helper\Path;
-use OSC\Helper\ResourceFetcher;
-use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Omeka\OmekaInstance;
 use OSC\Resource\OmekaCatalog;
 use OSC\Resource\QueryBuilder;
@@ -122,16 +119,5 @@ abstract class AbstractResourceCommand extends AbstractCommand
     protected function plural(): string
     {
         return $this->type->label() . 's';
-    }
-
-    /**
-     * A source given on the command line or in a config file, made absolute: a relative path resolves
-     * against $base (a config file) or else the working directory; URLs and gh:/gl: references are
-     * normalized and kept.
-     */
-    protected function resolveSource(string $source, ?string $base = null): string
-    {
-        $resolved = ReferenceResolver::withDefaults()->resolve($source, $base);
-        return ResourceFetcher::isUrl($resolved) ? $resolved : Path::toAbsolutePath($resolved, $this->getCwd());
     }
 }

@@ -5,8 +5,8 @@ use Exception;
 use InvalidArgumentException;
 use OSC\Addon\AddonType;
 use OSC\Helper\Offline;
-use OSC\Addon\AddonReference;
-use OSC\Helper\ResourceUriParser;
+use OSC\Source\CliSourceResolver;
+use OSC\Source\NamedAddon;
 
 class UpdateCommand extends AbstractThemeCommand
 {
@@ -40,11 +40,11 @@ class UpdateCommand extends AbstractThemeCommand
             // the update is looked up in the repositories (also for --dry-run, which reports it)
             Offline::assertOnline('check for an update of the theme');
 
-            $themeUri = ResourceUriParser::parse($themeId);
-            if ($themeUri->kind !== AddonReference::BY_NAME) {
+            $themeUri = CliSourceResolver::addon($themeId, $this->getCwd());
+            if (!$themeUri->source instanceof NamedAddon) {
                 throw new InvalidArgumentException("The theme-id argument must be in the format 'theme-id' or 'theme-id:version'.");
             }
-            $theme = $this->requireTheme((string) $themeUri->name, (bool) $ignoreNotFound);
+            $theme = $this->requireTheme($themeUri->source->name, (bool) $ignoreNotFound);
 
             if ($this->isDryRun()) {
                 $this->reportDryRun("Theme '{$theme->getId()}' would be updated.");

@@ -4,84 +4,96 @@ namespace Tests\Addon;
 use InvalidArgumentException;
 use OSC\Addon\AddonReference;
 use OSC\Addon\GitRef;
-use OSC\Blueprint\SourceForm;
-use OSC\Helper\Reference\GitHubProvider;
-use OSC\Helper\Reference\GitLabProvider;
-use OSC\Helper\Reference\ReferenceResolver;
-use OSC\Helper\Reference\RepoSegments;
-use OSC\Helper\ResourceFetcher;
+use OSC\Helper\UrlCredentials;
+use OSC\Source\GitRepository;
+use OSC\Source\NamedAddon;
+use OSC\Source\HttpUrl;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
+use OSC\Source\SourceForm;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(AddonReference::class)]
+#[UsesClass(NamedAddon::class)]
 #[UsesClass(GitRef::class)]
+#[UsesClass(GitRepository::class)]
+#[UsesClass(HttpUrl::class)]
+#[UsesClass(LocalPath::class)]
+#[UsesClass(Location::class)]
 #[UsesClass(SourceForm::class)]
-#[UsesClass(ReferenceResolver::class)]
-#[UsesClass(GitHubProvider::class)]
-#[UsesClass(GitLabProvider::class)]
-#[UsesClass(RepoSegments::class)]
-#[UsesClass(ResourceFetcher::class)]
+#[UsesClass(UrlCredentials::class)]
 class AddonReferenceTest extends TestCase
 {
-    /** @return array<string,array{0:string,1:?string,2:?string,3:string,4:?string,5:?string}> name, source, version → kind, location, version */
-    public static function blueprintEntries(): array
+    /**
+     * A loaded blueprint's entry: its source is already resolved by the loader (an absolute path, a URL,
+     * or a git repository's clone URL with #ref).
+     *
+     * @return array<string,array{0:string,1:?string,2:?string,3:class-string,4:string,5:?string}>
+     *         name, source, version → source class, value (a NamedAddon: its name), version or ref
+     */
+    public static function loadedEntries(): array
     {
         return [
-            'name only'            => ['Common', null, null, AddonReference::BY_NAME, null, null],
-            'name and version'     => ['Log', null, '3.4.30', AddonReference::BY_NAME, null, '3.4.30'],
-            'zip wins over version'=> ['M', 'https://example.org/M-2.1.0.zip', '2.0.0', AddonReference::ZIP_URL, 'https://example.org/M-2.1.0.zip', null],
-            'any url is a zip'     => ['F', 'https://example.org/dl?id=5', '1.2.0', AddonReference::ZIP_URL, 'https://example.org/dl?id=5', null],
-            'uppercase scheme'     => ['U', 'HTTPS://example.org/U.zip', null, AddonReference::ZIP_URL, 'https://example.org/U.zip', null],
-            'archive zip'          => ['Z', 'https://github.com/o/z/archive/refs/tags/v1.zip', null, AddonReference::ZIP_URL, 'https://github.com/o/z/archive/refs/tags/v1.zip', null],
-            'zip file'             => ['L', '/bundle/modules/L.zip', '1.0', AddonReference::ZIP_FILE, '/bundle/modules/L.zip', null],
-            'zip file any name'    => ['L', '/bundle/modules/L-release', null, AddonReference::ZIP_FILE, '/bundle/modules/L-release', null],
-            'gh, version is ref'   => ['A', 'gh:owner/a', '1.2.0', AddonReference::GIT, 'https://github.com/owner/a.git', '1.2.0'],
-            'gh ref wins'          => ['C', 'gh:owner/c#main', '1.2.0', AddonReference::GIT, 'https://github.com/owner/c.git', 'main'],
-            'github url'           => ['D', 'https://github.com/owner/d', '1.2.0', AddonReference::GIT, 'https://github.com/owner/d.git', '1.2.0'],
-            'github url slash'     => ['D', 'https://github.com/o/d/', null, AddonReference::GIT, 'https://github.com/o/d.git', null],
-            'github url ref wins'  => ['E', 'https://github.com/owner/e#main', '1.2.0', AddonReference::GIT, 'https://github.com/owner/e.git', 'main'],
-            'dot git url'          => ['B', 'https://example.org/owner/b.git', '1.2.0', AddonReference::GIT, 'https://example.org/owner/b.git', '1.2.0'],
-            'dot git url nested'   => ['G', 'https://gitlab.com/g/sub/g.git#v2', null, AddonReference::GIT, 'https://gitlab.com/g/sub/g.git', 'v2'],
-            'dot git over http'    => ['H', 'http://example.org/h.git', null, AddonReference::GIT, 'http://example.org/h.git', null],
-            'ssh'                  => ['S', 'git@gitlab.com:g/h.git', null, AddonReference::GIT, 'git@gitlab.com:g/h.git', null],
-            'ref with a slash'     => ['R', 'gh:o/r#feature/x', null, AddonReference::GIT, 'https://github.com/o/r.git', 'feature/x'],
-            'file in a repository' => ['F', 'gh:o/f@v1:dist/F.zip', '9.9', AddonReference::ZIP_URL, 'https://raw.githubusercontent.com/o/f/v1/dist/F.zip', null],
+            'name only'           => ['Common', null, null, NamedAddon::class, 'Common', null],
+            'name and version'    => ['Common', null, '3.4.93', NamedAddon::class, 'Common', '3.4.93'],
+            'zip file'            => ['M', '/w/zips/M.zip', '1.0', LocalPath::class, '/w/zips/M.zip', null],
+            'zip ignores version' => ['M', 'https://example.org/M-2.1.0.zip', '2.0.0', HttpUrl::class, 'https://example.org/M-2.1.0.zip', null],
+            'version becomes ref' => ['A', 'https://github.com/o/a.git', '1.2.0', GitRepository::class, 'https://github.com/o/a.git#1.2.0', '1.2.0'],
+            'ref wins'            => ['C', 'https://github.com/o/c.git#main', '1.2.0', GitRepository::class, 'https://github.com/o/c.git#main', 'main'],
+            'git file is a zip'   => ['F', 'https://raw.githubusercontent.com/o/f/v1/dist/F.zip', null, HttpUrl::class, 'https://raw.githubusercontent.com/o/f/v1/dist/F.zip', null],
+            'ssh'                 => ['S', 'git@gitlab.com:g/h.git', null, GitRepository::class, 'git@gitlab.com:g/h.git', null],
         ];
     }
 
-    #[DataProvider('blueprintEntries')]
-    public function testFromABlueprintEntry(string $name, ?string $source, ?string $version, string $kind, ?string $location, ?string $expectedVersion): void
+    #[DataProvider('loadedEntries')]
+    public function testFromALoadedEntry(string $name, ?string $source, ?string $version, string $class, string $value, ?string $versionOrRef): void
     {
-        $reference = AddonReference::fromBlueprint($name, $source, $version);
-        $this->assertSame($kind, $reference->kind);
-        $this->assertSame($location, $reference->location);
-        $this->assertSame($expectedVersion, $reference->version);
-        $this->assertSame($kind === AddonReference::BY_NAME ? $name : null, $reference->name);
+        $reference = AddonReference::fromLoaded($name, $source, $version);
+        $this->assertInstanceOf($class, $reference->source);
+        if ($reference->source instanceof NamedAddon) {
+            $this->assertSame($value, $reference->source->name);
+            $this->assertSame($versionOrRef, $reference->source->version);
+        } else {
+            $this->assertSame($value, $reference->source->value());
+        }
+        if ($reference->source instanceof GitRepository) {
+            $this->assertSame($versionOrRef, $reference->source->ref());
+        }
+    }
+
+    public function testFromBlueprintTakesTypedSources(): void
+    {
+        $git = AddonReference::fromBlueprint('A', GitRepository::parse('gh:o/a'), '1.2.0');
+        $this->assertInstanceOf(GitRepository::class, $git->source);
+        $this->assertSame('1.2.0', $git->source->ref());
+
+        $zip = AddonReference::fromBlueprint('M', HttpUrl::fromUrl('https://example.org/M.zip'), '2.0.0');
+        $this->assertInstanceOf(HttpUrl::class, $zip->source);
+
+        $named = AddonReference::fromBlueprint('Log', null, '3.4.30');
+        $this->assertInstanceOf(NamedAddon::class, $named->source);
+        $this->assertSame('3.4.30', $named->source->version);
     }
 
     /** @return array<string,array{0:?string,1:?string}> source, version */
-    public static function invalidEntries(): array
+    public static function invalidLoaded(): array
     {
         return [
-            'id:version source'  => ['CleanUrl:3.4', null],
-            'unresolved path'    => ['./zips/M.zip', null],
-            'gh owner dot dot'   => ['gh:o/..', null],
-            'github dot dot'     => ['https://github.com/o/..', null],
-            'escaping file'      => ['gh:trusted/..@x:evil.zip', null],
-            'option ref'         => ['gh:o/r#-x', null],
-            'option version'     => ['gh:o/r', '--upload-pack=x'],
-            'gl repository'      => ['gl:g/r', null],
-            'empty'              => ['', null],
+            'id:version source' => ['CleanUrl:3.4', null],
+            'unresolved path'   => ['./zips/M.zip', null],
+            'option version'    => ['https://github.com/o/r.git', '--upload-pack=x'],
+            'gh shortcut'       => ['gh:o/r:f.zip', null],
         ];
     }
 
-    #[DataProvider('invalidEntries')]
-    public function testRejectsAnInvalidSource(?string $source, ?string $version): void
+    #[DataProvider('invalidLoaded')]
+    public function testRejectsAnUnresolvedSource(?string $source, ?string $version): void
     {
         $this->expectException(InvalidArgumentException::class);
-        AddonReference::fromBlueprint('X', $source, $version);
+        AddonReference::fromLoaded('X', $source, $version);
     }
 
     public function testAnInvalidNameIsRejected(): void
@@ -90,19 +102,20 @@ class AddonReferenceTest extends TestCase
         AddonReference::byName('CleanUrl:3.4');
     }
 
-    public function testDisplayHidesCredentialsAndShowsTheRef(): void
+    public function testDisplay(): void
     {
         $this->assertSame('Common', AddonReference::byName('Common')->display());
+        $this->assertSame('Log:3.4.30', AddonReference::named(new NamedAddon('Log', '3.4.30'))->display());
         $this->assertSame('Log:3.4.30', AddonReference::byName('Log', '3.4.30')->display());
-        $this->assertSame('https://***@example.org/M.zip', AddonReference::fromSource('https://u:p@example.org/M.zip')->display());
-        $this->assertSame('https://github.com/o/a.git#v1', AddonReference::fromSource('gh:o/a#v1')->display());
+        $this->assertSame('https://***@example.org/M.zip', AddonReference::zip(HttpUrl::fromUrl('https://u:p@example.org/M.zip'))->display());
+        $this->assertSame("'gh:o/a#v1' (https://github.com/o/a.git#v1)", AddonReference::git(GitRepository::parse('gh:o/a#v1'))->display());
     }
 
     public function testIsGitAndAddonId(): void
     {
-        $this->assertTrue(AddonReference::fromSource('gh:o/a')->isGit());
-        $this->assertFalse(AddonReference::fromSource('https://example.org/a.zip')->isGit());
+        $this->assertTrue(AddonReference::git(GitRepository::parse('gh:o/a'))->isGit());
+        $this->assertFalse(AddonReference::zip(HttpUrl::fromUrl('https://example.org/a.zip'))->isGit());
         $this->assertSame('Common', AddonReference::byName('Common', '1.0')->addonId());
-        $this->assertNull(AddonReference::fromSource('gh:o/a')->addonId());
+        $this->assertNull(AddonReference::git(GitRepository::parse('gh:o/a'))->addonId());
     }
 }

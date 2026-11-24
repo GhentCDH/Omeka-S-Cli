@@ -1,6 +1,7 @@
 <?php
 namespace OSC\Repository\Vocabulary;
 
+use OSC\Source\HttpUrl;
 use OSC\Helper\ResourceFetcher;
 use OSC\Repository\AbstractRepository;
 
@@ -81,7 +82,7 @@ class LOV extends AbstractRepository
         // query parameter is ignored, so CSV is requested via the header only.
         $url = $SPARQL_ENDPOINT . '?' . http_build_query(['query' => $SPARQL_QUERY]);
 
-        return ResourceFetcher::fetch($url, ['Accept: text/csv']);
+        return ResourceFetcher::fetch(HttpUrl::fromUrl($url), ['Accept: text/csv']);
     }
 
     /**

@@ -103,7 +103,7 @@ final class CoreSwap
         if ($stageDir !== null) {
             self::assertStageDir($stageDir, $this->root);
             $parent = rtrim(realpath($stageDir) ?: $stageDir, '/');
-            $this->insideRoot = $parent === $this->root || str_starts_with($parent, $this->root . '/');
+            $this->insideRoot = Path::isInside($parent, $this->root);
         } else {
             $parent = dirname($this->root);
             $this->insideRoot = !(is_writable($parent) && self::sameDevice($parent, $this->root));

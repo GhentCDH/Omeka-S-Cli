@@ -33,7 +33,7 @@ final class BundleOutput
         if ($force && !Path::isEmptyDir($target)) {
             foreach ($protect as $path) {
                 $path = self::normalize(realpath($path) ?: $path);
-                if ($path === $target || str_starts_with($path, $target . '/')) {
+                if (Path::isInside($path, $target)) {
                     throw new Exception("Output directory '{$target}' contains '{$path}', which --force would delete; choose another directory.");
                 }
             }
@@ -52,21 +52,10 @@ final class BundleOutput
         return new self($target, $partial);
     }
 
-    /** $path with `.` and `..` segments resolved, and symlinks resolved when the directory exists. */
+    /** An absolute $path with `.` and `..` segments resolved, and symlinks resolved when the directory exists. */
     private static function normalize(string $path): string
     {
-        $parts = [];
-        foreach (explode('/', $path) as $part) {
-            if ($part === '' || $part === '.') {
-                continue;
-            }
-            if ($part === '..') {
-                array_pop($parts);
-                continue;
-            }
-            $parts[] = $part;
-        }
-        $path = '/' . implode('/', $parts);
+        $path = Path::normalize($path);
         return is_dir($path) ? (realpath($path) ?: $path) : $path;
     }
 

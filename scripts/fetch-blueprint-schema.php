@@ -18,6 +18,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use OSC\Blueprint\BlueprintValidator;
 use OSC\Helper\ResourceFetcher;
+use OSC\Source\HttpUrl;
 
 /**
  * Download the schema into the bundled location.
@@ -38,7 +39,7 @@ function osc_fetch_blueprint_schema(bool $force = false): void
         throw new Exception("Could not create schema directory: {$dir}");
     }
 
-    $schema = ResourceFetcher::fetch(BlueprintValidator::SCHEMA_SOURCE);
+    $schema = ResourceFetcher::fetch(HttpUrl::fromUrl(BlueprintValidator::SCHEMA_SOURCE));
     if (file_put_contents($dest, $schema) === false) {
         throw new Exception("Could not write schema to: {$dest}");
     }
