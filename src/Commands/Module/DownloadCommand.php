@@ -12,7 +12,7 @@ use OSC\Exceptions\NotFoundException;
 use OSC\Addon\ModuleNamespace;
 use OSC\Helper\Offline;
 use OSC\Helper\Path;
-use OSC\Helper\ResourceUriParser;
+use OSC\Source\CliSourceResolver;
 
 class DownloadCommand extends AbstractModuleCommand
 {
@@ -41,7 +41,7 @@ class DownloadCommand extends AbstractModuleCommand
      */
     public function execute(string|AddonReference|null $module, ?bool $force = false, ?bool $backup = false, ?bool $install = false, ?bool $upgrade = false): void
     {
-        $reference = $module instanceof AddonReference ? $module : ResourceUriParser::parse((string) $module);
+        $reference = $module instanceof AddonReference ? $module : CliSourceResolver::addon((string) $module, $this->getCwd());
         $modulesPath = Path::createPath([$this->getOmekaPath(), "modules"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Modules directory is not writable. Please check permissions.");
@@ -80,7 +80,7 @@ class DownloadCommand extends AbstractModuleCommand
 
         // download module
         try {
-            $this->info("Download {$downloader->getDownloadUrl()} ... ");
+            $this->info("Download {$downloader->display()} ... ");
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {

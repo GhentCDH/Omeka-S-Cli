@@ -61,6 +61,18 @@ omeka-s-cli vocabulary:import --config ~/vocabularies/archive.json
 # --8<-- [end:import-config]
 omeka-s-cli vocabulary:list --json | jq -e '.[] | select(.prefix == "arch") | .label == "Archive"' > /dev/null
 
+# a configuration file in a subfolder that uses the RDF one level up
+mkdir -p ~/vocabularies/configs
+cp "$EXAMPLES_DIR"/files/vocabularies/archive-root.json ~/vocabularies/configs/archive.json
+omeka-s-cli vocabulary:delete arch --quiet
+# without --root, the RDF one level up is outside the configuration file's folder (exit code 1)
+failure_output() { if "$@" > "$SCRATCH_DIR/failure.log" 2>&1; then return 1; fi; cat "$SCRATCH_DIR/failure.log"; }
+failure_output omeka-s-cli vocabulary:import --config ~/vocabularies/configs/archive.json | grep 'outside the root' > /dev/null
+# --8<-- [start:import-config-root]
+omeka-s-cli vocabulary:import --config ~/vocabularies/configs/archive.json --root ~/vocabularies
+# --8<-- [end:import-config-root]
+omeka-s-cli vocabulary:list --json | jq -e 'any(.[]; .prefix == "arch")' > /dev/null
+
 # the vocabulary gets a new property
 cat >> ~/vocabularies/archive.ttl <<'EOF'
 

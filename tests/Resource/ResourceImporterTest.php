@@ -208,4 +208,18 @@ class ResourceImporterTest extends TestCase
         $result = $importer->import(['o:title' => 'Lady with an Ermine'], ResourceType::Item, 'x', $media);
         $this->assertSame('exists', $result->status());
     }
+
+    public function testALocalContextPathIsNotRead(): void
+    {
+        // a JSON-LD file someone else wrote must not make the CLI read a local file as its @context
+        $file = tempnam(sys_get_temp_dir(), 'ctx');
+        file_put_contents($file, '{"@context": {"ex": "http://example.org/ns#"}}');
+        try {
+            $importer = new ResourceImporter(null, FakeCatalog::sample());
+            $fetchContext = new \ReflectionMethod($importer, 'fetchContext');
+            $this->assertSame([], $fetchContext->invoke($importer, $file));
+        } finally {
+            unlink($file);
+        }
+    }
 }

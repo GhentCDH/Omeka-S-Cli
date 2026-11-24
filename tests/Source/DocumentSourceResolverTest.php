@@ -1,51 +1,54 @@
 <?php
-namespace Tests\Blueprint;
+namespace Tests\Source;
 
 use OSC\Addon\GitRef;
-use OSC\Blueprint\Document;
-use OSC\Blueprint\SourceException;
-use OSC\Blueprint\SourceForm;
-use OSC\Blueprint\SourceResolver;
-use OSC\Helper\Reference\GitHubProvider;
-use OSC\Helper\Reference\GitLabProvider;
-use OSC\Helper\Reference\ReferenceResolver;
-use OSC\Helper\Reference\RepoSegments;
-use OSC\Helper\ResourceFetcher;
+use OSC\Source\Document;
+use OSC\Source\DocumentSourceResolver;
+use OSC\Source\SourceException;
+use OSC\Source\SourceForm;
+use OSC\Source\GitHost\GitHubHost;
+use OSC\Source\GitHost\GitLabHost;
+use OSC\Source\GitHost\GitPathSegments;
+use OSC\Helper\Path;
+use OSC\Helper\UrlCredentials;
+use OSC\Source\GitFile;
+use OSC\Source\GitRepository;
+use OSC\Source\HttpUrl;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(SourceResolver::class)]
+#[CoversClass(DocumentSourceResolver::class)]
 #[CoversClass(Document::class)]
 #[CoversClass(SourceException::class)]
 #[UsesClass(SourceForm::class)]
-#[UsesClass(ReferenceResolver::class)]
-#[UsesClass(GitHubProvider::class)]
-#[UsesClass(GitLabProvider::class)]
-#[UsesClass(RepoSegments::class)]
+#[UsesClass(GitHubHost::class)]
+#[UsesClass(GitLabHost::class)]
+#[UsesClass(GitPathSegments::class)]
 #[UsesClass(GitRef::class)]
-#[UsesClass(ResourceFetcher::class)]
-class SourceResolverTest extends TestCase
+#[UsesClass(Path::class)]
+#[UsesClass(UrlCredentials::class)]
+#[UsesClass(GitFile::class)]
+#[UsesClass(GitRepository::class)]
+#[UsesClass(HttpUrl::class)]
+#[UsesClass(LocalPath::class)]
+#[UsesClass(Location::class)]
+class DocumentSourceResolverTest extends TestCase
 {
     private const ROOT = '/srv/bp';
     private const URL_ROOT = 'https://example.org/bp/';
 
-    private SourceResolver $resolver;
-
-    protected function setUp(): void
-    {
-        $this->resolver = new SourceResolver(ReferenceResolver::withDefaults());
-    }
-
     private function local(string $file = 'blueprint.json'): Document
     {
-        return new Document(self::ROOT . '/' . $file, self::ROOT);
+        return new Document(LocalPath::fromAbsolute(self::ROOT . '/' . $file), self::ROOT);
     }
 
     private function remote(string $file = 'blueprint.json'): Document
     {
-        return new Document(self::URL_ROOT . $file, self::URL_ROOT);
+        return new Document(HttpUrl::fromUrl(self::URL_ROOT . $file), self::URL_ROOT);
     }
 
     /** @return array<string,array{0:string,1:string}> */
@@ -68,13 +71,13 @@ class SourceResolverTest extends TestCase
     #[DataProvider('localPaths')]
     public function testResolvesARelativePathAgainstALocalDocument(string $raw, string $expected): void
     {
-        $this->assertSame($expected, $this->resolver->resolve($raw, $this->local()));
+        $this->assertSame($expected, DocumentSourceResolver::file($raw, $this->local())->value());
     }
 
     public function testResolvesAgainstTheFileThatDeclaresIt(): void
     {
         $list = $this->local('lists/more/modules.json');
-        $this->assertSame('/srv/bp/lists/zips/N.zip', $this->resolver->resolve('../zips/N.zip', $list));
+        $this->assertSame('/srv/bp/lists/zips/N.zip', DocumentSourceResolver::file('../zips/N.zip', $list)->value());
     }
 
     /** @return array<string,array{0:string,1:string}> */
@@ -93,7 +96,7 @@ class SourceResolverTest extends TestCase
     public function testRejectsAPathThatLeavesTheRoot(string $raw, string $declaredIn): void
     {
         try {
-            $this->resolver->resolve($raw, $this->local($declaredIn));
+            DocumentSourceResolver::file($raw, $this->local($declaredIn))->value();
             $this->fail("'{$raw}' should leave the root");
         } catch (SourceException $e) {
             $this->assertSame(SourceException::OUTSIDE_ROOT, $e->reason);
@@ -117,7 +120,7 @@ class SourceResolverTest extends TestCase
     {
         $this->expectException(SourceException::class);
         $this->expectExceptionMessage($hint);
-        $this->resolver->resolve($raw, $this->local());
+        DocumentSourceResolver::file($raw, $this->local())->value();
     }
 
     /** @return array<string,array{0:string}> */
@@ -134,7 +137,7 @@ class SourceResolverTest extends TestCase
     public function testRejectsAValueThatIsNotASource(string $raw): void
     {
         try {
-            $this->resolver->resolve($raw, $this->local());
+            DocumentSourceResolver::file($raw, $this->local())->value();
             $this->fail("'{$raw}' should be rejected");
         } catch (SourceException $e) {
             $this->assertSame(SourceException::INVALID, $e->reason);
@@ -143,22 +146,22 @@ class SourceResolverTest extends TestCase
 
     public function testKeepsAUrl(): void
     {
-        $this->assertSame('https://example.org/a.zip', $this->resolver->resolve('https://example.org/a.zip', $this->local()));
-        $this->assertSame('HTTPS://example.org/a.zip', $this->resolver->resolve('HTTPS://example.org/a.zip', $this->local()));
+        $this->assertSame('https://example.org/a.zip', DocumentSourceResolver::file('https://example.org/a.zip', $this->local())->value());
+        $this->assertSame('https://example.org/a.zip', DocumentSourceResolver::file('HTTPS://example.org/a.zip', $this->local())->value());
     }
 
     public function testTurnsARepositoryFileIntoARawUrl(): void
     {
         $this->assertSame(
             'https://raw.githubusercontent.com/o/r/v1/dist/M.zip',
-            $this->resolver->resolve('gh:o/r@v1:dist/M.zip', $this->local())
+            DocumentSourceResolver::file('gh:o/r@v1:dist/M.zip', $this->local())->value()
         );
     }
 
     public function testARepositoryThatEscapesIsInvalid(): void
     {
         $this->expectException(SourceException::class);
-        $this->resolver->resolve('gh:trusted/..@attacker:evil.php', $this->local());
+        DocumentSourceResolver::file('gh:trusted/..@attacker:evil.php', $this->local())->value();
     }
 
     /** @return array<string,array{0:string}> */
@@ -175,28 +178,30 @@ class SourceResolverTest extends TestCase
     {
         $this->expectException(SourceException::class);
         $this->expectExceptionMessage('repository');
-        $this->resolver->resolve($raw, $this->local());
+        DocumentSourceResolver::file($raw, $this->local())->value();
     }
 
     #[DataProvider('repositories')]
     public function testARepositoryIsKeptForAnAddon(string $raw): void
     {
-        $this->assertSame($raw, $this->resolver->resolve($raw, $this->local(), true));
+        $repository = DocumentSourceResolver::addon($raw, $this->local());
+        $this->assertInstanceOf(GitRepository::class, $repository);
+        $this->assertSame($raw, $repository->original());
     }
 
     public function testResolvesAgainstARemoteDocument(): void
     {
-        $this->assertSame('https://example.org/bp/zips/M.zip', $this->resolver->resolve('./zips/M.zip', $this->remote()));
-        $this->assertSame('https://example.org/bp/b.zip', $this->resolver->resolve('../b.zip', $this->remote('lists/x.json')));
+        $this->assertSame('https://example.org/bp/zips/M.zip', DocumentSourceResolver::file('./zips/M.zip', $this->remote())->value());
+        $this->assertSame('https://example.org/bp/b.zip', DocumentSourceResolver::file('../b.zip', $this->remote('lists/x.json'))->value());
         // a URL is fetched as it is: the query stays
-        $this->assertSame('https://example.org/bp/a.json?x=1', $this->resolver->resolve('./a.json?x=1', $this->remote()));
+        $this->assertSame('https://example.org/bp/a.json?x=1', DocumentSourceResolver::file('./a.json?x=1', $this->remote())->value());
     }
 
     public function testEncodesCharactersAUrlCannotCarryAgainstARemoteDocument(): void
     {
         // written as is or encoded, both name the same file
-        $this->assertSame('https://example.org/bp/My%20File.pdf', $this->resolver->resolve('My File.pdf', $this->remote()));
-        $this->assertSame('https://example.org/bp/My%20File.pdf', $this->resolver->resolve('./My%20File.pdf', $this->remote()));
+        $this->assertSame('https://example.org/bp/My%20File.pdf', DocumentSourceResolver::file('My File.pdf', $this->remote())->value());
+        $this->assertSame('https://example.org/bp/My%20File.pdf', DocumentSourceResolver::file('./My%20File.pdf', $this->remote())->value());
     }
 
     /** @return array<string,array{0:string}> */
@@ -209,7 +214,7 @@ class SourceResolverTest extends TestCase
     public function testRejectsAPathThatLeavesARemoteRoot(string $raw): void
     {
         try {
-            $this->resolver->resolve($raw, $this->remote());
+            DocumentSourceResolver::file($raw, $this->remote())->value();
             $this->fail("'{$raw}' should leave the root");
         } catch (SourceException $e) {
             $this->assertSame(SourceException::OUTSIDE_ROOT, $e->reason);
@@ -230,15 +235,15 @@ class SourceResolverTest extends TestCase
     #[DataProvider('unnormalizedBlueprintUrls')]
     public function testTheRootOfAnUnnormalizedUrlIsNormalizedLikeTheResolvedSource(string $url): void
     {
-        $document = new Document($url, SourceResolver::folderUrl($url));
-        $this->assertSame('https://example.org/bp/lists/a.json', $this->resolver->resolve('./lists/a.json', $document));
-        $this->assertSame('https://example.org/bp/', SourceResolver::folderUrl($url));
+        $blueprint = HttpUrl::fromUrl($url);
+        $document = new Document($blueprint, $blueprint->folder());
+        $this->assertSame('https://example.org/bp/lists/a.json', DocumentSourceResolver::file('./lists/a.json', $document)->value());
     }
 
     public function testARemoteRootMessageDoesNotSuggestRoot(): void
     {
         try {
-            $this->resolver->resolve('../x.zip', $this->remote());
+            DocumentSourceResolver::file('../x.zip', $this->remote())->value();
             $this->fail('should leave the root');
         } catch (SourceException $e) {
             $this->assertStringNotContainsString('--root', $e->getMessage());
@@ -247,9 +252,9 @@ class SourceResolverTest extends TestCase
 
     public function testMessagesHideCredentials(): void
     {
-        $base = new Document('https://u:secret@example.org/bp/blueprint.json', 'https://u:secret@example.org/bp/');
+        $base = new Document(HttpUrl::fromUrl('https://u:secret@example.org/bp/blueprint.json'), 'https://u:secret@example.org/bp/');
         try {
-            $this->resolver->resolve('../x.zip', $base);
+            DocumentSourceResolver::file('../x.zip', $base);
             $this->fail('should leave the root');
         } catch (SourceException $e) {
             $this->assertStringNotContainsString('secret', $e->getMessage());
@@ -260,10 +265,64 @@ class SourceResolverTest extends TestCase
     {
         $local = $this->local();
         // by relative path: the importer's root
-        $this->assertSame(self::ROOT, $this->resolver->importRoot('./lists/a.json', '/srv/bp/lists/a.json', $local));
+        $this->assertSame(self::ROOT, DocumentSourceResolver::importRoot('./lists/a.json', LocalPath::fromAbsolute('/srv/bp/lists/a.json'), $local));
         // by absolute URL or gh:/gl: the folder of the file
-        $this->assertSame('https://example.org/lists/', $this->resolver->importRoot('https://example.org/lists/a.json', 'https://example.org/lists/a.json', $local));
+        $this->assertSame('https://example.org/lists/', DocumentSourceResolver::importRoot('https://example.org/lists/a.json', HttpUrl::fromUrl('https://example.org/lists/a.json'), $local));
         $raw = 'https://raw.githubusercontent.com/o/r/main/lists/a.json';
-        $this->assertSame('https://raw.githubusercontent.com/o/r/main/lists/', $this->resolver->importRoot('gh:o/r@main:lists/a.json', $raw, $local));
+        $this->assertSame('https://raw.githubusercontent.com/o/r/main/lists/', DocumentSourceResolver::importRoot('gh:o/r@main:lists/a.json', HttpUrl::fromUrl($raw), $local));
+    }
+
+    public function testResultsAreTypedAndKeepTheOriginal(): void
+    {
+        $local = DocumentSourceResolver::file('./My%20File.pdf', $this->local());
+        $this->assertInstanceOf(LocalPath::class, $local);
+        $this->assertSame('./My%20File.pdf', $local->original());
+
+        $gitFile = DocumentSourceResolver::file('gh:o/r@v1:a.json', $this->local());
+        $this->assertInstanceOf(HttpUrl::class, $gitFile);
+        $this->assertSame('gh:o/r@v1:a.json', $gitFile->original());
+
+        $remote = DocumentSourceResolver::file('a b.json', $this->remote());
+        $this->assertInstanceOf(HttpUrl::class, $remote);
+        $this->assertSame('a b.json', $remote->original());
+
+        $this->assertInstanceOf(HttpUrl::class, DocumentSourceResolver::addon('https://example.org/M.zip', $this->local()));
+    }
+
+    /**
+     * The relative path itself is Path::relative()'s (see PathTest); here, that each segment is
+     * written as in a URL.
+     *
+     * @return array<string,array{0:string,1:string,2:string}> target, folder → reference
+     */
+    public static function references(): array
+    {
+        return [
+            'same folder'    => ['/w/cfg/x.ttl', '/w/cfg', 'x.ttl'],
+            'up and a space' => ['/w/rdf/a b.ttl', '/w/cfg', '../rdf/a%20b.ttl'],
+            'a hash'         => ['/w/cfg/n#1.ttl', '/w/cfg', 'n%231.ttl'],
+            'a question mark and a percent' => ['/w/cfg/a?b%c.ttl', '/w/cfg', 'a%3Fb%25c.ttl'],
+        ];
+    }
+
+    #[DataProvider('references')]
+    public function testReference(string $target, string $folder, string $reference): void
+    {
+        $this->assertSame($reference, DocumentSourceResolver::reference(LocalPath::fromAbsolute($target), $folder));
+    }
+
+    public function testReferenceRoundTrips(): void
+    {
+        $dir = realpath(sys_get_temp_dir()) . '/osc-rel-' . bin2hex(random_bytes(4));
+        mkdir("{$dir}/cfg", 0777, true);
+        mkdir("{$dir}/rdf", 0777, true);
+        file_put_contents("{$dir}/cfg/c.json", '{}');
+        try {
+            $reference = DocumentSourceResolver::reference(LocalPath::fromAbsolute("{$dir}/rdf/a b#1.ttl"), "{$dir}/cfg");
+            $document = Document::open(LocalPath::fromAbsolute("{$dir}/cfg/c.json"), $dir);
+            $this->assertSame("{$dir}/rdf/a b#1.ttl", $document->resolve($reference)->value());
+        } finally {
+            Path::removeFolder($dir);
+        }
     }
 }

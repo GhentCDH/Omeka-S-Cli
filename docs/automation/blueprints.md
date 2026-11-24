@@ -325,7 +325,10 @@ library blueprint above imports `../shared/modules.jsonc`, outside its own direc
 ```
 
 `--root` works the same on `blueprint:deploy`. The path on the command line is not checked: it may be
-absolute.
+absolute. `--root` takes a local directory only: a blueprint loaded from a URL or `gh:`/`gl:` keeps its
+folder URL as root, and `--root` with it is an error. The same rules apply to the configuration files
+of `item:import`, `media:add` and `vocabulary:import`, see
+[Refer to files](../usage.md#refer-to-files).
 
 ## Capture an existing instance
 

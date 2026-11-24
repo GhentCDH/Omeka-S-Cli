@@ -1,10 +1,10 @@
 <?php
-namespace OSC\Blueprint;
+namespace OSC\Source;
 
-use Exception;
+use InvalidArgumentException;
 
-/** A source written in a blueprint that cannot be used: not a source at all, or outside the root. */
-final class SourceException extends Exception
+/** A source written in a file that cannot be used: not a source at all, or outside the root. */
+final class SourceException extends InvalidArgumentException
 {
     public const INVALID = 'invalid';
     public const OUTSIDE_ROOT = 'outside-root';

@@ -13,7 +13,7 @@ use OSC\Downloader\ZipDownloader;
 use OSC\Exceptions\NotFoundException;
 use OSC\Exceptions\OfflineException;
 use OSC\Helper\Offline;
-use OSC\Helper\ResourceUriParser;
+use OSC\Source\CliSourceResolver;
 use OSC\Addon\AddonVersion;
 use OSC\Manager\AbstractManager;
 use OSC\Manager\Result;
@@ -30,7 +30,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ResolvedAddon::class)]
 #[UsesClass(ZipDownloader::class)]
 #[UsesClass(GitDownloader::class)]
-#[UsesClass(ResourceUriParser::class)]
+#[UsesClass(CliSourceResolver::class)]
 #[UsesClass(AddonVersion::class)]
 #[UsesClass(AddonType::class)]
 #[UsesClass(ModuleDetails::class)]
@@ -63,15 +63,15 @@ class AddonResolverTest extends TestCase
         $this->expectException(OfflineException::class);
         $this->expectExceptionMessage("cannot look up 'Common' in the module repositories");
 
-        $this->resolver($this->common())->resolve('Common', fn() => '4.1.0');
+        $this->resolver($this->common())->resolve($this->ref('Common'), fn() => '4.1.0');
     }
 
     public function testOfflineAZipOrGitSourceStillResolves(): void
     {
         Offline::enable();
 
-        $zip = $this->resolver(null)->resolve('https://example.org/Mapping-2.1.0.zip', $this->noLookup());
-        $git = $this->resolver(null)->resolve('gh:omeka-s-modules/Mapping#v2.1.0', $this->noLookup());
+        $zip = $this->resolver(null)->resolve($this->ref('https://example.org/Mapping-2.1.0.zip'), $this->noLookup());
+        $git = $this->resolver(null)->resolve($this->ref('gh:omeka-s-modules/Mapping#v2.1.0'), $this->noLookup());
 
         $this->assertSame(ResolvedAddon::ZIP, $zip->form);
         $this->assertSame(ResolvedAddon::GIT, $git->form);
@@ -104,20 +104,20 @@ class AddonResolverTest extends TestCase
     public function testAZipSourceNeedsNoRepository(): void
     {
         $url = 'https://example.org/Mapping-2.1.0.zip';
-        $resolved = $this->resolver(null)->resolve($url, $this->noLookup());
+        $resolved = $this->resolver(null)->resolve($this->ref($url), $this->noLookup());
 
         $this->assertSame(ResolvedAddon::ZIP, $resolved->form);
         $this->assertInstanceOf(ZipDownloader::class, $resolved->downloader);
         $this->assertSame($url, $resolved->downloader->getDownloadUrl());
         $this->assertNull($resolved->dirname);
 
-        $local = $this->resolver(null)->resolve('/bundle/modules/Mapping-2.1.0.zip', $this->noLookup());
+        $local = $this->resolver(null)->resolve($this->ref('/bundle/modules/Mapping-2.1.0.zip'), $this->noLookup());
         $this->assertSame(ResolvedAddon::ZIP, $local->form);
     }
 
     public function testAGitHubSourceClonesAtItsRef(): void
     {
-        $resolved = $this->resolver(null)->resolve('gh:owner/repo#1.2.0', $this->noLookup());
+        $resolved = $this->resolver(null)->resolve($this->ref('gh:owner/repo#1.2.0'), $this->noLookup());
 
         $this->assertSame(ResolvedAddon::GIT, $resolved->form);
         $this->assertSame('https://github.com/owner/repo.git', $resolved->downloader->getDownloadUrl());
@@ -126,20 +126,20 @@ class AddonResolverTest extends TestCase
 
     public function testAGitHubUrlClonesLikeTheShorthand(): void
     {
-        $resolved = $this->resolver(null)->resolve('https://github.com/owner/repo/#1.2.0', $this->noLookup());
+        $resolved = $this->resolver(null)->resolve($this->ref('https://github.com/owner/repo/#1.2.0'), $this->noLookup());
 
         $this->assertSame(ResolvedAddon::GIT, $resolved->form);
         $this->assertSame('https://github.com/owner/repo.git', $resolved->downloader->getDownloadUrl());
         $this->assertSame('1.2.0', $resolved->downloader->getRef());
 
-        $default = $this->resolver(null)->resolve('https://github.com/owner/repo', $this->noLookup());
+        $default = $this->resolver(null)->resolve($this->ref('https://github.com/owner/repo'), $this->noLookup());
         $this->assertSame('https://github.com/owner/repo.git', $default->downloader->getDownloadUrl());
         $this->assertNull($default->downloader->getRef());
     }
 
     public function testARepositoryReferenceSelectsTheLatestCompatibleRelease(): void
     {
-        $resolved = $this->resolver($this->common())->resolve('common', fn() => '4.1.1');
+        $resolved = $this->resolver($this->common())->resolve($this->ref('common'), fn() => '4.1.1');
 
         $this->assertSame(ResolvedAddon::REPOSITORY, $resolved->form);
         $this->assertSame('Common', $resolved->dirname);
@@ -151,18 +151,18 @@ class AddonResolverTest extends TestCase
 
     public function testAnIncompatiblePinnedReleaseIsRefusedUnlessForced(): void
     {
-        $forced = $this->resolver($this->common())->resolve('Common:2.0.0', fn() => '4.1.1', true);
+        $forced = $this->resolver($this->common())->resolve($this->ref('Common:2.0.0'), fn() => '4.1.1', true);
         $this->assertSame('2.0.0', $forced->version);
 
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("Cannot use module 'Common' version '2.0.0': incompatible with Omeka S 4.1.1.");
-        $this->resolver($this->common())->resolve('Common:2.0.0', fn() => '4.1.1');
+        $this->resolver($this->common())->resolve($this->ref('Common:2.0.0'), fn() => '4.1.1');
     }
 
     public function testAnUnknownNameOrVersionIsNotFound(): void
     {
         try {
-            $this->resolver(null)->resolve('Nope', fn() => '4.1.1');
+            $this->resolver(null)->resolve($this->ref('Nope'), fn() => '4.1.1');
             $this->fail('expected NotFoundException');
         } catch (NotFoundException $e) {
             $this->assertSame("Could not find module 'Nope' in any repository.", $e->getMessage());
@@ -170,17 +170,23 @@ class AddonResolverTest extends TestCase
 
         $this->expectException(NotFoundException::class);
         $this->expectExceptionMessage("Module 'Common' has no version '9.9.9'.");
-        $this->resolver($this->common())->resolve('Common:9.9.9', fn() => '4.1.1');
+        $this->resolver($this->common())->resolve($this->ref('Common:9.9.9'), fn() => '4.1.1');
     }
 
     public function testResolvesAReferenceBuiltFromABlueprintEntry(): void
     {
-        $git = $this->resolver(null)->resolve(AddonReference::fromBlueprint('A', 'gh:owner/a', '1.2.0'), $this->noLookup());
+        $git = $this->resolver(null)->resolve(AddonReference::fromLoaded('A', 'https://github.com/owner/a.git', '1.2.0'), $this->noLookup());
         $this->assertSame(ResolvedAddon::GIT, $git->form);
         $this->assertSame('https://github.com/owner/a.git', $git->downloader->getDownloadUrl());
         $this->assertSame('1.2.0', $git->downloader->getRef());
 
-        $named = $this->resolver($this->common())->resolve(AddonReference::fromBlueprint('Common', null, '1.0.0'), fn() => '4.1.1');
+        $named = $this->resolver($this->common())->resolve(AddonReference::fromLoaded('Common', null, '1.0.0'), fn() => '4.1.1');
         $this->assertSame('1.0.0', $named->version);
+    }
+
+    /** A command argument, parsed as module:download parses it. */
+    private function ref(string $argument): AddonReference
+    {
+        return CliSourceResolver::addon($argument, '/w');
     }
 }

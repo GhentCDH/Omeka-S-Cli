@@ -1,6 +1,9 @@
 <?php
 namespace OSC\Commands\Resource;
 
+use OSC\Source\Location;
+use OSC\Source\Document;
+use OSC\Source\CliSourceResolver;
 use Exception;
 use InvalidArgumentException;
 use OSC\Exceptions\WarningException;
@@ -37,6 +40,7 @@ class ImportCommand extends AbstractResourceCommand
             );
         }
         $this->option('--identify-by', "Property whose value identifies an existing {$label} (default: the file's o-ref:id, else the title)");
+        $this->optionRoot();
         $this->optionDryRun();
         $this->optionJson();
         $prefix = $type->commandPrefix();
@@ -60,42 +64,53 @@ class ImportCommand extends AbstractResourceCommand
         );
     }
 
+    /**
+     * @param string|ItemImportConfig|null $config A config file (path, URL, gh:), or a config built by
+     *                                             blueprint:deploy, its sources already resolved
+     * @param string|null                  $root   Directory the config file's sources must stay inside
+     */
     public function execute(
         ?string $source = null,
-        ?string $config = null,
+        string|ItemImportConfig|null $config = null,
         ?array $media = null,
         ?array $site = null,
         ?string $identifyBy = null,
         ?bool $dryRun = false,
-        ?bool $json = false
+        ?bool $json = false,
+        ?string $root = null,
     ): void {
         if (($source === null) === ($config === null)) {
             throw new InvalidArgumentException('Give a source or --config.');
         }
-        if ($config !== null) {
-            $configPath = $this->resolveSource($config);
-            $data = ResourceFetcher::fetchJson($configPath);
+        if ($config instanceof ItemImportConfig) {
+            $entry = $config;
+        } elseif ($config !== null) {
+            // a config file: its sources are written in a file, so the file rules apply (relative to the
+            // config, inside its folder or --root, no absolute path)
+            $configFile = Document::open(CliSourceResolver::file($config, $this->getCwd()), $root);
+            $data = ResourceFetcher::fetchJson($configFile->source);
             if (!is_array($data)) {
-                throw new InvalidArgumentException("Invalid configuration file: {$config}");
+                throw new InvalidArgumentException("Invalid configuration file: {$configFile->source->display()}");
             }
             if ($site) {
                 throw new InvalidArgumentException("Give the sites in the configuration file ('sites') or with --site, not both.");
             }
-            $entry = ItemImportConfig::fromArray($data)->withSources(fn(string $s) => $this->resolveSource($s, $configPath));
+            $entry = ItemImportConfig::fromArray($data)->withSources(fn(string $s) => $configFile->resolve($s)->value());
         } else {
+            // the argument and --media specs are typed on the command line
             $sites = array_values(array_filter((array) $site, 'is_string'));
             $entry = ItemImportConfig::fromArray(array_filter([
                 'source' => $source,
                 'media' => array_map([$this, 'mediaSpec'], array_values(array_filter((array) $media, 'is_string'))),
                 'sites' => $sites ?: null,
-            ], fn($value) => $value !== null))->withSources(fn(string $s) => $this->resolveSource($s));
+            ], fn($value) => $value !== null))->withSources(fn(string $s) => CliSourceResolver::file($s, $this->getCwd())->value());
         }
 
         if ($this->type !== ResourceType::Item && $entry->itemSets()) {
             throw new InvalidArgumentException('An item set has no item sets.');
         }
         if ($entry->hasSource()) {
-            $document = ResourceFetcher::fetchJson($entry->source());
+            $document = ResourceFetcher::fetchJson(Location::fromResolved($entry->source()));
             if (!is_array($document) || array_is_list($document)) {
                 throw new InvalidArgumentException("{$entry->source()} must hold one JSON-LD resource (an object).");
             }

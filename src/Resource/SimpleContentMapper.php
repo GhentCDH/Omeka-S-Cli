@@ -1,7 +1,7 @@
 <?php
 namespace OSC\Resource;
 
-use OSC\Blueprint\SourceForm;
+use OSC\Source\SourceForm;
 use OSC\Helper\Config\MediaConfig;
 
 /**

@@ -1,6 +1,9 @@
 <?php
 namespace Tests\Downloader;
 
+use OSC\Source\HttpUrl;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
 use Exception;
 use OSC\Downloader\ZipDownloader;
 use OSC\Helper\Path;
@@ -11,6 +14,9 @@ use PHPUnit\Framework\TestCase;
 use ZipArchive;
 
 #[CoversClass(ZipDownloader::class)]
+#[UsesClass(HttpUrl::class)]
+#[UsesClass(LocalPath::class)]
+#[UsesClass(Location::class)]
 #[UsesClass(Path::class)]
 #[UsesClass(ResourceFetcher::class)]
 class ZipDownloaderTest extends TestCase
@@ -61,7 +67,7 @@ class ZipDownloaderTest extends TestCase
 
     public function testDownloadsALocalZip(): void
     {
-        $folder = (new ZipDownloader($this->zip(['Foo/config/module.ini' => 'version = "1.0"'])))->download();
+        $folder = (new ZipDownloader(LocalPath::fromAbsolute($this->zip(['Foo/config/module.ini' => 'version = "1.0"']))))->download();
         try {
             $this->assertFileExists("{$folder}/Foo/config/module.ini");
             $this->assertNoNewTempEntries($folder);
@@ -74,7 +80,7 @@ class ZipDownloaderTest extends TestCase
     {
         // the download is injected, so the URL path (a temp ZIP, then extract) runs without a network
         $zip = $this->zip(['Foo/config/module.ini' => 'version = "1.0"']);
-        $downloader = new ZipDownloader('https://example.org/Foo.zip', function (string $source, string $target) use ($zip): ?string {
+        $downloader = new ZipDownloader(HttpUrl::fromUrl('https://example.org/Foo.zip'), function (string $source, string $target) use ($zip): ?string {
             $this->assertSame('https://example.org/Foo.zip', $source);
             copy($zip, $target);
             return 'application/zip';
@@ -89,15 +95,11 @@ class ZipDownloaderTest extends TestCase
         }
     }
 
-    public function testAnUnsupportedSchemeIsRefused(): void
+    public function testAnUnsupportedSchemeCannotBeAZip(): void
     {
-        try {
-            (new ZipDownloader('ftp://example.org/Foo.zip'))->download();
-            $this->fail('ftp:// must be refused');
-        } catch (\InvalidArgumentException $e) {
-            $this->assertStringContainsString("Unsupported source 'ftp://example.org/Foo.zip'", $e->getMessage());
-        }
-        $this->assertNoNewTempEntries();
+        // a ZipDownloader takes a Location, which is only a local path or an http(s) URL
+        $this->expectException(\InvalidArgumentException::class);
+        HttpUrl::fromUrl('ftp://example.org/Foo.zip');
     }
 
     public function testALocalZipIsLeftUnchanged(): void
@@ -105,7 +107,7 @@ class ZipDownloaderTest extends TestCase
         $path = $this->zip(['Foo/config/module.ini' => 'version = "1.0"']);
         $md5 = md5_file($path);
 
-        Path::removeFolder((new ZipDownloader($path))->download());
+        Path::removeFolder((new ZipDownloader(LocalPath::fromAbsolute($path)))->download());
 
         $this->assertFileExists($path);
         $this->assertSame($md5, md5_file($path));
@@ -114,8 +116,8 @@ class ZipDownloaderTest extends TestCase
     public function testAMissingLocalZipIsNotFound(): void
     {
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("Zip file not found: '{$this->dir}/missing.zip'");
-        (new ZipDownloader("{$this->dir}/missing.zip"))->download();
+        $this->expectExceptionMessage("Zip file not found: {$this->dir}/missing.zip");
+        (new ZipDownloader(LocalPath::fromAbsolute("{$this->dir}/missing.zip")))->download();
     }
 
     public function testALocalFileThatIsNotAZipIsRefused(): void
@@ -123,7 +125,7 @@ class ZipDownloaderTest extends TestCase
         $path = "{$this->dir}/broken.zip";
         file_put_contents($path, 'not a zip');
         try {
-            (new ZipDownloader($path))->download();
+            (new ZipDownloader(LocalPath::fromAbsolute($path)))->download();
             $this->fail('a file that is not a ZIP must be refused');
         } catch (Exception $e) {
             $this->assertSame("{$path} is not a ZIP archive", $e->getMessage());
@@ -134,7 +136,7 @@ class ZipDownloaderTest extends TestCase
     public function testAFailedDownloadLeavesNothingBehind(): void
     {
         try {
-            (new ZipDownloader('http://127.0.0.1:1/x.zip'))->download();
+            (new ZipDownloader(HttpUrl::fromUrl('http://127.0.0.1:1/x.zip')))->download();
             $this->fail('an unreachable URL must fail');
         } catch (Exception $e) {
             $this->assertStringContainsString('http://127.0.0.1:1/x.zip', $e->getMessage());

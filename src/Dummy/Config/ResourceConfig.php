@@ -2,6 +2,7 @@
 namespace OSC\Dummy\Config;
 
 use OSC\Helper\ResourceFetcher;
+use OSC\Source\Location;
 
 abstract class ResourceConfig implements ResourceConfigInterface, \IteratorAggregate {
 
@@ -23,7 +24,7 @@ abstract class ResourceConfig implements ResourceConfigInterface, \IteratorAggre
         return $instance;
     }
 
-    public static function fromSource(string $source): static
+    public static function fromSource(Location $source): static
     {
         $config = ResourceFetcher::fetchJson($source);
         return new static($config);

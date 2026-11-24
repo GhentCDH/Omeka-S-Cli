@@ -2,6 +2,7 @@
 
 namespace OSC\Downloader;
 
+use OSC\Source\Location;
 use Closure;
 use Exception;
 use OSC\Helper\Path;
@@ -16,20 +17,26 @@ use ZipArchive;
  */
 class ZipDownloader implements DownloaderInterface {
 
-    /** @var Closure(string, string): ?string */
-    private Closure $download;
+    /** @var (Closure(string, string): ?string)|null */
+    private ?Closure $download;
 
     /**
-     * @param (Closure(string, string): ?string)|null $download fn(url, target): Content-Type; downloads a URL to a file
+     * @param (Closure(string, string): ?string)|null $download fn(url, target): Content-Type; downloads a URL
+     *                                                         to a file (default ResourceFetcher::download)
      */
-    public function __construct(private string $url, ?Closure $download = null)
+    public function __construct(private Location $zip, ?Closure $download = null)
     {
-        $this->download = $download ?? ResourceFetcher::download(...);
+        $this->download = $download;
     }
 
     public function getDownloadUrl(): string
     {
-        return $this->url;
+        return $this->zip->value();
+    }
+
+    public function display(): string
+    {
+        return $this->zip->display();
     }
 
     /**
@@ -38,18 +45,22 @@ class ZipDownloader implements DownloaderInterface {
      */
     public function download(): string
     {
-        if (ResourceFetcher::detectType($this->url) === ResourceFetcher::FILE) {
+        if (!$this->zip->isRemote()) {
             // a local zip release: fail with a clear message instead of a failed read
-            if (!is_file($this->url)) {
-                throw new Exception("Zip file not found: '{$this->url}'");
+            if (!is_file($this->zip->value())) {
+                throw new Exception("Zip file not found: {$this->zip->display()}");
             }
-            return self::extract($this->url);
+            return self::extract($this->zip->value(), $this->zip->display());
         }
 
         $tmpZipFilePath = Path::createTempFile('omeka-s-cli.');
         try {
-            ($this->download)($this->url, $tmpZipFilePath);
-            return self::extract($tmpZipFilePath, $this->url);
+            if ($this->download !== null) {
+                ($this->download)($this->zip->value(), $tmpZipFilePath);
+            } else {
+                ResourceFetcher::download($this->zip, $tmpZipFilePath);
+            }
+            return self::extract($tmpZipFilePath, $this->zip->display());
         } finally {
             @unlink($tmpZipFilePath);
         }

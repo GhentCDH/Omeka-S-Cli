@@ -123,8 +123,8 @@ of the site with the slug `collections`:
 
 ## Import settings
 
-`config:import` reads a file, a URL, or a directory (all `*.jsonc` and `*.json` files in it, in name
-order). Preview first with `--dry-run`, which checks the files and the targets but writes nothing; add
+`config:import` reads a file (any form in [Refer to files](../usage.md#refer-to-files)), or a local directory (all `*.jsonc` and
+`*.json` files in it, in name order). Preview first with `--dry-run`, which checks the files and the targets but writes nothing; add
 `-v` to see every key:
 
 ```bash

@@ -1,6 +1,9 @@
 <?php
 namespace OSC\Downloader;
 
+use OSC\Source\Location;
+use OSC\Source\GitRepository;
+use OSC\Source\NamedAddon;
 use Closure;
 use Exception;
 use InvalidArgumentException;
@@ -9,7 +12,6 @@ use OSC\Addon\AddonType;
 use OSC\Exceptions\NotFoundException;
 use OSC\Exceptions\OfflineException;
 use OSC\Helper\Offline;
-use OSC\Helper\ResourceUriParser;
 use OSC\Addon\AddonVersion;
 use OSC\Manager\AbstractManager;
 
@@ -21,7 +23,7 @@ use OSC\Manager\AbstractManager;
  * - a git repository (git URL, https://github.com/owner/repo or gh:owner/repo), at an optional ref.
  *
  * The reference is an AddonReference: built from a blueprint entry's own fields, or parsed from a
- * command argument by ResourceUriParser. Shared by module:download, theme:download and
+ * command argument by CliSourceResolver::addon(). Shared by module:download, theme:download and
  * blueprint:bundle. It needs no Omeka S install: the Omeka S version is asked for only when a
  * repository lookup needs it.
  */
@@ -36,27 +38,19 @@ class AddonResolver
     }
 
     /**
-     * @param string|AddonReference $reference    A command argument (see ResourceUriParser) or a reference
-     *                                            built from a blueprint entry
+     * @param AddonReference        $reference    A parsed command argument or a blueprint entry
      * @param Closure(): string     $omekaVersion The target Omeka S version; called only for a repository lookup
      * @param bool                  $force        Accept a pinned repository version that is incompatible
-     * @throws InvalidArgumentException When a command argument has no known form
      * @throws NotFoundException        When the repositories have no such add-on or version
      * @throws Exception                When a pinned repository version is incompatible (without $force)
      */
-    public function resolve(string|AddonReference $reference, Closure $omekaVersion, bool $force = false): ResolvedAddon
+    public function resolve(AddonReference $reference, Closure $omekaVersion, bool $force = false): ResolvedAddon
     {
-        $reference = is_string($reference) ? ResourceUriParser::parse($reference) : $reference;
-        return match ($reference->kind) {
-            AddonReference::GIT => new ResolvedAddon(
-                new GitDownloader((string) $reference->location, $reference->version),
-                ResolvedAddon::GIT
-            ),
-            AddonReference::ZIP_URL, AddonReference::ZIP_FILE => new ResolvedAddon(
-                new ZipDownloader((string) $reference->location),
-                ResolvedAddon::ZIP
-            ),
-            AddonReference::BY_NAME => $this->fromRepository((string) $reference->name, $reference->version, $omekaVersion, $force),
+        $source = $reference->source;
+        return match (true) {
+            $source instanceof GitRepository => new ResolvedAddon(new GitDownloader($source), ResolvedAddon::GIT),
+            $source instanceof Location => new ResolvedAddon(new ZipDownloader($source), ResolvedAddon::ZIP),
+            $source instanceof NamedAddon => $this->fromRepository($source->name, $source->version, $omekaVersion, $force),
         };
     }
 
@@ -105,7 +99,7 @@ class AddonResolver
         }
 
         return new ResolvedAddon(
-            new ZipDownloader($details->getDownloadUrl()),
+            new ZipDownloader(Location::fromResolved($details->getDownloadUrl())),
             ResolvedAddon::REPOSITORY,
             $dirname,
             $details->getVersionNumber(),

@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Commands\Core;
 
+use OSC\Source\HttpUrl;
+use OSC\Source\GitRepository;
 use Exception;
 use OSC\Commands\AbstractCommand;
 use OSC\Core\CoreSwap;
@@ -82,10 +84,10 @@ class UpdateCommand extends AbstractCommand
         // Download the specified version
         if ($versionNumber === "dev") {
             $url = "https://github.com/omeka/omeka-s.git";
-            $downloader = new GitDownloader($url);
+            $downloader = new GitDownloader(GitRepository::parse($url));
         } else {
             $url = OmekaDotOrgApi::coreReleaseUrl($versionNumber);
-            $downloader = new ZipDownloader($url);
+            $downloader = new ZipDownloader(HttpUrl::fromUrl($url));
         }
 
         try {

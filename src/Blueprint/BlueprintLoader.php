@@ -1,11 +1,18 @@
 <?php
 namespace OSC\Blueprint;
 
+use Closure;
 use Exception;
-use OSC\Helper\Reference\ReferenceResolver;
 use OSC\Helper\ResourceFetcher;
 use Otar\JSONC;
 use OSC\Helper\UrlCredentials;
+use OSC\Source\CliSourceResolver;
+use OSC\Source\Document;
+use OSC\Source\DocumentSourceResolver;
+use OSC\Source\GitRepository;
+use OSC\Source\Location;
+use OSC\Source\SourceException;
+use OSC\Source\SourceForm;
 
 /**
  * Load a blueprint from a file or URL, parse it as jsonc, and resolve every `{ "$import": <uri> }`
@@ -17,7 +24,7 @@ use OSC\Helper\UrlCredentials;
  * contains them. Circular references are detected and rejected.
  *
  * Sources written in a blueprint (`$import` and the source fields listed in SourceFields) are resolved
- * by SourceResolver, as the shared spec says: a URL, a git source or a relative path (absolute paths
+ * by DocumentSourceResolver, as the shared spec says: a URL, a git source or a relative path (absolute paths
  * and other schemes are rejected). A relative path resolves against the document that declares it and
  * must stay inside that document's root: the top-level blueprint's folder (or --root) for the
  * blueprint and the files it imports by relative path; the file's own folder for a file imported by
@@ -41,11 +48,8 @@ class BlueprintLoader
     /** Advisory messages gathered during the current load (e.g. a duplicate that overrode a value). */
     private array $warnings = [];
 
-    /** Resolves repo-aware references (the top-level source, gh:/gl: files) into fetchable URLs. */
-    private ReferenceResolver $resolver;
-
-    /** Resolves the sources written in a blueprint against the document that declares them. */
-    private SourceResolver $sources;
+    /** Fetches a document's content: fn(Location): string. */
+    private Closure $fetch;
 
     /** Self-contained violations gathered during the current load (see takeViolations()). */
     private array $violations = [];
@@ -60,7 +64,8 @@ class BlueprintLoader
     private string $labelBase = '';
 
     /**
-     * @param ReferenceResolver|null $resolver      Resolver for repo-aware references (gh:/gl: files)
+     * @param Closure|null           $fetch         Fetches a document: fn(Location): string (default
+     *                                              ResourceFetcher::fetch)
      * @param string|null            $rootOverride  Directory local references must stay inside; defaults
      *                                              to the directory of the top-level blueprint
      * @param bool                   $selfContained Record (instead of following) every reference that is
@@ -70,13 +75,12 @@ class BlueprintLoader
      *                                              sources and imports are left alone). See takeErrors()
      */
     public function __construct(
-        ?ReferenceResolver $resolver = null,
+        ?Closure $fetch = null,
         private ?string $rootOverride = null,
         private bool $selfContained = false,
         private ?DocumentValidator $validator = null,
     ) {
-        $this->resolver = $resolver ?? ReferenceResolver::withDefaults();
-        $this->sources = new SourceResolver($this->resolver);
+        $this->fetch = $fetch ?? fn(Location $location): string => ResourceFetcher::fetch($location);
     }
 
     /**
@@ -89,10 +93,11 @@ class BlueprintLoader
     public function load(string $source): Blueprint
     {
         $document = $this->begin($source);
-        return $this->guarded($document->source, function () use ($document) {
-            $blueprint = $this->decodeObject(ResourceFetcher::fetch($document->source), $document->source);
+        $source = $document->source->value();
+        return $this->guarded($document->source, function () use ($document, $source) {
+            $blueprint = $this->decodeObject(($this->fetch)($document->source), $source);
             $this->fileSources = [];
-            if (!$this->isValid($blueprint, null, $document->source)) {
+            if (!$this->isValid($blueprint, null, $source)) {
                 return new Blueprint($blueprint);
             }
             $resolved = $this->resolve($blueprint, $document);
@@ -187,13 +192,14 @@ class BlueprintLoader
     public function loadPartial(string $source, string $type): mixed
     {
         $document = $this->begin($source);
-        return $this->guarded($document->source, function () use ($document, $type) {
-            $data = $this->decode(ResourceFetcher::fetch($document->source));
+        $source = $document->source->value();
+        return $this->guarded($document->source, function () use ($document, $type, $source) {
+            $data = $this->decode(($this->fetch)($document->source));
             if ($type === 'settings') {
-                return $this->isValid($data, $type, $document->source) ? $this->resolveSettings($data, $document) : $data;
+                return $this->isValid($data, $type, $source) ? $this->resolveSettings($data, $document) : $data;
             }
-            $list = $this->asList($data, $document->source);
-            return $this->isValid($list, $type, $document->source) ? $this->resolveList($list, $document, $type) : $list;
+            $list = $this->asList($data, $source);
+            return $this->isValid($list, $type, $source) ? $this->resolveList($list, $document, $type) : $list;
         });
     }
 
@@ -208,22 +214,9 @@ class BlueprintLoader
         $this->visiting = [];
         $this->violations = [];
         $this->errors = [];
-        $source = $this->resolver->resolve($source);
-
-        if (ResourceFetcher::isFile($source)) {
-            // an absolute top-level path makes every local reference below it absolute too
-            $source = realpath($source) ?: $source;
-        }
-        $this->labelBase = ResourceFetcher::isUrl($source) ? SourceResolver::folderUrl($source) : dirname($source) . '/';
-
-        if ($this->rootOverride !== null) {
-            $root = realpath($this->rootOverride);
-            if ($root === false || !is_dir($root)) {
-                throw new Exception("Blueprint root '{$this->rootOverride}' is not a directory.");
-            }
-            return new Document($source, $root);
-        }
-        return new Document($source, ResourceFetcher::isUrl($source) ? SourceResolver::folderUrl($source) : dirname($source));
+        $document = Document::open(CliSourceResolver::file($source, getcwd()), $this->rootOverride);
+        $this->labelBase = rtrim($document->source->folder(), '/') . '/';
+        return $document;
     }
 
     /** Decode jsonc content that must be a JSON object (not a list); $source is used for errors only. */
@@ -357,7 +350,7 @@ class BlueprintLoader
     private function resolveSettings(mixed $settings, Document $source): array
     {
         if (!is_array($settings)) {
-            throw new Exception("The 'settings' value in '" . UrlCredentials::redact($source->source) . "' must be an object or an array.");
+            throw new Exception("The 'settings' value in '" . UrlCredentials::redact($source->source->value()) . "' must be an object or an array.");
         }
 
         // inline map
@@ -402,15 +395,17 @@ class BlueprintLoader
     private function import(mixed $raw, Document $base, string $type, callable $resolve): mixed
     {
         if (!is_string($raw)) {
-            throw new Exception("An \$import in '" . UrlCredentials::redact($base->source) . "' must be a string.");
+            throw new Exception("An \$import in '" . UrlCredentials::redact($base->source->value()) . "' must be a string.");
         }
-        $ref = $this->reference($raw, $base, '$import');
-        if ($ref === null) {
+        $location = $this->locate($raw, $base, '$import');
+        if ($location === null) {
             return []; // a self-contained violation: recorded, not fetched
         }
-        $document = new Document($ref, $this->sources->importRoot($raw, $ref, $base));
-        return $this->guarded($ref, function () use ($ref, $type, $resolve, $document) {
-            $data = $this->decode(ResourceFetcher::fetch($ref));
+        assert($location instanceof Location);
+        $ref = $location->value();
+        $document = new Document($location, DocumentSourceResolver::importRoot($raw, $location, $base));
+        return $this->guarded($location, function () use ($ref, $type, $resolve, $document) {
+            $data = $this->decode(($this->fetch)($document->source));
             if ($type !== 'settings') {
                 $data = $this->asList($data, $ref);
             }
@@ -424,11 +419,11 @@ class BlueprintLoader
      *
      * @throws Exception
      */
-    private function guarded(string $source, callable $fn): mixed
+    private function guarded(Location $source, callable $fn): mixed
     {
         $guard = $this->guardKey($source);
         if (isset($this->visiting[$guard])) {
-            throw new Exception("Circular \$import detected at '" . UrlCredentials::redact($source) . "'.");
+            throw new Exception("Circular \$import detected at '" . UrlCredentials::redact($source->value()) . "'.");
         }
         $this->visiting[$guard] = true;
         try {
@@ -439,22 +434,34 @@ class BlueprintLoader
     }
 
     /**
-     * Turn a source written in a blueprint into a fetchable path or URL (see SourceResolver). In
+     * Turn a source written in a blueprint into a fetchable path or URL (see DocumentSourceResolver). In
      * self-contained mode a source that is not a relative path (a URL, a git source) is recorded as a
      * violation and null is returned, so the caller skips it.
      *
      * @param string $label      What the source is, for messages (e.g. "$import", "modules 'Log' source")
-     * @param bool   $repository Whether a git repository is allowed (module and theme sources)
+     * @param bool   $allowRepository Whether a git repository is allowed (module and theme sources)
      * @throws SourceException
      */
-    private function reference(string $raw, Document $base, string $label, bool $repository = false): ?string
+    private function reference(string $raw, Document $base, string $label, bool $allowRepository = false): ?string
+    {
+        return $this->locate($raw, $base, $label, $allowRepository)?->value();
+    }
+
+    /**
+     * reference(), typed: a Location, or a GitRepository where $allowRepository allows one; null for a
+     * self-contained violation.
+     *
+     * @throws SourceException
+     */
+    private function locate(string $raw, Document $base, string $label, bool $allowRepository = false): Location|GitRepository|null
     {
         $form = SourceForm::of($raw);
         if ($this->selfContained && $form !== null && $form !== SourceForm::RelativePath) {
-            return $this->violation($label, UrlCredentials::redact($raw), UrlCredentials::redact($base->source), 'is not a relative path inside the blueprint');
+            $this->violation($label, UrlCredentials::redact($raw), UrlCredentials::redact($base->source->value()), 'is not a relative path inside the blueprint');
+            return null;
         }
         try {
-            return $this->sources->resolve($raw, $base, $repository);
+            return $allowRepository ? DocumentSourceResolver::addon($raw, $base) : DocumentSourceResolver::file($raw, $base);
         } catch (SourceException $e) {
             throw new SourceException("{$label}: " . $e->getMessage(), $e->reason);
         }
@@ -551,9 +558,10 @@ class BlueprintLoader
         return is_array($entry) && array_key_exists('$import', $entry);
     }
 
-    private function guardKey(string $source): string
+    private function guardKey(Location $source): string
     {
-        return ResourceFetcher::isUrl($source) ? $source : (realpath($source) ?: $source);
+        // a local path by its real path, so a file reached through a symlink is the same file
+        return $source->isRemote() ? $source->value() : (realpath($source->value()) ?: $source->value());
     }
 
     /**

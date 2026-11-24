@@ -4,8 +4,8 @@ namespace OSC\Commands\Module;
 use InvalidArgumentException;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\Offline;
-use OSC\Addon\AddonReference;
-use OSC\Helper\ResourceUriParser;
+use OSC\Source\CliSourceResolver;
+use OSC\Source\NamedAddon;
 use Throwable;
 
 class UpdateCommand extends AbstractModuleCommand
@@ -36,13 +36,13 @@ class UpdateCommand extends AbstractModuleCommand
             Offline::assertOnline('check for an update of the module');
 
             // parse module id to check format
-            $moduleUri = ResourceUriParser::parse($moduleId);
-            if ($moduleUri->kind !== AddonReference::BY_NAME) {
+            $moduleUri = CliSourceResolver::addon($moduleId, $this->getCwd());
+            if (!$moduleUri->source instanceof NamedAddon) {
                 throw new InvalidArgumentException("The module-id argument must be in the format 'module-id' or 'module-id:version'.");
             }
 
             // check if module exists (result is not used)
-            $module = $this->requireModule((string) $moduleUri->name);
+            $module = $this->requireModule($moduleUri->source->name);
 
             if ($this->isDryRun()) {
                 $planned = $upgrade

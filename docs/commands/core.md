@@ -22,7 +22,8 @@ directory that does not exist yet. To pin a release, give its version number:
 
 ## Install the core from a release ZIP
 
-Use a release ZIP you already have (a path or a URL) instead of downloading one:
+Use a release ZIP you already have (a path, a URL or a `gh:`/`gl:` file, see [Refer to files](../usage.md#refer-to-files)) instead of
+downloading one:
 
 ```bash
 --8<-- "docs/examples/core.sh:download-source"

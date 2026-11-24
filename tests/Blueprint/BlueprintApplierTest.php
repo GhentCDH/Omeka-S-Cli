@@ -1,6 +1,7 @@
 <?php
 namespace Tests\Blueprint;
 
+use OSC\Helper\Config\ItemImportConfig;
 use Exception;
 use Omeka\Api\Representation\SiteRepresentation;
 use OSC\Addon\AddonIni;
@@ -264,7 +265,8 @@ class BlueprintApplierTest extends TestCase
         $zip = 'https://example.org/Mapping-2.1.0.zip';
         $notes = $this->dryRunAddons(['modules' => [
             ['name' => 'Mapping', 'source' => $zip, 'version' => '2.0.0'],
-            ['name' => 'X', 'source' => 'gh:owner/repo'],
+            // the loader stores a git repository as its clone URL
+            ['name' => 'X', 'source' => 'https://github.com/owner/repo.git'],
         ]]);
 
         $this->assertContains("would download module 'Mapping' ({$zip})", $notes);
@@ -274,9 +276,9 @@ class BlueprintApplierTest extends TestCase
     public function testVersionSelectsTheTagOfAGitSourceUnlessItHasARef(): void
     {
         $notes = $this->dryRunAddons(['modules' => [
-            ['name' => 'A', 'source' => 'gh:owner/a', 'version' => '1.2.0'],
+            ['name' => 'A', 'source' => 'https://github.com/owner/a.git', 'version' => '1.2.0'],
             ['name' => 'B', 'source' => 'https://example.org/owner/b.git', 'version' => '1.2.0'],
-            ['name' => 'C', 'source' => 'gh:owner/c#main', 'version' => '1.2.0'],
+            ['name' => 'C', 'source' => 'https://github.com/owner/c.git#main', 'version' => '1.2.0'],
         ]]);
 
         $this->assertContains("would download module 'A' (https://github.com/owner/a.git#1.2.0)", $notes);
@@ -505,7 +507,7 @@ class BlueprintApplierTest extends TestCase
     // ── content: onError ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * An import command that hands each import config (decoded) to $onImport, in place of
+     * An import command that hands each import config (as an array) to $onImport, in place of
      * item:import / item-set:import.
      */
     private function fakeImportCommand(string $name, \Closure $onImport): AbstractCommand
@@ -516,9 +518,13 @@ class BlueprintApplierTest extends TestCase
                 parent::__construct($name);
             }
 
-            public function execute(?string $source = null, ?string $config = null): void
+            public function execute(?string $source = null, mixed $config = null): void
             {
-                ($this->onImport)(json_decode((string) file_get_contents((string) $config), true));
+                // deploy hands over the resolved import config itself, never a (temp) config file
+                if (!$config instanceof ItemImportConfig) {
+                    throw new \LogicException('expected an ItemImportConfig, got ' . get_debug_type($config));
+                }
+                ($this->onImport)($config->toArray());
             }
         };
     }

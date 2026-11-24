@@ -1,0 +1,7 @@
+{
+    "source": "../archive.ttl",
+    "label": "Archive",
+    "namespaceUri": "https://example.org/archive#",
+    "prefix": "arch",
+    "format": "turtle"
+}

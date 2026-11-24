@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Commands\Media;
 
+use OSC\Source\Document;
+use OSC\Source\CliSourceResolver;
 use Exception;
 use InvalidArgumentException;
 use Omeka\Api\Exception\NotFoundException;
@@ -8,7 +10,6 @@ use Omeka\Api\Exception\ValidationException;
 use OSC\Commands\AbstractCommand;
 use OSC\Helper\Config\MediaConfig;
 use OSC\Helper\ErrorStoreFormatter;
-use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
 use OSC\Resource\MediaIngesters;
 
@@ -20,6 +21,7 @@ class AddCommand extends AbstractCommand
         $this->argument('<item>', 'ID of the item');
         $this->option('--data', 'The media as a JSON object: {"ingester", "source", "title", "altText", "public", <property terms>, <ingester options>}');
         $this->option('--json-file', 'JSON file or URL holding the media object (see --data)');
+        $this->optionRoot();
         $this->option('--ingester', 'Media ingester, e.g. upload, url, html, iiif, youtube (see media:ingesters)');
         $this->option('--source', 'What to ingest: a local path or URL (upload), a URL (url, iiif, oembed, youtube) or HTML (html)');
         $this->option('--title', 'Title of the media');
@@ -47,21 +49,22 @@ class AddCommand extends AbstractCommand
         ?string $source = null,
         ?string $title = null,
         ?string $altText = null,
-        ?bool $json = false
+        ?bool $json = false,
+        ?string $root = null,
     ): void {
         if ($data !== null && $jsonFile !== null) {
             throw new InvalidArgumentException('Give --data or --json-file, not both.');
         }
-        // a relative upload source from the JSON file is relative to that file; one typed on the
-        // command line (--source, or --data) is relative to the working directory
-        $base = $this->getCwd();
+        // an upload source written in the JSON file follows the file rules (relative to that file, inside
+        // its folder or --root); one typed on the command line (--source, or --data) is relative to the
+        // working directory
+        $document = null;
         $object = [];
         if ($data !== null) {
             $object = json_decode($data, true);
         } elseif ($jsonFile !== null) {
-            $file = ResourceFetcher::isUrl($jsonFile) ? $jsonFile : Path::toAbsolutePath($jsonFile, $this->getCwd());
-            $object = ResourceFetcher::fetchJson($file);
-            $base = ResourceFetcher::isUrl($file) || $source !== null ? $base : dirname($file);
+            $document = Document::open(CliSourceResolver::file($jsonFile, $this->getCwd()), $root);
+            $object = ResourceFetcher::fetchJson($document->source);
         }
         if (!is_array($object) || ($object !== [] && array_is_list($object))) {
             throw new InvalidArgumentException('The media must be a JSON object.');
@@ -71,8 +74,11 @@ class AddCommand extends AbstractCommand
             ['ingester' => $ingester, 'source' => $source, 'title' => $title, 'altText' => $altText],
             fn($value) => $value !== null
         ) + $object);
-        if ($media->isFile() && !ResourceFetcher::isUrl($media->source())) {
-            $media = $media->withSource(Path::toAbsolutePath($media->source(), $base));
+        if ($media->isFile()) {
+            $location = $document !== null && $source === null
+                ? $document->resolve($media->source())
+                : CliSourceResolver::file($media->source(), $this->getCwd());
+            $media = $media->withSource($location->value());
         }
 
         $instance = $this->getOmekaInstance();

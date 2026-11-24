@@ -119,7 +119,7 @@ repository: the automatic selection treats such releases as incompatible, so pin
 ### Download from a zip file or a git repository
 
 The argument of `module:download` is a module URI. Besides a module id, it accepts a release zip, on
-the web or on disk, and a git repository:
+the web or on disk (any form in [Refer to files](../usage.md#refer-to-files)), and a git repository:
 
 | Syntax | Example |
 | --- | --- |

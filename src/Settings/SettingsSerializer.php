@@ -6,6 +6,7 @@ use Exception;
 use JsonException;
 use OSC\Helper\Path;
 use OSC\Helper\ResourceFetcher;
+use OSC\Source\Location;
 use Otar\JSONC;
 
 /**
@@ -62,11 +63,11 @@ class SettingsSerializer
      *
      * @throws Exception When the source cannot be fetched or decoded
      */
-    public function read(string $source): SettingsDocument
+    public function read(Location $source): SettingsDocument
     {
         $content = ResourceFetcher::fetch($source);
 
-        return $this->decode($content, basename($source));
+        return $this->decode($content, basename($source->value()));
     }
 
     /**

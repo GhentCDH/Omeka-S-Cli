@@ -44,7 +44,7 @@ class DeployCommand extends AbstractBlueprintCommand
         // internal: phases already applied by an earlier stage of a multi-process deploy; kept silent
         // rather than reported as skipped. Set automatically when the deploy re-executes itself.
         $this->option('--defer', 'Internal: phases already applied by a previous deploy stage');
-        $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
+        $this->optionRoot('Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
         $this->option(
             '--self-contained',
             'Refuse a blueprint that has a source outside it (a repository name, git or remote reference): deploy a bundle offline',

@@ -40,7 +40,7 @@ omeka-s-cli blueprint:validate ~/blueprints/shared/settings.json --as settings
 omeka-s-cli blueprint:validate ~/blueprints/library/library.blueprint.jsonc --root ~/blueprints
 # --8<-- [end:validate-root]
 failure_output omeka-s-cli blueprint:validate ~/blueprints/library/library.blueprint.jsonc \
-    | grep 'resolves outside the blueprint root' > /dev/null
+    | grep 'resolves outside the root' > /dev/null
 omeka-s-cli blueprint:validate ~/blueprints/library/library.blueprint.jsonc --root ~/blueprints 2>&1 \
     | grep "'Sharing' is declared more than once" > /dev/null
 

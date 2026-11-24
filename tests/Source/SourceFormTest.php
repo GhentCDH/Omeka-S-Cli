@@ -1,12 +1,15 @@
 <?php
-namespace Tests\Blueprint;
+namespace Tests\Source;
 
-use OSC\Blueprint\SourceForm;
+use OSC\Source\HttpUrl;
+use OSC\Source\SourceForm;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(SourceForm::class)]
+#[UsesClass(HttpUrl::class)]
 class SourceFormTest extends TestCase
 {
     /**
@@ -74,6 +77,9 @@ class SourceFormTest extends TestCase
         $this->assertStringContainsString('absolute path', SourceForm::rejection('/etc/a.php'));
         $this->assertStringContainsString('absolute path', SourceForm::rejection('C:\\a.php'));
         $this->assertStringContainsString('host', SourceForm::rejection('http:///x.zip'));
+        // the same URL test as HttpUrl: whitespace is no host
+        $this->assertNull(SourceForm::of('https:// example.org/M.zip'));
+        $this->assertSame('is an http(s) URL without a host', SourceForm::rejection('https:// example.org/M.zip'));
         $this->assertStringContainsString("'./'", SourceForm::rejection('CleanUrl:3.4'));
         $this->assertStringContainsString('scheme', SourceForm::rejection('php://input'));
         $this->assertStringContainsString('scheme', SourceForm::rejection('a:b.json'));

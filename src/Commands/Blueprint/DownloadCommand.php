@@ -24,7 +24,7 @@ class DownloadCommand extends AbstractBlueprintCommand
         $this->argument('<source>', 'Path or URL to the blueprint (jsonc allowed)');
         $this->option('-u --update', 'Re-download modules and themes that are already present', 'boolval', false);
         $this->option('--skip', 'Comma-separated phases to skip (core, modules, themes, files)');
-        $this->option('--root', 'Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
+        $this->optionRoot('Directory local blueprint references must stay inside (default: the blueprint\'s directory)');
         $this->option(
             '--self-contained',
             'Refuse a blueprint that has a source outside it (a repository name, git or remote reference): download a bundle offline',

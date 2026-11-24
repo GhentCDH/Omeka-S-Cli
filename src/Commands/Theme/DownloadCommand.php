@@ -11,7 +11,7 @@ use OSC\Exceptions\AddonExistsException;
 use OSC\Exceptions\NotFoundException;
 use OSC\Helper\Offline;
 use OSC\Helper\Path;
-use OSC\Helper\ResourceUriParser;
+use OSC\Source\CliSourceResolver;
 
 class DownloadCommand extends AbstractThemeCommand
 {
@@ -40,7 +40,7 @@ class DownloadCommand extends AbstractThemeCommand
      */
     public function execute(string|AddonReference|null $theme, ?bool $force, ?bool $backup, ?string $dir = null): void
     {
-        $reference = $theme instanceof AddonReference ? $theme : ResourceUriParser::parse((string) $theme);
+        $reference = $theme instanceof AddonReference ? $theme : CliSourceResolver::addon((string) $theme, $this->getCwd());
         $modulesPath = Path::createPath([$this->getOmekaPath(), "themes"]);
         if (!is_writable($modulesPath)) {
             throw new Exception("Themes directory is not writable. Please check permissions.");
@@ -88,7 +88,7 @@ class DownloadCommand extends AbstractThemeCommand
 
         // download theme
         try {
-            $this->info("Download {$downloader->getDownloadUrl()} ... ");
+            $this->info("Download {$downloader->display()} ... ");
             $tmpDownloadPath = $downloader->download();
             $this->info("done");
         } finally {

@@ -2,7 +2,7 @@
 namespace OSC\Helper\Config;
 
 use InvalidArgumentException;
-use OSC\Helper\ResourceFetcher;
+use OSC\Source\Location;
 
 /**
  * A vocabulary import configuration: the RDF source plus the identifying/formatting fields.
@@ -20,12 +20,11 @@ class VocabularyConfig
     public const VALID_FORMATS = ['auto', 'jsonld', 'rdfxml', 'turtle', 'ntriples'];
 
     /**
-     * @param 'file'|'url'  $strategy           How the importer reads the source
-     * @param string        $source             The resolved path or URL
-     * @param string|null   $deprecatedSourceKey The legacy key used ('file'|'url'), or null for 'source'
+     * @param 'source'|'file'|'url' $sourceKey The key the source was given under ('file'/'url' are deprecated)
+     * @param string                $source    The source; resolved (a path or URL) before toImporterOptions()
      */
     private function __construct(
-        private string $strategy,
+        private string $sourceKey,
         private string $source,
         private string $namespaceUri,
         private string $prefix,
@@ -35,7 +34,6 @@ class VocabularyConfig
         private ?string $lang,
         private ?string $labelProperty,
         private ?string $commentProperty,
-        private ?string $deprecatedSourceKey,
     ) {
     }
 
@@ -65,29 +63,23 @@ class VocabularyConfig
                     "Use 'source' on its own; the deprecated 'file'/'url' keys cannot be combined with it."
                 );
             }
-            $strategy = ResourceFetcher::isUrl($source) ? 'url' : 'file';
             $value = $source;
-            $deprecatedKey = null;
+            $sourceKey = 'source';
         } elseif ($url !== null && $file !== null) {
             throw new InvalidArgumentException(
                 "Specify a single 'source' for the vocabulary, not both 'file' and 'url'."
             );
         } elseif ($url !== null) {
-            $strategy = 'url';
             $value = $url;
-            $deprecatedKey = 'url';
+            $sourceKey = 'url';
         } elseif ($file !== null) {
-            $strategy = 'file';
             $value = $file;
-            $deprecatedKey = 'file';
+            $sourceKey = 'file';
         } else {
             throw new InvalidArgumentException(
                 "You must specify a 'source' (a path or URL) for the vocabulary."
             );
         }
-
-        // any key: no php://, ftp://, ... (the importer would open them with its stream wrappers)
-        ResourceFetcher::assertSupported($value);
 
         $label = $clean($data['label'] ?? null);
         if ($label === null) {
@@ -108,7 +100,7 @@ class VocabularyConfig
         }
 
         return new self(
-            $strategy,
+            $sourceKey,
             $value,
             $namespaceUri,
             $prefix,
@@ -118,14 +110,33 @@ class VocabularyConfig
             $clean($data['lang'] ?? null),
             $clean($data['labelProperty'] ?? null),
             $clean($data['commentProperty'] ?? null),
-            $deprecatedKey,
         );
     }
 
     /** The deprecated key a caller supplied the source under ('file'|'url'), or null when 'source' was used. */
     public function deprecatedSourceKey(): ?string
     {
-        return $this->deprecatedSourceKey;
+        return $this->sourceKey === 'source' ? null : $this->sourceKey;
+    }
+
+    /** The key the source was given under: 'source', or the deprecated 'file'/'url'. */
+    public function sourceKey(): string
+    {
+        return $this->sourceKey;
+    }
+
+    /** The RDF source as given (a caller resolves it, see withSource()). */
+    public function source(): string
+    {
+        return $this->source;
+    }
+
+    /** The same vocabulary with its source resolved (an absolute path or a URL), under the same key. */
+    public function withSource(string $resolved): self
+    {
+        $clone = clone $this;
+        $clone->source = $resolved;
+        return $clone;
     }
 
     public static function isValidFormat(?string $format): bool
@@ -135,6 +146,11 @@ class VocabularyConfig
 
     /**
      * The exact structure the Omeka RDF importer consumes (strategy + vocabulary + options), null-filtered.
+     * The strategy is 'url' or 'file' by what the source is, so it must be resolved: an absolute path or
+     * an http(s) URL (anything else, such as php:// or ftp://, the importer would open with its stream
+     * wrappers).
+     *
+     * @throws InvalidArgumentException When the source is not resolved
      *
      * @return array{strategy:string, vocabulary:array<string,string>, options:array<string,string>}
      */
@@ -147,8 +163,9 @@ class VocabularyConfig
             'o:comment' => $this->comment,
         ];
 
+        $strategy = Location::fromResolved($this->source)->isRemote() ? 'url' : 'file';
         $options = [
-            $this->strategy => $this->source,
+            $strategy => $this->source,
             'format' => $this->format === 'auto' ? 'guess' : $this->format,
             'lang' => $this->lang,
             'label_property' => $this->labelProperty,
@@ -156,7 +173,7 @@ class VocabularyConfig
         ];
 
         return [
-            'strategy' => $this->strategy,
+            'strategy' => $strategy,
             'vocabulary' => array_filter($vocabulary, fn($v) => $v !== null),
             'options' => array_filter($options, fn($v) => $v !== null),
         ];

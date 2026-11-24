@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Resource;
 
+use InvalidArgumentException;
+use OSC\Source\Location;
 use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Api\Request;
 use Omeka\Entity\Media;
@@ -44,10 +46,17 @@ class LocalFileIngester implements IngesterInterface
             return;
         }
 
+        try {
+            $location = Location::fromResolved($source);
+        } catch (InvalidArgumentException $e) {
+            $errorStore->addError('ingest_source', $e->getMessage());
+            return;
+        }
+
         $tempFile = $this->tempFileFactory->build();
-        if (ResourceFetcher::isUrl($source)) {
+        if ($location->isRemote()) {
             try {
-                ResourceFetcher::download($source, $tempFile->getTempPath());
+                ResourceFetcher::download($location, $tempFile->getTempPath());
             } catch (Throwable $e) {
                 $tempFile->delete();
                 $errorStore->addError('ingest_source', "Could not download {$source}: {$e->getMessage()}");

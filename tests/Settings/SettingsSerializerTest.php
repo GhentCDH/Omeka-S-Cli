@@ -6,11 +6,16 @@ use Exception;
 use OSC\Settings\SettingsDocument;
 use OSC\Settings\SettingsSerializer;
 use OSC\Settings\SettingType;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 #[CoversClass(SettingsSerializer::class)]
+#[UsesClass(LocalPath::class)]
+#[UsesClass(Location::class)]
 class SettingsSerializerTest extends TestCase
 {
     private SettingsSerializer $serializer;
@@ -94,7 +99,7 @@ class SettingsSerializerTest extends TestCase
             $this->assertFileExists($path);
 
             // read() fetches and decodes it back into an equivalent document.
-            $again = $this->serializer->read($path);
+            $again = $this->serializer->read(LocalPath::fromAbsolute($path));
             $this->assertEquals($doc->toArray(), $again->toArray());
             $this->assertEquals('core.site_setting.main.jsonc', $again->filename());
         } finally {

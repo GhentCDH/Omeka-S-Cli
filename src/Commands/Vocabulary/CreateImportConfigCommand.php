@@ -1,6 +1,9 @@
 <?php
 namespace OSC\Commands\Vocabulary;
 
+use OSC\Source\CliSourceResolver;
+use OSC\Source\LocalPath;
+use OSC\Source\DocumentSourceResolver;
 use OSC\Helper\Config\VocabularyConfig;
 use OSC\Helper\Path;
 
@@ -27,6 +30,20 @@ class CreateImportConfigCommand extends AbstractVocabularyCommand
 
         // Validate and normalise into the canonical config shape (emits `source`, drops extras)
         $config = VocabularyConfig::fromArray($args);
+        // a local source is written relative to the config file (or the working directory when it is
+        // printed), as a config file's sources must be; URLs and gh:/gl: references as typed
+        $location = CliSourceResolver::file($config->source(), $this->getCwd());
+        if ($location instanceof LocalPath) {
+            $folder = $output
+                ? dirname(Path::normalize(Path::toAbsolutePath($output, $this->getCwd())))
+                : $this->getCwd();
+            $reference = DocumentSourceResolver::reference($location, $folder);
+            // only when writing a file: printed, stdout must stay pure JSON
+            if ($output && str_starts_with($reference, '../')) {
+                $this->warn("The source is outside the config file's folder: importing it needs --root.", true);
+            }
+            $config = $config->withSource($reference);
+        }
         $json = json_encode($config->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         if ($output) {

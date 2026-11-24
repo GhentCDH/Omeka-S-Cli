@@ -1,14 +1,23 @@
 <?php
 namespace Tests\Helper;
 
-use Ahc\Cli\Exception\InvalidArgumentException;
+use InvalidArgumentException;
 use Exception;
 use OSC\Helper\ResourceFetcher;
+use OSC\Helper\UrlCredentials;
+use OSC\Source\HttpUrl;
+use OSC\Source\LocalPath;
+use OSC\Source\Location;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(ResourceFetcher::class)]
+#[UsesClass(HttpUrl::class)]
+#[UsesClass(LocalPath::class)]
+#[UsesClass(Location::class)]
+#[UsesClass(UrlCredentials::class)]
 class ResourceFetcherTest extends TestCase
 {
     private string $testFile;
@@ -32,40 +41,20 @@ class ResourceFetcherTest extends TestCase
         }
     }
 
-    public function testDetectTypeFile(): void
-    {
-        $this->assertEquals('file', ResourceFetcher::detectType('/path/to/file.txt'));
-        $this->assertEquals('file', ResourceFetcher::detectType('relative/path/file.txt'));
-    }
 
-    public function testDetectTypeUrl(): void
-    {
-        $this->assertEquals('url', ResourceFetcher::detectType('https://example.org/file.txt'));
-        $this->assertEquals('url', ResourceFetcher::detectType('http://example.org/file.txt'));
-    }
 
-    public function testIsFile(): void
-    {
-        $this->assertTrue(ResourceFetcher::isFile('/path/to/file.txt'));
-        $this->assertFalse(ResourceFetcher::isFile('https://example.org/file.txt'));
-    }
 
-    public function testIsUrl(): void
-    {
-        $this->assertTrue(ResourceFetcher::isUrl('https://example.org/file.txt'));
-        $this->assertFalse(ResourceFetcher::isUrl('/path/to/file.txt'));
-    }
 
     public function testFetchFromFile(): void
     {
-        $content = ResourceFetcher::fetch($this->testFile);
+        $content = ResourceFetcher::fetch(LocalPath::fromAbsolute($this->testFile));
         $this->assertEquals('Test content', $content);
     }
 
     public function testFetchAcceptsAHeadersArgument(): void
     {
         // headers apply to URL sources only; a file source must accept and ignore them
-        $content = ResourceFetcher::fetch($this->testFile, ['Accept: text/csv']);
+        $content = ResourceFetcher::fetch(LocalPath::fromAbsolute($this->testFile), ['Accept: text/csv']);
         $this->assertEquals('Test content', $content);
     }
 
@@ -74,35 +63,12 @@ class ResourceFetcherTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('File not found');
 
-        ResourceFetcher::fetch('/non/existent/file.txt');
+        ResourceFetcher::fetch(LocalPath::fromAbsolute('/non/existent/file.txt'));
     }
 
-    public function testValidateExistingFile(): void
-    {
-        $this->assertTrue(ResourceFetcher::validate($this->testFile));
-    }
 
-    public function testValidateNonExistentFile(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('File not found');
 
-        ResourceFetcher::validate('/non/existent/file.txt');
-    }
 
-    public function testValidateUrl(): void
-    {
-        $this->assertTrue(ResourceFetcher::validate('https://example.org/file.txt'));
-    }
-
-    public function testValidateInvalidUrl(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid URL');
-
-        // an http(s) scheme makes it a URL; a string without one is treated as a file path
-        ResourceFetcher::validate('https://not a valid url');
-    }
 
     public function testFetchFromUnreachableUrlThrowsCatchableException(): void
     {
@@ -110,7 +76,7 @@ class ResourceFetcherTest extends TestCase
         $this->expectException(Exception::class);
 
         // Must throw a plain exception, without emitting a PHP warning
-        ResourceFetcher::fetch('http://127.0.0.1:1/nope');
+        ResourceFetcher::fetch(HttpUrl::fromUrl('http://127.0.0.1:1/nope'));
     }
 
     public function testFetchWithStreamWrapperFromUnreachableUrlThrowsCatchableException(): void
@@ -118,17 +84,17 @@ class ResourceFetcherTest extends TestCase
         $fetch = new \ReflectionMethod(ResourceFetcher::class, 'fetchWithStreamWrapper');
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Failed to fetch URL: http://127.0.0.1:1/nope');
+        $this->expectExceptionMessage('Failed to fetch http://127.0.0.1:1/nope');
 
         // Must throw a plain exception, without emitting a PHP warning
-        $fetch->invoke(null, 'http://127.0.0.1:1/nope');
+        $fetch->invoke(null, HttpUrl::fromUrl('http://127.0.0.1:1/nope'));
     }
 
     public function testDownloadCopiesALocalFileAndHasNoContentType(): void
     {
         $target = $this->testFile . '.copy';
         try {
-            $this->assertNull(ResourceFetcher::download($this->testFile, $target));
+            $this->assertNull(ResourceFetcher::download(LocalPath::fromAbsolute($this->testFile), $target));
             $this->assertSame('Test content', file_get_contents($target));
         } finally {
             @unlink($target);
@@ -139,7 +105,7 @@ class ResourceFetcherTest extends TestCase
     {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('File not found');
-        ResourceFetcher::download($this->testFile . '.missing', $this->testFile . '.x');
+        ResourceFetcher::download(LocalPath::fromAbsolute($this->testFile . '.missing'), $this->testFile . '.x');
     }
 
     public function testDownloadingAFileIntoAnUnwritableDirectoryNamesTheReason(): void
@@ -153,7 +119,7 @@ class ResourceFetcherTest extends TestCase
         try {
             $this->expectException(\Exception::class);
             $this->expectExceptionMessage("Failed to copy '{$this->testFile}' to '{$target}': Permission denied.");
-            ResourceFetcher::download($this->testFile, $target);
+            ResourceFetcher::download(LocalPath::fromAbsolute($this->testFile), $target);
         } finally {
             chmod($dir, 0700);
             @rmdir($dir);
@@ -195,7 +161,7 @@ class ResourceFetcherTest extends TestCase
         try {
             $this->withServer($dir, function (string $base) use ($target): void {
                 $download = new \ReflectionMethod(ResourceFetcher::class, 'downloadWithStreamWrapper');
-                $this->assertSame('text/turtle', $download->invoke(null, "{$base}/ns.ttl", $target, []));
+                $this->assertSame('text/turtle', $download->invoke(null, HttpUrl::fromUrl("{$base}/ns.ttl"), $target, []));
                 $this->assertSame('@prefix ex: <https://example.org/ns#> .', file_get_contents($target));
             });
         } finally {
@@ -212,11 +178,11 @@ class ResourceFetcherTest extends TestCase
         touch($target); // e.g. the temp file a caller created for the download
         try {
             // must throw a plain exception, without emitting a PHP warning
-            $download->invoke(null, 'http://127.0.0.1:1/nope', $target, []);
+            $download->invoke(null, HttpUrl::fromUrl('http://127.0.0.1:1/nope'), $target, []);
             $this->fail('an unreachable URL must fail');
         } catch (Exception $e) {
             // the reason only (its wording is the OS's), without PHP's "fopen(<url>): Failed to open stream:" prefix
-            $this->assertStringStartsWith("Failed to download 'http://127.0.0.1:1/nope': ", $e->getMessage());
+            $this->assertStringStartsWith('Failed to download http://127.0.0.1:1/nope: ', $e->getMessage());
             $this->assertStringNotContainsString('fopen(', $e->getMessage());
             $this->assertSame(rtrim($e->getMessage()), $e->getMessage());
         }
@@ -272,60 +238,37 @@ class ResourceFetcherTest extends TestCase
         'dict://127.0.0.1:11211/x',
     ];
 
-    public function testOnlyHttpUrlsAreUrls(): void
+    public function testAnUnsupportedSchemeIsNoLocation(): void
     {
+        // the fetcher takes a Location only: a local path or an http(s) URL, never php://, ftp://, ...
         foreach (self::UNSUPPORTED as $source) {
-            $this->assertFalse(ResourceFetcher::isUrl($source), $source);
-            $this->assertFalse(ResourceFetcher::isFile($source), $source);
             try {
-                ResourceFetcher::detectType($source);
+                Location::fromResolved($source);
                 $this->fail("'{$source}' must be refused");
             } catch (\InvalidArgumentException $e) {
-                $this->assertSame("Unsupported source '{$source}': use an http(s) URL or a file path.", $e->getMessage());
+                $this->assertStringContainsString('is not a resolved source', $e->getMessage());
             }
         }
-    }
-
-    public function testHttpUrlsAndPathsAreStillSources(): void
-    {
-        $this->assertTrue(ResourceFetcher::isUrl('http://example.org/x.ttl'));
-        $this->assertTrue(ResourceFetcher::isUrl('HTTPS://example.org/x.ttl'));
-        $this->assertTrue(ResourceFetcher::isFile('/tmp/x.ttl'));
-        $this->assertTrue(ResourceFetcher::isFile('vocabs/x.ttl'));
-        $this->assertTrue(ResourceFetcher::isFile('C:\\data\\x.ttl'));
-    }
-
-    public function testFetchRefusesAPhpFilterSource(): void
-    {
-        // without the check, the stream wrapper would return the local file's content
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported source');
-        ResourceFetcher::fetch('php://filter/resource=' . $this->testFile);
+        Location::fromResolved('php://filter/resource=' . $this->testFile);
     }
 
-    public function testDownloadRefusesAnUnsupportedSchemeBeforeAnything(): void
+    public function testHttpUrlsAndPathsAreLocations(): void
     {
-        $target = $this->testFile . '.x';
-        try {
-            ResourceFetcher::download('ftp://example.org/x.zip', $target);
-            $this->fail('ftp:// must be refused');
-        } catch (\InvalidArgumentException $e) {
-            $this->assertStringContainsString('Unsupported source', $e->getMessage());
-        }
-        $this->assertFileDoesNotExist($target);
+        $this->assertTrue(Location::fromResolved('http://example.org/x.ttl')->isRemote());
+        $this->assertTrue(Location::fromResolved('HTTPS://example.org/x.ttl')->isRemote());
+        $this->assertFalse(Location::fromResolved('/tmp/x.ttl')->isRemote());
     }
 
-    public function testTheTransportsRefuseAnUnsupportedSchemeToo(): void
+    /** A php://, file://, ... value cannot reach a transport: they only take an HttpUrl, which refuses it. */
+    public function testTheTransportsOnlyTakeAnHttpUrl(): void
     {
-        foreach (['fetchFromUrl' => ['php://filter/resource=' . $this->testFile], 'downloadWithStreamWrapper' => ['php://filter/resource=' . $this->testFile, $this->testFile . '.x']] as $method => $args) {
-            try {
-                (new \ReflectionMethod(ResourceFetcher::class, $method))->invoke(null, ...$args);
-                $this->fail("{$method} must refuse php://");
-            } catch (\InvalidArgumentException $e) {
-                $this->assertStringContainsString('Unsupported source', $e->getMessage(), $method);
-            }
+        foreach (['fetchFromUrl', 'fetchWithCurl', 'fetchWithStreamWrapper', 'downloadWithStreamWrapper'] as $method) {
+            $type = (new \ReflectionMethod(ResourceFetcher::class, $method))->getParameters()[0]->getType();
+            $this->assertSame(HttpUrl::class, (string) $type, $method);
         }
-        $this->assertFileDoesNotExist($this->testFile . '.x');
+        $this->expectException(\InvalidArgumentException::class);
+        HttpUrl::fromUrl('php://filter/resource=' . $this->testFile);
     }
 
     #[RequiresPhpExtension('curl')]
@@ -346,6 +289,28 @@ class ResourceFetcherTest extends TestCase
             $this->assertSame(CURLPROTO_HTTP | CURLPROTO_HTTPS, $options[CURLOPT_PROTOCOLS] ?? null, $method);
             // a redirect must not switch to another protocol either
             $this->assertSame(CURLPROTO_HTTP | CURLPROTO_HTTPS, $options[CURLOPT_REDIR_PROTOCOLS] ?? null, $method);
+        }
+    }
+
+    /** @return array<string,array{0:callable(Location):mixed}> */
+    public static function fetchers(): array
+    {
+        return [
+            'fetch'    => [fn(Location $l) => ResourceFetcher::fetch($l)],
+            'download' => [fn(Location $l) => ResourceFetcher::download($l, sys_get_temp_dir() . '/osc-never-written')],
+        ];
+    }
+
+    /** A missing file is named once, as written and where it led, by PHP's own exception. */
+    #[\PHPUnit\Framework\Attributes\DataProvider('fetchers')]
+    public function testAMissingFileIsNamedOnce(callable $fetcher): void
+    {
+        try {
+            $fetcher(LocalPath::fromAbsolute('/nonexistent/cfg/x.json', './x.json'));
+            $this->fail('no exception');
+        } catch (\Throwable $e) {
+            $this->assertSame(InvalidArgumentException::class, $e::class);
+            $this->assertSame("File not found: './x.json' (/nonexistent/cfg/x.json)", $e->getMessage());
         }
     }
 }

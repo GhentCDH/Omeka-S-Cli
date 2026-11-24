@@ -5,6 +5,7 @@ use Exception;
 use Omeka\DataType\Manager as DataTypeManager;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceFetcher;
+use OSC\Source\CliSourceResolver;
 
 
 class ImportCommand extends AbstractResourceTemplateCommand
@@ -60,7 +61,7 @@ class ImportCommand extends AbstractResourceTemplateCommand
             throw new Exception("This command requires the 'Common' module to be active.");
         }
 
-        $resourceTemplateData = ResourceFetcher::fetchJson($source);
+        $resourceTemplateData = ResourceFetcher::fetchJson(CliSourceResolver::file($source, $this->getCwd()));
 
         // Determine the label to use (priority: --label option, then from file, then error)
         $label = $label ?? $resourceTemplateData['o:label'] ?? null;

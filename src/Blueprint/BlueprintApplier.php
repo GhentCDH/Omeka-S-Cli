@@ -1,6 +1,9 @@
 <?php
 namespace OSC\Blueprint;
 
+use OSC\Helper\Config\ItemImportConfig;
+use OSC\Helper\Config\VocabularyConfig;
+use OSC\Source\Location;
 use Exception;
 use Omeka\Module\Manager as ModuleManager;
 use OSC\Addon\AddonType;
@@ -174,7 +177,7 @@ class BlueprintApplier
                 $this->command->note("{$module['name']}: already present, nothing to download", true);
                 continue;
             }
-            $reference = AddonReference::fromBlueprint($module['name'], $module['source'], $module['version']);
+            $reference = AddonReference::fromLoaded($module['name'], $module['source'], $module['version']);
             if ($this->dryRun) {
                 $this->command->note("would download module '{$module['name']}' ({$reference->display()})", true);
                 continue;
@@ -274,7 +277,7 @@ class BlueprintApplier
                 $this->command->note("{$theme['name']}: already present, nothing to download", true);
                 continue;
             }
-            $reference = AddonReference::fromBlueprint($theme['name'], $theme['source'], $theme['version']);
+            $reference = AddonReference::fromLoaded($theme['name'], $theme['source'], $theme['version']);
             // `name` is the theme's folder: a sourced theme is installed there (a repository theme keeps
             // the repository's folder name)
             $dir = $theme['source'] !== null ? $theme['name'] : null;
@@ -305,7 +308,7 @@ class BlueprintApplier
             }
             $target = $this->command->resolveOmekaPath() . '/' . $destination;
             if ($extract) {
-                $tmp = (new ZipDownloader($source))->download();
+                $tmp = (new ZipDownloader(Location::fromResolved($source)))->download();
                 try {
                     // a single top-level directory is stripped, as with add-on archives
                     $entries = array_values(array_diff(scandir($tmp) ?: [], ['.', '..']));
@@ -316,7 +319,7 @@ class BlueprintApplier
                 }
             } else {
                 Path::ensureDir(dirname($target), 0755);
-                Path::writeFile($target, ResourceFetcher::fetch($source));
+                Path::writeFile($target, ResourceFetcher::fetch(Location::fromResolved($source)));
             }
             $this->command->ok("File '{$destination}' " . ($extract ? 'extracted' : 'written') . '.', true);
         }
@@ -353,22 +356,15 @@ class BlueprintApplier
                 continue;
             }
 
-            // a blueprint vocabulary entry is an importer config: hand it to the importer as a
-            // config file, so inline and $import-referenced configs follow one code path. Its
-            // `source` was already resolved by the loader against the source that declared it.
-            $configFile = Path::createTempFile('bp-vocab-');
+            // a blueprint vocabulary entry is an importer config: hand it to the importer as one, so
+            // inline and $import-referenced configs follow one code path. Its `source` was already
+            // resolved by the loader against the file that declared it, so no file rules apply again.
             try {
-                Path::writeFile(
-                    $configFile,
-                    json_encode($vocabulary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
-                );
                 $this->propagateContext($cmd);
-                $cmd->execute($configFile, $this->update);
+                $cmd->execute(VocabularyConfig::fromArray($vocabulary), $this->update);
             } catch (WarningException $e) {
                 // e.g. the vocabulary already exists and --update was not requested
                 $this->command->warn("  {$label}: " . $e->getMessage(), true);
-            } finally {
-                @unlink($configFile);
             }
         }
     }
@@ -591,8 +587,8 @@ class BlueprintApplier
     }
 
     /**
-     * Import each entry with item:import / item-set:import --config, so deploy and the commands share
-     * one import path. A simple entry is mapped onto portable JSON-LD first (SimpleContentMapper); an
+     * Import each entry with item:import / item-set:import (as an ItemImportConfig), so deploy and the
+     * commands share one import path. A simple entry is mapped onto portable JSON-LD first (SimpleContentMapper); an
      * extension entry already is an import config. An item and its media are created together, all or
      * nothing; an existing item or item set is skipped with a warning (deploy goes on).
      *
@@ -644,9 +640,8 @@ class BlueprintApplier
             } else {
                 $config = $entry;
             }
-            $temp[] = $configFile = Path::createTempFile('bp-item-');
-            Path::writeFile($configFile, json_encode($config, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-            $this->runCommand($cmd, fn($c) => $c->execute(null, $configFile));
+            // the entry's sources were resolved by the loader: the config object, not a config file
+            $this->runCommand($cmd, fn($c) => $c->execute(null, ItemImportConfig::fromArray($config)));
         } finally {
             foreach ($temp as $file) {
                 @unlink($file);

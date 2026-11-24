@@ -40,6 +40,16 @@ omeka-s-cli item:import --config ~/content/notebook.import.json
 # --8<-- [end:import-config-title-only]
 omeka-s-cli item:list --json | jq -e 'any(.[]; .title == "Notebook page" and .media == 1 and .itemSets == 1)' > /dev/null
 
+# a configuration file in a subfolder that uses the files one level up
+mkdir -p ~/content/imports
+cp "$EXAMPLES_DIR"/files/items/portrait-root.import.json ~/content/imports/portrait.import.json
+# without --root, the files one level up are outside the configuration file's folder (exit code 1)
+failure_output() { if "$@" > "$SCRATCH_DIR/failure.log" 2>&1; then return 1; fi; cat "$SCRATCH_DIR/failure.log"; }
+failure_output omeka-s-cli item:import --config ~/content/imports/portrait.import.json | grep 'outside the root' > /dev/null
+# --8<-- [start:import-config-root]
+omeka-s-cli item:import --config ~/content/imports/portrait.import.json --root ~/content
+# --8<-- [end:import-config-root]
+
 # --8<-- [start:import-linked]
 omeka-s-cli item:import ~/content/study.jsonld
 # --8<-- [end:import-linked]

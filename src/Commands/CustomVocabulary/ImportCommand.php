@@ -6,6 +6,7 @@ use OSC\Resource\OmekaCatalog;
 use Exception;
 use OSC\Exceptions\WarningException;
 use OSC\Helper\ResourceFetcher;
+use OSC\Source\CliSourceResolver;
 
 class ImportCommand extends AbstractCustomVocabularyCommand
 {
@@ -29,7 +30,7 @@ class ImportCommand extends AbstractCustomVocabularyCommand
         $importExport = new CustomVocabImportExport($api, new OmekaCatalog($omekaInstance->getServiceManager()));
 
         // read file content and check if valid json
-        $customVocabularyData = ResourceFetcher::fetchJson($source);
+        $customVocabularyData = ResourceFetcher::fetchJson(CliSourceResolver::file($source, $this->getCwd()));
 
         // verify the file
         if (!$importExport->isValidImport($customVocabularyData)) {

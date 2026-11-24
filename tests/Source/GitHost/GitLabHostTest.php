@@ -1,52 +1,57 @@
 <?php
-namespace Tests\Helper\Reference;
+namespace Tests\Source\GitHost;
 
-use OSC\Helper\Reference\GitLabProvider;
+use OSC\Source\GitHost\GitLabHost;
+use OSC\Source\GitHost\GitPathSegments;
+use OSC\Addon\GitRef;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(GitLabProvider::class)]
-class GitLabProviderTest extends TestCase
+#[CoversClass(GitLabHost::class)]
+#[UsesClass(GitPathSegments::class)]
+#[UsesClass(GitRef::class)]
+class GitLabHostTest extends TestCase
 {
-    private GitLabProvider $provider;
+    private GitLabHost $host;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->provider = new GitLabProvider();
+        $this->host = new GitLabHost();
     }
 
     public function testSupportsGitlabComBlobUrl(): void
     {
-        $this->assertTrue($this->provider->supports('https://gitlab.com/group/project/-/blob/main/a.jsonc'));
+        $this->assertNotNull($this->host->rawUrl('https://gitlab.com/group/project/-/blob/main/a.jsonc'));
     }
 
     public function testSupportsSelfHostedBlobUrl(): void
     {
         // recognized by the /-/blob/ path pattern, so any host works
-        $this->assertTrue($this->provider->supports('https://gitlab.example.org/group/project/-/blob/main/a.jsonc'));
+        $this->assertNotNull($this->host->rawUrl('https://gitlab.example.org/group/project/-/blob/main/a.jsonc'));
     }
 
     public function testSupportsShortScheme(): void
     {
-        $this->assertTrue($this->provider->supports('gl:group/project@main:a.jsonc'));
+        $this->assertNotNull($this->host->rawUrl('gl:group/project@main:a.jsonc'));
     }
 
     public function testDoesNotSupportGitHubBlobUrl(): void
     {
-        $this->assertFalse($this->provider->supports('https://github.com/owner/repo/blob/main/a.jsonc'));
+        $this->assertNull($this->host->rawUrl('https://github.com/owner/repo/blob/main/a.jsonc'));
     }
 
     public function testDoesNotSupportPlainGitlabUrl(): void
     {
-        $this->assertFalse($this->provider->supports('https://gitlab.com/group/project'));
+        $this->assertNull($this->host->rawUrl('https://gitlab.com/group/project'));
     }
 
     public function testConvertsSelfHostedBlobToRaw(): void
     {
         $this->assertSame(
             'https://gitlab.example.org/group/project/-/raw/main/a.jsonc',
-            $this->provider->toRawUrl('https://gitlab.example.org/group/project/-/blob/main/a.jsonc')
+            $this->host->rawUrl('https://gitlab.example.org/group/project/-/blob/main/a.jsonc')
         );
     }
 
@@ -54,7 +59,7 @@ class GitLabProviderTest extends TestCase
     {
         $this->assertSame(
             'https://gitlab.com/group/project/-/raw/dev/a.jsonc',
-            $this->provider->toRawUrl('gl:group/project@dev:a.jsonc')
+            $this->host->rawUrl('gl:group/project@dev:a.jsonc')
         );
     }
 
@@ -62,7 +67,7 @@ class GitLabProviderTest extends TestCase
     {
         $this->assertSame(
             'https://gitlab.com/group/subgroup/project/-/raw/main/dir/a.jsonc',
-            $this->provider->toRawUrl('gl:group/subgroup/project@main:dir/a.jsonc')
+            $this->host->rawUrl('gl:group/subgroup/project@main:dir/a.jsonc')
         );
     }
 
@@ -70,7 +75,7 @@ class GitLabProviderTest extends TestCase
     {
         $this->assertSame(
             'https://gitlab.com/group/project/-/raw/HEAD/a.jsonc',
-            $this->provider->toRawUrl('gl:group/project:a.jsonc')
+            $this->host->rawUrl('gl:group/project:a.jsonc')
         );
     }
 
@@ -91,6 +96,6 @@ class GitLabProviderTest extends TestCase
     public function testRejectsAReferenceThatLeavesTheRepository(string $reference): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->provider->toRawUrl($reference);
+        $this->host->rawUrl($reference);
     }
 }

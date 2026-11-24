@@ -1,15 +1,15 @@
 <?php
-namespace OSC\Blueprint;
+namespace OSC\Source;
 
 /**
  * The form of a source written in a blueprint (`source`, `$import`, a media `url`), told apart by its
  * prefix as the shared spec does (datasource.relativePath | url | git):
- * - Url: `http(s)://` and a host, in any letter case;
+ * - Url: `http(s)://` and a host, in any letter case (HttpUrl::isHttpUrl());
  * - Git: `gh:`, `gl:` or `git@host:`;
  * - RelativePath: anything else that is not absolute, has no URI scheme (a drive letter counts as
  *   one) and does not start with whitespace.
  *
- * Only the prefix is checked: the schema validates the blueprint, and SourceResolver resolves the
+ * Only the prefix is checked: the schema validates the blueprint, and DocumentSourceResolver resolves the
  * value and keeps it safe. This is the loader's own guard for what the schema may not catch.
  */
 enum SourceForm
@@ -18,7 +18,6 @@ enum SourceForm
     case Url;
     case Git;
 
-    private const URL = '#\Ahttps?://[^/?\#]#i';
     private const GIT = '#\A(?:gh:|gl:|git@[^/:]*:)#';
     private const SCHEME = '#\A[A-Za-z][A-Za-z0-9+.-]*:#';
     private const ABSOLUTE = '#\A[/\\\\]#';
@@ -30,7 +29,7 @@ enum SourceForm
         if (self::rejection($value) !== null) {
             return null;
         }
-        if (preg_match(self::URL, $value) === 1) {
+        if (HttpUrl::isHttpUrl($value)) {
             return self::Url;
         }
         return preg_match(self::GIT, $value) === 1 ? self::Git : self::RelativePath;
@@ -67,7 +66,7 @@ enum SourceForm
         if (preg_match(self::LEADING_SPACE, $value) !== 0) {
             return 'starts with whitespace';
         }
-        if (preg_match(self::URL, $value) === 1 || preg_match(self::GIT, $value) === 1) {
+        if (HttpUrl::isHttpUrl($value) || preg_match(self::GIT, $value) === 1) {
             return null;
         }
         if (preg_match(self::ABSOLUTE, $value) === 1 || preg_match('#\A[A-Za-z]:[/\\\\]#', $value) === 1) {

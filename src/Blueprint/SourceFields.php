@@ -1,6 +1,8 @@
 <?php
 namespace OSC\Blueprint;
 
+use OSC\Source\SourceForm;
+
 /**
  * Where a blueprint refers to external sources, and what kind each one is: the single registry for
  * the loader (which resolves them), the self-contained check and the bundler (which fetches them),

@@ -3,6 +3,7 @@
 namespace OSC\Commands\Dummy;
 
 use OSC\Dummy\Config\ItemSetConfig;
+use OSC\Source\CliSourceResolver;
 
 class CreateItemSetsCommand extends AbstractDummyCommand
 {
@@ -18,7 +19,7 @@ class CreateItemSetsCommand extends AbstractDummyCommand
         $api        = $this->getOmekaInstance()->getApi();
         $number      = max(1, $number);
         $itemConfig = match (true) {
-            $config !== null => ItemSetConfig::fromSource($config),
+            $config !== null => ItemSetConfig::fromSource(CliSourceResolver::file($config, $this->getCwd())),
             default          => ItemSetConfig::fromDefaultConfig(),
         };
 

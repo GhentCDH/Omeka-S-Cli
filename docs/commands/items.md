@@ -195,7 +195,8 @@ already exists is skipped, even when its file has such a problem.
 ## Import with a configuration file
 
 To import an item with several media, or to keep an import repeatable, describe it in a JSON file and
-pass it with `--config`. Relative paths in it are relative to the file. It takes the JSON-LD `source`,
+pass it with `--config`. Relative paths in it are relative to the file, and must stay inside its folder
+(see [Paths in a configuration file](../usage.md#paths-in-a-configuration-file)). It takes the JSON-LD `source`,
 the item's `sites`, and its `media` as [media objects](#add-media-to-an-item); the `title` is only used
 in messages:
 
@@ -220,6 +221,18 @@ Without a `source`, the file creates an item from a `title` alone (its `dcterms:
 
 ```bash
 --8<-- "docs/examples/items.sh:import-config-title-only"
+```
+
+For files higher up than the configuration file, widen its folder with `--root`:
+
+??? example "`~/content/imports/portrait.import.json`"
+
+    ```json
+    --8<-- "docs/examples/files/items/portrait-root.import.json"
+    ```
+
+```bash
+--8<-- "docs/examples/items.sh:import-config-root"
 ```
 
 `--site` can't be combined with a configuration file: put the sites in the file. A configuration file
@@ -366,7 +379,8 @@ a JSON object with `--data`, or in a file with `--json-file`:
   module ingester's own key. A raw key such as `o:source` wins over a mapped one.
 
 The flags (`--ingester`, `--source`, `--title`, `--alt-text`) are shortcuts and override the JSON. With
-`--json-file`, a relative `upload` source is relative to the file. The same media objects go in an
+`--json-file`, a relative `upload` source is relative to the file and must stay inside its folder
+(`--root` widens it). The same media objects go in an
 `item:import` [configuration file](#import-with-a-configuration-file) and in `--media`.
 
 ## Reference

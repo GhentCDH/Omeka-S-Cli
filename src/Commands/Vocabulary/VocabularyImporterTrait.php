@@ -41,8 +41,12 @@ trait VocabularyImporterTrait
 
     protected function prepareImporterOptions(array $values): array
     {
-        $config = VocabularyConfig::fromArray($values);
+        return $this->importerOptionsOf(VocabularyConfig::fromArray($values));
+    }
 
+    /** The importer options of $config (its source resolved), warning about a deprecated source key. */
+    protected function importerOptionsOf(VocabularyConfig $config): array
+    {
         if ($deprecatedKey = $config->deprecatedSourceKey()) {
             $this->warn("The '{$deprecatedKey}' key is deprecated; use 'source' instead.", true);
         }
@@ -65,14 +69,9 @@ trait VocabularyImporterTrait
             if (!is_readable($file)) {
                 throw new InvalidArgumentException("File is not readable: {$file}");
             }
-        } else {
-            $url = $options['options']['url'];
-            // For URLs, we could optionally validate with a HEAD request
-            // but we'll let the RDF importer handle URL validation
-            if (!filter_var($url, FILTER_VALIDATE_URL)) {
-                throw new InvalidArgumentException("Invalid URL: {$url}");
-            }
         }
+        // a URL is an http(s) URL with a host already (VocabularyConfig::toImporterOptions()); the RDF
+        // importer reports one it cannot fetch
     }
 
     /**
