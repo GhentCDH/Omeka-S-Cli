@@ -383,6 +383,42 @@ The flags (`--ingester`, `--source`, `--title`, `--alt-text`) are shortcuts and 
 (`--root` widens it). The same media objects go in an
 `item:import` [configuration file](#import-with-a-configuration-file) and in `--media`.
 
+## Delete items and item sets
+
+`item:delete` and `item-set:delete` take the IDs to delete. Deleting an item also deletes its media and
+their files:
+
+```bash
+--8<-- "docs/examples/items.sh:delete"
+```
+
+Deleting an item set keeps its items; they are no longer in the set:
+
+```bash
+--8<-- "docs/examples/items.sh:delete-item-set"
+```
+
+Every ID is looked up before anything is deleted: an ID that does not exist stops the command without
+deleting anything. With `--ignore-not-found`, a missing ID is a warning and the others are deleted.
+
+Instead of IDs, select with the same filters as `item:list` (`--property`, `--site`, `--class`,
+`--template`, `--item-set` for items, ...). A filter can match more than you expect, so deleting by filters needs
+`--force`. List what would be deleted with `--dry-run` first:
+
+```bash
+--8<-- "docs/examples/items.sh:delete-filters"
+```
+
+```text
+Would delete item 6 'Sketchbook'.
+Would delete item 7 'Portrait of a woman'.
+Would delete item 10 'Notebook page'.
+Would delete item 12 'Study for the Mona Lisa'.
+```
+
+With `--json`, the command prints the deleted resources (or, with `--dry-run`, the ones it would delete)
+as a list of `{"id", "title"}` objects instead of messages.
+
 ## Reference
 
 All commands also accept the [global options](../reference/global-options.md).
@@ -395,6 +431,8 @@ All commands also accept the [global options](../reference/global-options.md).
 
 --8<-- "build/docs/commands/item-import.md"
 
+--8<-- "build/docs/commands/item-delete.md"
+
 --8<-- "build/docs/commands/item-set-list.md"
 
 --8<-- "build/docs/commands/item-set-search.md"
@@ -402,6 +440,8 @@ All commands also accept the [global options](../reference/global-options.md).
 --8<-- "build/docs/commands/item-set-export.md"
 
 --8<-- "build/docs/commands/item-set-import.md"
+
+--8<-- "build/docs/commands/item-set-delete.md"
 
 --8<-- "build/docs/commands/media-add.md"
 

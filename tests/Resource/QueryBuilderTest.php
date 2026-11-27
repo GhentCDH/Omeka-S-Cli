@@ -6,6 +6,7 @@ use InvalidArgumentException;
 use OSC\Resource\QueryBuilder;
 use OSC\Resource\ResourceType;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(QueryBuilder::class)]
@@ -79,6 +80,24 @@ class QueryBuilderTest extends TestCase
     {
         $this->expectExceptionMessage('--property expects term=value, got "dcterms:creator".');
         $this->builder()->build(ResourceType::Item, ['property' => ['dcterms:creator']]);
+    }
+
+    /** @return array<string,array{0:string}> */
+    public static function valuesOmekaIgnores(): array
+    {
+        return ['empty' => ['dcterms:identifier='], 'blank' => ['dcterms:identifier=  '], 'zero' => ['dcterms:identifier=0']];
+    }
+
+    /**
+     * Omeka S trims the value and skips the filter when it is falsy ('' or "0"): the search would match
+     * every resource, which item:delete --force would delete.
+     */
+    #[DataProvider('valuesOmekaIgnores')]
+    public function testAPropertyValueOmekaIgnoresIsAnError(string $filter): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("--property \"{$filter}\" cannot be searched: Omeka S ignores an empty value and \"0\".");
+        $this->builder()->build(ResourceType::Item, ['property' => [$filter]]);
     }
 
     public function testPublicAndPrivateExcludeEachOther(): void

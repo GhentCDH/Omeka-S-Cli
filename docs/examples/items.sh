@@ -150,3 +150,22 @@ omeka-s-cli media:add "$id" --data '{
 }'
 # --8<-- [end:media-add-data]
 omeka-s-cli media:add "$id" --data '{"ingester": "html", "source": "<p>x</p>", "start": "30"}' --json | jq -e '.id > 0' > /dev/null
+
+# --8<-- [start:delete]
+id=$(omeka-s-cli item:list --property dcterms:identifier=obj-4 --json | jq '.[0].id')
+omeka-s-cli item:delete "$id"
+# --8<-- [end:delete]
+omeka-s-cli item:list --property dcterms:identifier=obj-4 --json | jq -e 'length == 0' > /dev/null
+
+# --8<-- [start:delete-item-set]
+id=$(omeka-s-cli item-set:list --property dcterms:title=Paintings --json | jq '.[0].id')
+omeka-s-cli item-set:delete "$id"
+# --8<-- [end:delete-item-set]
+# its item stays, without the item set
+omeka-s-cli item:list --property dcterms:identifier=obj-1 --json | jq -e 'length == 1 and .[0].itemSets == 0' > /dev/null
+
+# --8<-- [start:delete-filters]
+omeka-s-cli item:delete --site collections --dry-run
+omeka-s-cli item:delete --site collections --force
+# --8<-- [end:delete-filters]
+omeka-s-cli item:list --site collections --json | jq -e 'length == 0' > /dev/null

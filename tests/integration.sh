@@ -916,18 +916,18 @@ ITEMS=/app/omeka-s-cli/examples/items
 assert_success "item-set:import an item set"                     bash -c "$CLI item-set:import $ITEMS/item-set-paintings.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 assert_output_contains "item-set:import again skips it"          "already exists"   $CLI item-set:import $ITEMS/item-set-paintings.jsonld
 assert_success "item:import with a local upload and an html media" bash -c "$CLI item:import $ITEMS/item-mona-lisa.jsonld -m upload=$ITEMS/media/pixel.png -m 'html=<p>Note</p>' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
-assert_success "the item has its 2 media, its item set and its class" bash -c "$CLI item:list -p dcterms:identifier=it-obj-1 --json | jq -e '.[0].media == 2 and .[0].itemSets == 1 and .[0].class == \"dctype:StillImage\"'"
+assert_success "the item has its 2 media, its item set and its class" bash -c "$CLI item:list -p dcterms:identifier=item-mona-lisa --json | jq -e '.[0].media == 2 and .[0].itemSets == 1 and .[0].class == \"dctype:StillImage\"'"
 assert_success "item:import a link to an item imported earlier" bash -c "$CLI item:import $ITEMS/item-linked.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
-assert_success "item:export keeps warnings out of the JSON on stdout" bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --reference-by dcterms:alternative 2>/dev/null | jq -e '.\"o:title\"'"
-assert_success "item:export writes the link as an o-ref:ref"    bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --reference-by dcterms:identifier | jq -e '.\"dcterms:relation\"[0].\"o-ref:ref\".\"dcterms:identifier\" == \"it-obj-1\"'"
+assert_success "item:export keeps warnings out of the JSON on stdout" bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=item-linked --json | jq '.[0].id') --reference-by dcterms:alternative 2>/dev/null | jq -e '.\"o:title\"'"
+assert_success "item:export writes the link as an o-ref:ref"    bash -c "$CLI item:export \$($CLI item:list -p dcterms:identifier=item-linked --json | jq '.[0].id') --reference-by dcterms:identifier | jq -e '.\"dcterms:relation\"[0].\"o-ref:ref\".\"dcterms:identifier\" == \"item-mona-lisa\"'"
 run    "item:import an item without o-ref:id"                    $CLI item:import $ITEMS/item-no-id.jsonld
 assert_output_contains "item:import again skips it by title"     "already exists"   $CLI item:import $ITEMS/item-no-id.jsonld
 assert_output_contains "a missing vocabulary is a clean error"   "which is not installed (vocabulary:import)"   $CLI item:import $ITEMS/item-missing-vocab.jsonld
 assert_fail    "a missing vocabulary fails the import"           $CLI item:import $ITEMS/item-missing-vocab.jsonld
 assert_output_contains "an unknown data type is a clean error"   'data type "unknown:thing" is not available'   $CLI item:import $ITEMS/item-bad-datatype.jsonld
-assert_output_contains "an unresolved link is a clean error"   'to items with dcterms:identifier = "it-obj-missing" not found'   $CLI item:import $ITEMS/item-broken-ref.jsonld
+assert_output_contains "an unresolved link is a clean error"   'to items with dcterms:identifier = "item-missing" not found'   $CLI item:import $ITEMS/item-broken-ref.jsonld
 assert_fail    "an unresolved link fails the import"             $CLI item:import $ITEMS/item-broken-ref.jsonld
-assert_success "an unresolved link creates no item"              bash -c "set -o pipefail; $CLI item:list -p dcterms:identifier=it-obj-broken --json | jq -e 'length == 0'"
+assert_success "an unresolved link creates no item"              bash -c "set -o pipefail; $CLI item:list -p dcterms:identifier=item-broken-ref --json | jq -e 'length == 0'"
 assert_success "item:import a raw Omeka export"                  bash -c "$CLI item:import $ITEMS/item-raw.jsonld --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 ITEM_COUNT=$($CLI item:list --limit 1000 --json 2>/dev/null | jq 'length')
 assert_fail    "a rejected media file fails the import"          $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/not-allowed.sh
@@ -936,38 +936,38 @@ ORIGINALS=$( (ls /var/www/omeka-s/files/original 2>/dev/null || true) | wc -l)
 assert_fail    "a rejected file among valid ones fails the import" $CLI item:import $ITEMS/item-rejected-media.jsonld -m upload=$ITEMS/media/pixel.png -m upload=$ITEMS/media/not-allowed.sh
 assert_output_is "a failed import stores no file"                "$ORIGINALS"   bash -c "ls /var/www/omeka-s/files/original 2>/dev/null | wc -l"
 run    "clear the export directory"                              rm -rf /tmp/osc-items-export
-assert_success "item:export --output-dir writes one file per item" bash -c "$CLI item:export -p dcterms:identifier=it-obj-1 --output-dir /tmp/osc-items-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-items-export | wc -l) -eq 1"
+assert_success "item:export --output-dir writes one file per item" bash -c "$CLI item:export -p dcterms:identifier=item-mona-lisa --output-dir /tmp/osc-items-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-items-export | wc -l) -eq 1"
 assert_output_contains "re-importing the export skips the item" "already exists"   bash -c "$CLI item:import /tmp/osc-items-export/*.jsonld"
 assert_output_contains "item:export of several items needs --output-dir" "use --output-dir"   $CLI item:export
 run    "make a read-only directory"  bash -c "rm -rf /tmp/osc-readonly && mkdir /tmp/osc-readonly && chmod 0555 /tmp/osc-readonly"
-assert_fail            "item:export to an unwritable file fails"       $CLI item:export -p dcterms:identifier=it-obj-1 --output /tmp/osc-readonly/item.jsonld
-assert_output_contains "item:export names the reason" "Permission denied"  $CLI item:export -p dcterms:identifier=it-obj-1 --output /tmp/osc-readonly/item.jsonld
+assert_fail            "item:export to an unwritable file fails"       $CLI item:export -p dcterms:identifier=item-mona-lisa --output /tmp/osc-readonly/item.jsonld
+assert_output_contains "item:export names the reason" "Permission denied"  $CLI item:export -p dcterms:identifier=item-mona-lisa --output /tmp/osc-readonly/item.jsonld
 assert_fail            "a failed item:export prints no success line" \
-    bash -c "$CLI item:export -p dcterms:identifier=it-obj-1 --output /tmp/osc-readonly/item.jsonld 2>&1 | grep -q 'exported to'"
-assert_fail            "item:export --output-dir into an unwritable directory fails"  $CLI item:export -p dcterms:identifier=it-obj-1 --output-dir /tmp/osc-readonly/sub
+    bash -c "$CLI item:export -p dcterms:identifier=item-mona-lisa --output /tmp/osc-readonly/item.jsonld 2>&1 | grep -q 'exported to'"
+assert_fail            "item:export --output-dir into an unwritable directory fails"  $CLI item:export -p dcterms:identifier=item-mona-lisa --output-dir /tmp/osc-readonly/sub
 assert_success "item:search finds the item"                      bash -c "$CLI item:search 'Mona' --json | jq -e 'any(.[]; .title == \"Mona Lisa\")'"
 assert_output_contains "item:list --class with an unknown class" "Unknown resource class"   $CLI item:list --class dctype:Foo
 assert_success "item-set:list lists the item set"                bash -c "$CLI item-set:list --json | jq -e 'any(.[]; .title == \"Paintings\")'"
 assert_success "item-set:search finds the item set"              bash -c "set -o pipefail; $CLI item-set:search Paintings --json | jq -e 'any(.[]; .title == \"Paintings\")'"
 assert_success "item-set:search with no match is an empty list"  bash -c "set -o pipefail; $CLI item-set:search nonexistent-xyz --json | jq -e 'length == 0'"
 SET_ID=""
-if [[ $SECTION_SKIP -eq 0 ]]; then SET_ID=$($CLI item-set:list -p dcterms:identifier=it-set-paintings --json 2>/dev/null | jq '.[0].id'); fi
+if [[ $SECTION_SKIP -eq 0 ]]; then SET_ID=$($CLI item-set:list -p dcterms:identifier=item-set-paintings --json 2>/dev/null | jq '.[0].id'); fi
 assert_success "item-set:export prints the item set"             bash -c "set -o pipefail; $CLI item-set:export $SET_ID | jq -e '.\"o:title\" == \"Paintings\"'"
 run    "clear the item set export directory"                     rm -rf /tmp/osc-item-sets-export
 assert_success "item-set:export --output-dir writes one file per item set" \
-    bash -c "$CLI item-set:export -p dcterms:identifier=it-set-paintings --output-dir /tmp/osc-item-sets-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-item-sets-export | wc -l) -eq 1 && ls /tmp/osc-item-sets-export/*-paintings.jsonld"
+    bash -c "$CLI item-set:export -p dcterms:identifier=item-set-paintings --output-dir /tmp/osc-item-sets-export --reference-by dcterms:identifier && test \$(ls /tmp/osc-item-sets-export | wc -l) -eq 1 && ls /tmp/osc-item-sets-export/*-paintings.jsonld"
 assert_output_contains "re-importing the exported item set skips it" "already exists"   bash -c "$CLI item-set:import /tmp/osc-item-sets-export/*.jsonld"
 assert_fail    "item-set:export with --output and --output-dir fails" $CLI item-set:export $SET_ID --output /tmp/osc-item-sets-export/x.jsonld --output-dir /tmp/osc-item-sets-export
 run    "remove the item set export directory"                    rm -rf /tmp/osc-item-sets-export
 assert_success "media:ingesters lists upload"                    bash -c "$CLI media:ingesters --json | jq -e 'any(.[]; .name == \"upload\")'"
-assert_success "media:add adds an html media"                    bash -c "$CLI media:add \$($CLI item:list -p dcterms:identifier=it-obj-2 --json | jq '.[0].id') --ingester html --source '<p>Note</p>' --json | jq -e '.ingester == \"html\"'"
+assert_success "media:add adds an html media"                    bash -c "$CLI media:add \$($CLI item:list -p dcterms:identifier=item-linked --json | jq '.[0].id') --ingester html --source '<p>Note</p>' --json | jq -e '.ingester == \"html\"'"
 assert_fail    "media:add to a missing item fails"               $CLI media:add 999999 --ingester html --source '<p>x</p>'
 # media options: any key reaches the ingester; title and properties in the simple notation
 SQL="mysql --raw -u root -proot -h db -N omeka"
 MEDIA_TITLE_SQL="select group_concat(v.value) from value v join property p on p.id = v.property_id join vocabulary vo on vo.id = p.vocabulary_id where vo.prefix = 'dcterms' and p.local_name = 'title' and v.resource_id ="
 YT_ID=""; OPT_ITEM=""
 if [[ $SECTION_SKIP -eq 0 ]]; then
-    YT_ID=$($CLI media:add $($CLI item:list -p dcterms:identifier=it-obj-2 --json 2>/dev/null | jq '.[0].id') \
+    YT_ID=$($CLI media:add $($CLI item:list -p dcterms:identifier=item-linked --json 2>/dev/null | jq '.[0].id') \
         --data '{"ingester": "youtube", "source": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "start": "30", "title": "Clip"}' --json 2>/dev/null | jq '.id')
     rm -rf /tmp/osc-media-file && mkdir -p /tmp/osc-media-file && cp $ITEMS/media/pixel.png /tmp/osc-media-file/
     echo '{"ingester": "upload", "source": "pixel.png", "title": "From a file", "dcterms:description": "Relative to the JSON file"}' > /tmp/osc-media-file/media.json
@@ -976,7 +976,7 @@ assert_success "media:add --data passes start to the youtube ingester" bash -c "
 assert_output_is "media:add --data sets the media title" "Clip"  bash -c "echo \"$MEDIA_TITLE_SQL $YT_ID\" | $SQL"
 # jq 1.6 -e exits 0 on empty input: pipefail makes a failing CLI fail the check
 OBJ2_ID=""
-if [[ $SECTION_SKIP -eq 0 ]]; then OBJ2_ID=$($CLI item:list -p dcterms:identifier=it-obj-2 --json 2>/dev/null | jq '.[0].id'); fi
+if [[ $SECTION_SKIP -eq 0 ]]; then OBJ2_ID=$($CLI item:list -p dcterms:identifier=item-linked --json 2>/dev/null | jq '.[0].id'); fi
 assert_success "media:add --json-file resolves an upload relative to the file" bash -c "set -o pipefail; cd / && $CLI media:add $OBJ2_ID --base-path /var/www/omeka-s --json-file /tmp/osc-media-file/media.json --json | jq -e '.ingester == \"upload\"'"
 if [[ $SECTION_SKIP -eq 0 ]]; then
     rm -rf /tmp/osc-media-flag && mkdir -p /tmp/osc-media-flag/json && cp $ITEMS/media/pixel.png /tmp/osc-media-flag/
@@ -1013,15 +1013,45 @@ run    "add a site for --site"                                    $CLI site:add 
 run    "add a second site that takes new items"                   $CLI site:add "Items Site B" --slug osc-items-b --ignore-existing
 assert_success "item:import --site assigns that site"             bash -c "set -o pipefail; $CLI item:import $ITEMS/item-site.jsonld --site osc-items-a --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 SITE_ITEM=""
-if [[ $SECTION_SKIP -eq 0 ]]; then SITE_ITEM=$($CLI item:list -p dcterms:identifier=it-site --json 2>/dev/null | jq '.[0].id'); fi
+if [[ $SECTION_SKIP -eq 0 ]]; then SITE_ITEM=$($CLI item:list -p dcterms:identifier=item-site --json 2>/dev/null | jq '.[0].id'); fi
 assert_output_is "the item is on that site only"                  "osc-items-a"   bash -c "echo \"select group_concat(s.slug) from item_site i join site s on s.id = i.site_id where i.item_id = $SITE_ITEM\" | $SQL"
 assert_success "item:import -m takes options after the source" bash -c "set -o pipefail; $CLI item:import $ITEMS/item-media-options.jsonld -m 'html=<p>a\\;b</p>;title=Note' --json | jq -e '.status == \"created\" or .status == \"exists\"'"
 if [[ $SECTION_SKIP -eq 0 ]]; then
-    OPT_ITEM=$($CLI item:list -p dcterms:identifier=it-media-options --json 2>/dev/null | jq '.[0].id')
+    OPT_ITEM=$($CLI item:list -p dcterms:identifier=item-media-options --json 2>/dev/null | jq '.[0].id')
 fi
 assert_output_is "the -m option set the media title" "Note"   bash -c "echo \"$MEDIA_TITLE_SQL (select id from media where item_id = $OPT_ITEM limit 1)\" | $SQL"
 assert_output_contains "the -m source kept its escaped semicolon" "<p>a;b</p>"   bash -c "echo \"select data from media where item_id = $OPT_ITEM\" | $SQL | jq -r .html"
 run    "remove the media JSON file"                              rm -rf /tmp/osc-media-file
+# item:delete / item-set:delete
+run    "item-set:import an item set to delete"                    $CLI item-set:import $ITEMS/item-set-delete.jsonld
+run    "item:import an item in it, with a file"                   $CLI item:import $ITEMS/item-delete.jsonld -m upload=$ITEMS/media/pixel.png
+run    "item:import a second item to delete"                      $CLI item:import $ITEMS/item-delete-2.jsonld
+DEL_SET=""; DEL_1=""; DEL_2=""
+if [[ $SECTION_SKIP -eq 0 ]]; then
+    DEL_SET=$($CLI item-set:list -p dcterms:identifier=item-set-delete --json 2>/dev/null | jq '.[0].id')
+    DEL_1=$($CLI item:list -p dcterms:identifier=item-delete --json 2>/dev/null | jq '.[0].id')
+    DEL_2=$($CLI item:list -p dcterms:identifier=item-delete-2 --json 2>/dev/null | jq '.[0].id')
+fi
+COUNT_DEL_2="$CLI item:list -p dcterms:identifier=item-delete-2 --json | jq length"
+assert_fail    "item:delete without IDs or filters fails"         $CLI item:delete
+assert_output_contains "it says what it needs"                    "Give the IDs of the items to delete"   $CLI item:delete
+assert_fail    "item:delete with IDs and filters fails"           $CLI item:delete $DEL_2 -p dcterms:identifier=item-delete-2
+assert_fail    "item:delete by filters without --force fails"     $CLI item:delete -p dcterms:identifier=item-delete-2
+assert_output_contains "item:delete --dry-run lists the match"    "Would delete item $DEL_2 'Delete me too'"   $CLI item:delete -p dcterms:identifier=item-delete-2 --dry-run
+assert_output_is "--dry-run deletes nothing"                      "1"   bash -c "$COUNT_DEL_2"
+assert_fail    "a missing ID among others fails"                  $CLI item:delete $DEL_2 999999
+assert_output_is "a missing ID deletes nothing"                   "1"   bash -c "$COUNT_DEL_2"
+assert_success "--ignore-not-found skips a missing ID"            $CLI item:delete 999999 --ignore-not-found
+assert_success "item:delete --dry-run --json lists the matches"   bash -c "set -o pipefail; $CLI item:delete -p dcterms:identifier=item-delete-2 --dry-run --json | jq -e 'length == 1 and .[0].id == $DEL_2'"
+assert_success "item:delete by filters with --force --json lists what it deleted" \
+    bash -c "set -o pipefail; $CLI item:delete -p dcterms:identifier=item-delete-2 --force --json | jq -e 'length == 1 and .[0].id == $DEL_2'"
+assert_output_is "the item matched by the filters is gone"        "0"   bash -c "$COUNT_DEL_2"
+assert_success "item-set:delete by ID"                            $CLI item-set:delete $DEL_SET
+assert_success "item-set:delete keeps its items"                  bash -c "set -o pipefail; $CLI item:list -p dcterms:identifier=item-delete --json | jq -e 'length == 1 and .[0].itemSets == 0'"
+FILES_BEFORE=0
+if [[ $SECTION_SKIP -eq 0 ]]; then FILES_BEFORE=$(find /var/www/omeka-s/files/original -type f | wc -l); fi
+assert_success "item:delete by ID"                                $CLI item:delete $DEL_1
+assert_output_is "the deleted item's file is gone"                "$((FILES_BEFORE - 1))"   bash -c "find /var/www/omeka-s/files/original -type f | wc -l"
 
 # ── config ───────────────────────────────────────────────────────
 
