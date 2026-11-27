@@ -129,7 +129,7 @@ import ignores it.
         "o-ref:ref": {
             "dcterms:identifier": "urn:example:item-set:photographs"
         },
-        "o:title": "Photographs"
+        "o:title": "Photo archive"
     }
 }
 ```

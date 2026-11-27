@@ -2,7 +2,7 @@
 namespace OSC\Source;
 
 use InvalidArgumentException;
-use League\Uri\BaseUri;
+use League\Uri\Uri;
 use OSC\Helper\UrlCredentials;
 
 /** An http(s) URL with a host; the scheme is lowercased, the rest is kept as it is. */
@@ -37,6 +37,6 @@ final class HttpUrl extends Location
      */
     public function folder(): string
     {
-        return (string) BaseUri::from($this->value())->resolve('./');
+        return Uri::new($this->value())->resolve('./')->toString();
     }
 }

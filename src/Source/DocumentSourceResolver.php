@@ -2,7 +2,7 @@
 namespace OSC\Source;
 
 use InvalidArgumentException;
-use League\Uri\BaseUri;
+use League\Uri\Uri;
 use OSC\Helper\Path;
 use OSC\Helper\UrlCredentials;
 
@@ -15,9 +15,10 @@ use OSC\Helper\UrlCredentials;
  *   fields need a single file (file());
  * - a relative path is a URL reference, resolved against the document that declares it: `\` is a
  *   separator and `%2e` a dot, so neither `..`, `%2e%2e` nor `\` can leave the root, which is checked
- *   on the result. To read a local file each segment is then percent-decoded (`My%20File.pdf` names
- *   `My File.pdf`); a segment that decodes to `/` or `\`, and an unencoded `?` or `#` (a query or a
- *   fragment, which a file name cannot carry), are errors. A URL result is fetched as it is.
+ *   on the result. A segment of the path that decodes to `/` or `\` (or a NUL byte) is an error, from
+ *   disk and from a URL. To read a local file each segment is then percent-decoded (`My%20File.pdf`
+ *   names `My File.pdf`), and an unencoded `?` or `#` (a query or a fragment, which a file name cannot
+ *   carry) is an error. A URL result is fetched as it is.
  *
  * Every value returned keeps the input as original(), so messages can name what was written.
  */
@@ -92,33 +93,80 @@ final class DocumentSourceResolver
         return implode('/', array_map('rawurlencode', explode('/', Path::relative($target->value(), $folder))));
     }
 
-    /** @throws SourceException */
+    /**
+     * A relative path, resolved against the document that declares it. Its segments are checked the
+     * same from disk and from a URL (decodedSegments()); what follows depends on where the document is.
+     *
+     * @throws SourceException
+     */
     private static function resolveRelative(string $raw, Document $parent): Location
     {
-        // a URL reference, as in a browser: '\' separates, and '%2e' is a dot (an unreserved character)
-        $ref = preg_replace('/%2e/i', '.', str_replace('\\', '/', $raw));
+        $reference = self::asUrlReference($raw);
+        $decodedSegments = self::decodedSegments(self::pathOf($reference), $raw, $parent);
+        return $parent->isRemote()
+            ? self::resolveFromUrl($raw, $reference, $parent)
+            : self::resolveFromDisk($raw, $reference, $decodedSegments, $parent);
+    }
 
-        if ($parent->isRemote()) {
-            // characters a URL cannot carry (a space, ...) may be written as they are: encode them
-            $ref = preg_replace_callback(
-                "/[^A-Za-z0-9\\-._~:\\/?#\\[\\]@!$&'()*+,;=%]/",
-                fn(array $m) => rawurlencode($m[0]),
-                $ref
-            );
-            $resolved = (string) BaseUri::from($parent->source->value())->resolve($ref);
-            // a remote root is a folder URL ending in '/', so a prefix is inside it
-            if (!str_starts_with($resolved, $parent->root)) {
-                throw self::error(
-                    $raw,
-                    $parent,
-                    'resolves outside the root ' . UrlCredentials::redact($parent->root),
-                    SourceException::OUTSIDE_ROOT
-                );
-            }
-            return HttpUrl::fromUrl($resolved, $raw);
-        }
+    /** $raw read as a URL reference, as a browser does: `\` separates, and `%2e` is a dot (an unreserved character). */
+    private static function asUrlReference(string $raw): string
+    {
+        return preg_replace('/%2e/i', '.', str_replace('\\', '/', $raw));
+    }
 
-        if (strpbrk($ref, '?#') !== false) {
+    /** The path of a URL reference: without its query or fragment. */
+    private static function pathOf(string $reference): string
+    {
+        return preg_split('/[?#]/', $reference, 2)[0];
+    }
+
+    /**
+     * Against a document read from a URL: resolved as a browser does, then kept inside the root. A
+     * query or a fragment stays, since the result is fetched as it is.
+     *
+     * @throws SourceException
+     */
+    private static function resolveFromUrl(string $raw, string $reference, Document $parent): HttpUrl
+    {
+        $resolved = Uri::new($parent->source->value())->resolve(self::encodeWhatAUrlCannotCarry($reference))->toString();
+        self::assertInsideRemoteRoot($resolved, $raw, $parent);
+        return HttpUrl::fromUrl($resolved, $raw);
+    }
+
+    /**
+     * Against a document on disk: the decoded path, under the document's folder, kept inside the root.
+     * Only the written path is decoded, not the folder it is in.
+     *
+     * @param string[] $decodedSegments The path's segments, decoded (none holds a '/')
+     * @throws SourceException
+     */
+    private static function resolveFromDisk(string $raw, string $reference, array $decodedSegments, Document $parent): LocalPath
+    {
+        self::assertNoQueryOrFragment($reference, $raw, $parent);
+        $path = Path::normalize($parent->source->folder() . '/' . implode('/', $decodedSegments));
+        self::assertInsideLocalRoot($path, $raw, $parent);
+        return LocalPath::fromAbsolute($path, $raw);
+    }
+
+    /** Characters a URL cannot carry (a space, ...) may be written as they are: percent-encode them. */
+    private static function encodeWhatAUrlCannotCarry(string $reference): string
+    {
+        return preg_replace_callback(
+            "/[^A-Za-z0-9\\-._~:\\/?#\\[\\]@!$&'()*+,;=%]/",
+            fn(array $m) => rawurlencode($m[0]),
+            $reference
+        );
+    }
+
+    /**
+     * An unencoded `?` or `#` starts a query or a fragment, which a file name cannot carry: reading
+     * `notes` for `./notes#1.pdf` would be a different file.
+     *
+     * @throws SourceException
+     */
+    private static function assertNoQueryOrFragment(string $reference, string $raw, Document $parent): void
+    {
+        if (strpbrk($reference, '?#') !== false) {
             throw self::error(
                 $raw,
                 $parent,
@@ -126,16 +174,32 @@ final class DocumentSourceResolver
                 . 'so percent-encode them as %3F and %23 to name a file'
             );
         }
-        $segments = [];
-        foreach (explode('/', Path::normalize($parent->source->folder() . '/' . $ref)) as $segment) {
-            $decoded = rawurldecode($segment);
-            if (strpbrk($decoded, '/\\') !== false) {
-                throw self::error($raw, $parent, "has a segment that decodes to '/' or '\\' (%2F, %5C); a file name cannot contain one");
-            }
-            $segments[] = $decoded;
+    }
+
+    /**
+     * A remote root is a folder URL ending in '/', so a URL that starts with it is inside it.
+     *
+     * @throws SourceException
+     */
+    private static function assertInsideRemoteRoot(string $url, string $raw, Document $parent): void
+    {
+        if (!str_starts_with($url, $parent->root)) {
+            throw self::error(
+                $raw,
+                $parent,
+                'resolves outside the root ' . UrlCredentials::redact($parent->root),
+                SourceException::OUTSIDE_ROOT
+            );
         }
-        $path = implode('/', $segments);
-        // compared by its real path when it exists, so a symlink cannot lead out of the root
+    }
+
+    /**
+     * Compared by its real path when it exists, so a symlink cannot lead out of the root.
+     *
+     * @throws SourceException
+     */
+    private static function assertInsideLocalRoot(string $path, string $raw, Document $parent): void
+    {
         if (!Path::isInside(realpath($path) ?: $path, $parent->root)) {
             throw self::error(
                 $raw,
@@ -144,7 +208,29 @@ final class DocumentSourceResolver
                 SourceException::OUTSIDE_ROOT
             );
         }
-        return LocalPath::fromAbsolute($path, $raw);
+    }
+
+    /**
+     * The segments of a relative path, each percent-decoded. A segment that decodes to `/` or `\` (it
+     * would change the path) or to a NUL byte (no file name holds one) is an error.
+     *
+     * @return string[]
+     * @throws SourceException
+     */
+    private static function decodedSegments(string $path, string $raw, Document $parent): array
+    {
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            $decoded = rawurldecode($segment);
+            if (strpbrk($decoded, '/\\') !== false) {
+                throw self::error($raw, $parent, "has a segment that decodes to '/' or '\\' (%2F, %5C); a file name cannot contain one");
+            }
+            if (str_contains($decoded, "\0")) {
+                throw self::error($raw, $parent, 'has a segment that decodes to a NUL byte (%00); a file name cannot contain one');
+            }
+            $segments[] = $decoded;
+        }
+        return $segments;
     }
 
     /** "Source '<raw>' in '<parent>' <problem>.", without credentials; $reason as in SourceException. */

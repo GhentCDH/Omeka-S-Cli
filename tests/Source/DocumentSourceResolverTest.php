@@ -112,7 +112,15 @@ class DocumentSourceResolverTest extends TestCase
             'encoded backslash' => ['./a%5cb.php', '%5c'],
             'unencoded hash'    => ['./notes#1.pdf', '%23'],
             'unencoded query'   => ['./a.json?x=1', '%3F'],
+            'nul byte'          => ['./a%00b.zip', '%00'],
         ];
+    }
+
+    /** Only the written path is decoded: a parent folder whose name contains `%` keeps it. */
+    public function testTheParentFolderIsNotDecoded(): void
+    {
+        $parent = new Document(LocalPath::fromAbsolute('/nonexistent/My%20Docs/blueprint.json'), '/nonexistent/My%20Docs');
+        $this->assertSame('/nonexistent/My%20Docs/a b.zip', DocumentSourceResolver::file('./a%20b.zip', $parent)->value());
     }
 
     #[DataProvider('badLocalPaths')]
@@ -202,6 +210,26 @@ class DocumentSourceResolverTest extends TestCase
         // written as is or encoded, both name the same file
         $this->assertSame('https://example.org/bp/My%20File.pdf', DocumentSourceResolver::file('My File.pdf', $this->remote())->value());
         $this->assertSame('https://example.org/bp/My%20File.pdf', DocumentSourceResolver::file('./My%20File.pdf', $this->remote())->value());
+    }
+
+    /** @return array<string,array{0:string}> spec fixtures/resolution/encoded-paths, from a URL */
+    public static function encodedSeparators(): array
+    {
+        return array_map(fn($v) => [$v], ['slash' => './a%2Fb.pdf', 'backslash' => './a%5Cb.pdf', 'lowercase' => './c%2fd.pdf']);
+    }
+
+    /** The same result as from disk (the spec: "from disk and from a URL"). */
+    #[DataProvider('encodedSeparators')]
+    public function testRejectsAnEncodedSeparatorAgainstARemoteDocument(string $raw): void
+    {
+        $this->expectException(SourceException::class);
+        $this->expectExceptionMessage("decodes to '/' or '\\'");
+        DocumentSourceResolver::file($raw, $this->remote());
+    }
+
+    public function testAnEncodedSlashInARemoteQueryIsKept(): void
+    {
+        $this->assertSame('https://example.org/bp/a.json?x=%2F', DocumentSourceResolver::file('./a.json?x=%2F', $this->remote())->value());
     }
 
     /** @return array<string,array{0:string}> */
