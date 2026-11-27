@@ -44,6 +44,12 @@ final class QueryBuilder
                 throw new InvalidArgumentException("--property expects term=value, got \"{$filter}\".");
             }
             [$term, $value] = explode('=', (string) $filter, 2);
+            // Omeka S trims the value and skips a falsy one: the filter would silently match everything
+            if (!trim($value)) {
+                throw new InvalidArgumentException(
+                    "--property \"{$filter}\" cannot be searched: Omeka S ignores an empty value and \"0\"."
+                );
+            }
             $query['property'][] = ['joiner' => 'and', 'property' => trim($term), 'type' => 'eq', 'text' => $value];
         }
         if (!empty($filters['public']) && !empty($filters['private'])) {

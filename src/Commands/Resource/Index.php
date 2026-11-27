@@ -11,6 +11,7 @@ return array_merge(...array_map(
         new SearchCommand($type),
         new ExportCommand($type),
         new ImportCommand($type),
+        new DeleteCommand($type),
     ],
     [ResourceType::Item, ResourceType::ItemSet]
 ));

@@ -42,6 +42,20 @@ abstract class AbstractResourceCommand extends AbstractCommand
         $this->option('--query', 'Extra Omeka API query string, e.g. "sort_by=title&sort_order=desc"');
     }
 
+    /** Whether any option of optionFilters() was given. */
+    protected function hasFilters(): bool
+    {
+        $values = $this->values();
+        foreach (['class', 'template', 'itemSet', 'site', 'query'] as $key) {
+            if (($values[$key] ?? null) !== null && $values[$key] !== '') {
+                return true;
+            }
+        }
+        return array_filter((array) ($values['property'] ?? []), 'is_string') !== []
+            || ($values['public'] ?? false)
+            || ($values['private'] ?? false);
+    }
+
     /**
      * The Omeka search query for the filter options given to this command.
      *
