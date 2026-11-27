@@ -13,11 +13,6 @@ omeka-s-cli module:download customvocab --install
 omeka-s-cli module:install customvocab --quiet
 omeka-s-cli module:list --json | jq -e '.[] | select(.id == "CustomVocab" and .state == "active")' > /dev/null
 
-# start from no vocabularies with the labels used below
-for label in Condition "Object condition" Language Collection; do
-    omeka-s-cli custom-vocabulary:delete "$label" --ignore-not-found --quiet
-done
-
 # --8<-- [start:import-terms]
 omeka-s-cli custom-vocabulary:import conditions.json
 # --8<-- [end:import-terms]

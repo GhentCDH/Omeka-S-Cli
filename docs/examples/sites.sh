@@ -1,10 +1,6 @@
 # Examples for docs/commands/sites.md. Run by tests/docs-examples.sh on an installed Omeka S; the regions
 # between the --8<-- markers are shown on the page.
 
-# start clean, so the script can also run on an instance an earlier run left behind
-for site in collections exhibitions intranet; do
-    omeka-s-cli site:delete "$site" --ignore-not-found --quiet
-done
 # what the examples need: a theme and two users
 omeka-s-cli theme:download freedom --force --quiet
 omeka-s-cli user:add jane.doe@example.org "Jane Doe" editor --ignore-existing --quiet
@@ -112,7 +108,3 @@ omeka-s-cli site:delete exhibitions --ignore-not-found
 omeka-s-cli site:update collections --default --quiet
 omeka-s-cli site:delete collections --quiet
 test -z "$(sql "SELECT value FROM setting WHERE id = 'default_site'")"
-
-# clean up
-omeka-s-cli user:delete jane.doe@example.org --quiet
-omeka-s-cli user:delete john.roe@example.org --quiet

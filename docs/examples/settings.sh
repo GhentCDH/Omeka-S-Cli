@@ -127,6 +127,3 @@ omeka-s-cli module:list --json | jq -e '.[] | select(.id == "Common" and .state 
 omeka-s-cli config:themes --active --json
 # --8<-- [end:themes]
 omeka-s-cli config:themes --active --json | jq -e '.[] | select(.id == "default" and .active == true)'
-
-# clean up what other pages do not expect
-omeka-s-cli site:delete collections --ignore-not-found --quiet

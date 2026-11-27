@@ -1,11 +1,6 @@
 # Examples for docs/commands/users.md. Run by tests/docs-examples.sh on an installed Omeka S; the regions
 # between the --8<-- markers are shown on the page.
 
-# start clean, so the script can also run on an instance an earlier run left behind
-for email in jane.doe@example.org john.roe@example.org cataloguer@example.org; do
-    omeka-s-cli user:delete "$email" --ignore-not-found --quiet
-done
-
 # the passwords come from the environment, as they would in a real script
 export JANE_PASSWORD='jane-initial-password' NEW_PASSWORD='jane-new-password' CATALOGUER_PASSWORD='cataloguer-password'
 
@@ -105,6 +100,3 @@ id=$(omeka-s-cli user:list --json | jq -r '.[] | select(.email == "jane.doe@exam
 omeka-s-cli user:disable "$id"
 # --8<-- [end:by-id]
 omeka-s-cli user:list --json | jq -e '.[] | select(.email == "jane.doe@example.org") | .is_active == false'
-
-# clean up
-omeka-s-cli user:delete jane.doe@example.org --quiet

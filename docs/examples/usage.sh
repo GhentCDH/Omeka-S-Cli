@@ -4,9 +4,8 @@
 # the cache examples remove ~/.cache/omeka-s-cli: give this script a cache of its own
 export HOME="$SCRATCH_DIR"
 
-# a downloaded module and no user nobody@example.org, for the warning and error examples
+# a downloaded module, for the warning and error examples
 omeka-s-cli module:download common --quiet
-omeka-s-cli user:delete nobody@example.org --ignore-not-found --quiet
 
 # --8<-- [start:help]
 omeka-s-cli
@@ -129,9 +128,7 @@ omeka-s-cli config:import gh:GhentCDH/Omeka-S-Cli@v0.20.0:docs/examples/files/se
 # --8<-- [end:git-file]
 
 # a configuration file in a git repository: its relative source is fetched from the same repository
-omeka-s-cli vocabulary:delete ex --ignore-not-found --quiet
 # --8<-- [start:git-config]
 omeka-s-cli vocabulary:import --config gh:GhentCDH/Omeka-S-Cli@v0.20.0:examples/vocabulary/example-local.json
 # --8<-- [end:git-config]
 omeka-s-cli vocabulary:list --json | jq -e 'any(.[]; .prefix == "ex")' > /dev/null
-omeka-s-cli vocabulary:delete ex --quiet

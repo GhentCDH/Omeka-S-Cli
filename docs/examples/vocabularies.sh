@@ -5,8 +5,6 @@
 export HOME="$SCRATCH_DIR"
 mkdir -p ~/vocabularies
 cp "$EXAMPLES_DIR"/files/vocabularies/archive.ttl ~/vocabularies/
-# start without the vocabularies this script imports (it may run after other scripts)
-for prefix in arch skos event; do omeka-s-cli vocabulary:delete "$prefix" --ignore-not-found --quiet; done
 
 # --8<-- [start:list]
 omeka-s-cli vocabulary:list

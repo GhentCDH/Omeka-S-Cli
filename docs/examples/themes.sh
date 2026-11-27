@@ -1,12 +1,6 @@
 # Examples for docs/commands/themes.md. Run by tests/docs-examples.sh on an installed Omeka S; the
 # regions between the --8<-- markers are shown on the page.
 
-# start without the site and the themes this script adds
-omeka-s-cli site:delete exhibits --ignore-not-found --quiet
-for theme in freedom Cozy; do
-    omeka-s-cli theme:delete "$theme" --force --ignore-not-found --quiet
-done
-
 # --8<-- [start:search]
 omeka-s-cli theme:search
 # --8<-- [end:search]
