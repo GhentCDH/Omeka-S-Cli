@@ -6,11 +6,6 @@ export HOME="$SCRATCH_DIR"
 mkdir -p ~/templates ~/vocabularies
 cp "$EXAMPLES_DIR"/files/resource-templates/*.json ~/templates/
 cp "$EXAMPLES_DIR"/files/vocabularies/archive.{json,ttl} ~/vocabularies/
-# start without the templates and the vocabulary this script creates (it may run after other scripts)
-for label in "Letter" "Letter (incoming)" "Incoming letter" "Archive letter" "Archive letter (partial)"; do
-    omeka-s-cli resource-template:delete "$label" --ignore-not-found --quiet
-done
-omeka-s-cli vocabulary:delete arch --ignore-not-found --quiet
 
 # --8<-- [start:common]
 omeka-s-cli module:download common --install

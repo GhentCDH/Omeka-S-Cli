@@ -45,15 +45,16 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# The scripts, in the order they run. The plain ones share one instance, but each must also pass on
-# its own on a freshly installed instance (`--script <name>`): it sets up what it needs (a module, a
-# user, ...) itself, idempotently, and does not rely on an earlier script. Every script in
+# The scripts, in the order they run. Each one starts from a known state, so none depends on what
+# another left behind: it sets up what it needs (a module, a user, ...) itself. Every script in
 # docs/examples/ must be listed (the lint checks it), so none goes untested.
 #
 #   none:<script>   needs no Omeka S instance
 #   fresh:<script>  wipe the instance first; the script builds it from nothing
-#   <script>        runs on the instance as the previous scripts left it (installed by the runner
-#                   when the run starts with such a script)
+#   after:<script>  runs on the instance the script before it left (it checks that script's result);
+#                   skipped when that script did not run
+#   <script>        runs on a freshly installed instance: installed once per run, then restored from
+#                   a snapshot before each such script
 SCRIPTS=(
     "none:installation"
     "fresh:core"
@@ -70,7 +71,7 @@ SCRIPTS=(
     "dummy-data"
     "blueprints"
     "fresh:automation/provision"
-    "automation/provision-check"
+    "after:automation/provision-check"
     "fresh:automation/blueprint-deploy"
 )
 
@@ -196,7 +197,7 @@ reset_instance() {
     find "$OMEKA_DIR" -mindepth 1 -delete
 }
 
-# a fresh, installed instance, for runs that start with a script needing one
+# a fresh, installed instance: the state every plain script starts from
 install_instance() {
     reset_instance
     (
@@ -207,6 +208,20 @@ install_instance() {
         omeka-s-cli core:install --admin-email admin@example.org --admin-name Admin \
             --admin-password "$ADMIN_PASSWORD" --quiet
     )
+}
+
+# a copy of the freshly installed instance (database and Omeka S directory), restored before each
+# plain script: a restore takes seconds, a core:install much longer
+SNAPSHOT_DIR="$WORK_DIR/.snapshot"
+save_snapshot() {
+    mysqldump -u root -proot -h "$DB_HOST" "$DB_NAME" > "$SNAPSHOT_DIR.sql"
+    mkdir -p "$SNAPSHOT_DIR"
+    cp -a "$OMEKA_DIR"/. "$SNAPSHOT_DIR"/
+}
+restore_snapshot() {
+    reset_instance
+    mysql -u root -proot -h "$DB_HOST" "$DB_NAME" < "$SNAPSHOT_DIR.sql"
+    cp -a "$SNAPSHOT_DIR"/. "$OMEKA_DIR"/
 }
 
 # ── run ──────────────────────────────────────────────────────────────────────
@@ -242,29 +257,42 @@ run_script() {
 
 echo ""
 echo "── Examples ────────────────────────────────────────────────"
-INSTANCE_READY=0
 mkdir -p "$OMEKA_DIR"
+PREVIOUS_RAN=0
 for entry in "${SCRIPTS[@]}"; do
     script="${entry#*:}"
-    selected "$script" || continue
+    if ! selected "$script"; then PREVIOUS_RAN=0; continue; fi
 
-    if [[ "$entry" == none:* ]]; then
-        :
-    elif [[ "$entry" == fresh:* ]]; then
-        # these show the default paths and database (/var/www/omeka-s, omeka) in their commands
-        if [[ -n "$INSTANCE" ]]; then
-            echo "  skip  $script (builds the default instance, not run with --instance)"
-            continue
-        fi
-        reset_instance
-        INSTANCE_READY=1
-    elif [[ $INSTANCE_READY -eq 0 ]]; then
-        echo "  ...   installing a fresh Omeka S for $script"
-        install_instance
-        INSTANCE_READY=1
-    fi
+    case "$entry" in
+        none:*) ;;
+        fresh:*)
+            # these show the default paths and database (/var/www/omeka-s, omeka) in their commands
+            if [[ -n "$INSTANCE" ]]; then
+                echo "  skip  $script (builds the default instance, not run with --instance)"
+                PREVIOUS_RAN=0
+                continue
+            fi
+            reset_instance
+            ;;
+        after:*)
+            if [[ $PREVIOUS_RAN -eq 0 ]]; then
+                echo "  skip  $script (checks the script before it, which did not run: select both)"
+                continue
+            fi
+            ;;
+        *)
+            if [[ -f "$SNAPSHOT_DIR.sql" ]]; then
+                restore_snapshot
+            else
+                echo "  ...   installing a fresh Omeka S"
+                install_instance
+                save_snapshot
+            fi
+            ;;
+    esac
 
     run_script "$script"
+    PREVIOUS_RAN=1
 done
 
 summary

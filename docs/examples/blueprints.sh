@@ -10,12 +10,6 @@ mkdir -p ~/.cache
 ln -sfn "$CACHE_DIR" ~/.cache/omeka-s-cli
 ln -sfn "$EXAMPLES_DIR/files/blueprints" ~/blueprints
 
-# start without what the blueprint deploys (an earlier script, such as items.sh, may have added the site)
-omeka-s-cli site:delete collections --ignore-not-found --quiet
-omeka-s-cli resource-template:delete Book --ignore-not-found --quiet
-omeka-s-cli vocabulary:delete coll --ignore-not-found --quiet
-omeka-s-cli user:delete editor@example.org --ignore-not-found --quiet
-
 # the output of a command that must fail
 failure_output() { if "$@" > "$SCRATCH_DIR/failure.log" 2>&1; then return 1; fi; cat "$SCRATCH_DIR/failure.log"; }
 
@@ -175,9 +169,3 @@ grep -q 'omeka-s-cli blueprint:bundle /src/site.blueprint.jsonc /opt/bundle' "$E
 grep -q 'omeka-s-cli blueprint:deploy /opt/bundle/blueprint.json --self-contained' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
 # a restart must not run the core phase again: it refuses an installed instance (and --force would wipe it)
 grep -q 'omeka-s-cli core:status --is-installed --base-path /var/www/omeka-s ||' "$EXAMPLES_DIR/files/blueprints/Dockerfile.bundle"
-
-# leave the shared instance as it was (the modules stay)
-omeka-s-cli site:delete collections --quiet
-omeka-s-cli resource-template:delete Book --quiet
-omeka-s-cli vocabulary:delete coll --quiet
-omeka-s-cli user:delete editor@example.org --quiet

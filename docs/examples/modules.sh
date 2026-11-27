@@ -1,11 +1,6 @@
 # Examples for docs/commands/modules.md. Run by tests/docs-examples.sh on an installed Omeka S; the
 # regions between the --8<-- markers are shown on the page.
 
-# start without the modules this script downloads (Common is left alone: other examples use it)
-for module in Sharing CSSEditor Log; do
-    omeka-s-cli module:delete "$module" --force --ignore-not-found --quiet
-done
-
 # --8<-- [start:search]
 omeka-s-cli module:search sharing
 # --8<-- [end:search]
