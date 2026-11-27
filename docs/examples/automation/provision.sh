@@ -14,7 +14,7 @@ DB_USER="${DB_USER:-omeka}"
 : "${ADMIN_PASSWORD:?set ADMIN_PASSWORD}"
 
 OMEKA_VERSION="4.2.1"
-MODULES=("Common:3.4.93" "Log")     # in dependency order; pin a version with <id>:<version>
+MODULES=("Common:3.4.97" "Log:3.4.44")   # in dependency order; pin a version with <id>:<version>
 THEME="freedom"
 
 # ── core ─────────────────────────────────────────────────────────────────────

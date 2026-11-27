@@ -4,6 +4,7 @@ namespace Tests\Source;
 use InvalidArgumentException;
 use OSC\Addon\GitRef;
 use OSC\Helper\UrlCredentials;
+use OSC\Source\GitHost\GitPathSegments;
 use OSC\Source\GitRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -13,6 +14,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(GitRepository::class)]
 #[UsesClass(GitRef::class)]
 #[UsesClass(UrlCredentials::class)]
+#[UsesClass(GitPathSegments::class)]
 class GitRepositoryTest extends TestCase
 {
     /** @return array<string,array{0:string,1:?string,2:string,3:?string}> written, version → clone URL, ref */
@@ -30,6 +32,9 @@ class GitRepositoryTest extends TestCase
             'uppercase scheme'    => ['HTTPS://example.org/u.git', null, 'https://example.org/u.git', null],
             'ssh'                 => ['git@gitlab.com:g/h.git', null, 'git@gitlab.com:g/h.git', null],
             'ref with a slash'    => ['gh:o/r#feature/x', null, 'https://github.com/o/r.git', 'feature/x'],
+            'gh with dot git'     => ['gh:o/r.git', null, 'https://github.com/o/r.git', null],
+            'github url dot git'  => ['https://github.com/o/r.git', null, 'https://github.com/o/r.git', null],
+            'github dot git slash' => ['https://github.com/o/r.git/', null, 'https://github.com/o/r.git', null],
         ];
     }
 
@@ -54,6 +59,12 @@ class GitRepositoryTest extends TestCase
             'github dot dot'   => ['https://github.com/o/..'],
             'option ref'       => ['gh:o/r#-x'],
             'not a repository' => ['https://example.org/a.zip'],
+            // spec fixtures/resolution/repository-containment: `..`, also encoded, as written
+            'dot git encoded'  => ['https://github.com/o/%2e%2e/other/r.git'],
+            'dot git dot dot'  => ['https://example.org/a/../r.git'],
+            'ssh dot dot'      => ['git@gitlab.com:g/../r.git'],
+            'gh encoded owner' => ['gh:%2e%2e/r'],
+            'encoded ref'      => ['gh:o/r#%2e%2e'],
         ];
     }
 

@@ -3,6 +3,7 @@ namespace OSC\Source;
 
 use InvalidArgumentException;
 use OSC\Addon\GitRef;
+use OSC\Source\GitHost\GitPathSegments;
 use OSC\Source\SourceForm;
 use OSC\Helper\UrlCredentials;
 
@@ -10,7 +11,9 @@ use OSC\Helper\UrlCredentials;
  * A git repository to clone, at an optional ref: only where a module or theme is expected. What counts
  * as one is the spec's rule (SourceForm::isRepository()): an http(s) URL whose path ends in `.git`,
  * `https://github.com/OWNER/REPO`, `gh:owner/repo` or `git@host:path`, each with an optional `#ref`.
- * GitHub forms are cloned from `https://github.com/OWNER/REPO.git`.
+ * GitHub forms (also with `.git`) are cloned from `https://github.com/OWNER/REPO.git`. It stays inside
+ * its repository: a `..` segment, also percent-encoded, in the path or the ref is an error (the spec's
+ * containment rule, checked as written).
  */
 final class GitRepository
 {
@@ -29,20 +32,27 @@ final class GitRepository
             throw new InvalidArgumentException("'{$redactedWritten}' is not a git repository.");
         }
         [$repository, $ref] = array_pad(explode('#', $written, 2), 2, null);
-        if ($ref !== null && !GitRef::isValid($ref)) {
-            throw new InvalidArgumentException("'{$redactedWritten}' has an invalid git ref '{$ref}'.");
+        // the spec's containment rule, checked as written: no `..` (also encoded) in the ref or the path
+        if ($ref !== null) {
+            GitPathSegments::assertRef($ref, $redactedWritten);
         }
-        if (preg_match('#\A(?:gh:|https://github\.com/)([^/]+)/([^/]+?)/?\z#i', $repository, $m) === 1
-            && !str_ends_with($repository, '.git')) {
-            foreach ([$m[1], $m[2]] as $segment) {
-                if ($segment === '.' || $segment === '..') {
-                    throw new InvalidArgumentException("'{$redactedWritten}' is not a GitHub repository.");
-                }
-            }
+        GitPathSegments::assertInside('path', self::pathOnHost($repository), $redactedWritten);
+        if (preg_match('#\A(?:gh:|https://github\.com/)([^/]+)/([^/]+?)(?:\.git)?/?\z#i', $repository, $m) === 1) {
             return new self("https://github.com/{$m[1]}/{$m[2]}.git", $ref, $written);
         }
         $cloneUrl = preg_replace_callback('#\Ahttps?(?=://)#i', fn(array $m) => strtolower($m[0]), $repository);
         return new self($cloneUrl, $ref, $written);
+    }
+
+    /** The repository's path on its host as written (`owner/repo`, `g/sub/r.git`), without a trailing `/`. */
+    private static function pathOnHost(string $repository): string
+    {
+        $path = match (true) {
+            str_starts_with($repository, 'gh:') => substr($repository, 3),
+            str_starts_with($repository, 'git@') => explode(':', $repository, 2)[1] ?? '',
+            default => ltrim((string) parse_url($repository, PHP_URL_PATH), '/'),
+        };
+        return preg_replace('#/\z#', '', $path);
     }
 
     public function cloneUrl(): string

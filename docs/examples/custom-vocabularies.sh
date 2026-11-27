@@ -38,7 +38,7 @@ if [[ "$(db "SELECT COUNT(*) FROM value v JOIN property p ON p.id = v.property_i
         WHERE p.local_name = 'identifier' AND v.value = 'urn:example:item-set:photographs'")" == 0 ]]; then
     cat > "$SCRATCH_DIR/item-set.json" <<'JSON'
 {
-  "dcterms:title": [{ "generator": "literal", "mode": "values", "values": ["Photographs"] }],
+  "dcterms:title": [{ "generator": "literal", "mode": "values", "values": ["Photo archive"] }],
   "dcterms:identifier": [{ "generator": "literal", "mode": "values", "values": ["urn:example:item-set:photographs"] }]
 }
 JSON
@@ -70,7 +70,7 @@ omeka-s-cli custom-vocabulary:export Collection | jq -e '."o:item_set"."o-ref:re
 omeka-s-cli custom-vocabulary:export Collection --item-set-property dcterms:title
 # --8<-- [end:export-item-set-property]
 omeka-s-cli custom-vocabulary:export Collection --item-set-property dcterms:title \
-    | jq -e '."o:item_set" == {"o-ref:ref": {"dcterms:title": "Photographs"}, "o:title": "Photographs"}' > /dev/null
+    | jq -e '."o:item_set" == {"o-ref:ref": {"dcterms:title": "Photo archive"}, "o:title": "Photo archive"}' > /dev/null
 omeka-s-cli custom-vocabulary:export Collection | jq -e '."@context"."o-ref" == "https://omeka-s-contrib.github.io/omeka-s-ref/ns#"' > /dev/null
 jq '."o:item_set" = {"property": "dcterms:identifier", "value": "urn:example:item-set:photographs"} | ."o:label" = "Old format"' \
     collections.json > "$SCRATCH_DIR/old-format.json"
